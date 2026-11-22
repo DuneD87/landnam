@@ -5,7 +5,7 @@ extends Node
 ## ladera, un risco y el mar, la imagen del claro y lo que aparta de los árboles, la caché, y el gestor
 ## levantando y quitando casas con las grids de verdad: que no se guardan, que al tocarlas pasan a la
 ## partida y que una partida cargada no las cuenta como tocadas; y su gente (Villager).
-##   godot --headless --path . res://tests/world/test_settlements.tscn
+##   godot --headless --path . res://tests/world/test_settlements.tscn [-- --only=prefabs,layout]
 
 const RADIUS := 30000.0
 const GROUND := 120.0
@@ -39,12 +39,26 @@ func _run() -> void:
 	east = Vector3(-sin(lon), 0.0, -cos(lon))
 	north = origin.cross(east).normalized()
 
-	_check_prefabs()
-	_check_sites()
-	_check_layout()
-	_check_clearance()
-	await _check_manager()
-	await _check_villagers()
+	# -- --only=prefabs,sites,layout,clearance,flatten,manager,villagers corre solo esas secciones.
+	var only := PackedStringArray()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			only = arg.trim_prefix("--only=").split(",")
+	var run := func(section: String) -> bool: return only.is_empty() or section in only
+	if run.call("prefabs"):
+		_check_prefabs()
+	if run.call("sites"):
+		_check_sites()
+	if run.call("layout"):
+		_check_layout()
+	if run.call("clearance"):
+		_check_clearance()
+	if run.call("flatten"):
+		_check_flatten()
+	if run.call("manager"):
+		await _check_manager()
+	if run.call("villagers"):
+		await _check_villagers()
 	print("SETTLEMENT TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -54,8 +68,7 @@ func _check_prefabs() -> void:
 	check(templates.size() >= 3, "hay plantillas (%d)" % templates.size())
 	var seen := {}
 	for t in templates:
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p == null or seen.has(p.id):
 				continue
@@ -87,7 +100,9 @@ func _check_prefabs() -> void:
 					var beyond := Vector3i(c.x + roundi(face.x), floor_y, c.z + roundi(face.z))
 					if blocks.has(beyond):
 						outward = false
-			check(windows >= 2 and outward, "%s: %d paneles de ventana, todos por fuera" % [p.id, windows])
+			# Los puestos y la herrería son abiertos por delante: ni ventanas ni hoja de puerta.
+			var open_front := p.kind in [&"stall", &"smithy"]
+			check((windows >= 2 or open_front) and outward, "%s: %d paneles de ventana, todos por fuera" % [p.id, windows])
 			# La hoja de la puerta (wooden_door) cierra el hueco de la puerta, de pie y hasta el suelo.
 			var closes := false
 			for prop: Dictionary in (p.load_data().grids as Array)[0].get("props", []):
@@ -96,7 +111,7 @@ func _check_prefabs() -> void:
 				var size := DoorDesign.cells(DoorDesign.normalize(prop.state, DoorDesign.DOOR))
 				var slots := WoodenDoor.slot_cells(GridBase._array_to_transform(prop.local_transform), size, m.cell)
 				closes = closes or (slots.has(door + Vector3i.UP) and slots.has(door + Vector3i.UP * 2))
-			check(closes, "%s: una puerta cierra el hueco de la entrada" % p.id)
+			check(closes or open_front, "%s: una puerta cierra el hueco de la entrada" % p.id)
 	check(SettlementField.signature(templates) == SettlementField.signature(templates),
 		"la firma de las plantillas es estable")
 
@@ -216,12 +231,92 @@ func _check_layout() -> void:
 			if plan.is_empty():
 				continue
 			_check_plan(plan, t, measures, s)
+			if t.layout == &"streets":
+				_check_trail_street(plan, t, s)
 	slope = 0.6
 	check(SettlementLayout.find_center(site, _ground, cfg).is_empty(), "en un risco no hay plaza")
 	slope = 0.0
 	var wet := cfg.duplicate()
 	wet.sea_radius = RADIUS + GROUND + 10.0
 	check(SettlementLayout.find_center(site, _ground, wet).is_empty(), "bajo el mar no hay plaza")
+
+
+## El aplanado (SettlementFlatten.fit e images) en un poblado falso sobre suelo inclinado: el plano sigue
+## la pendiente (con tope), pesa entero dentro y nada lejos, no toca el mar y deja libre un barranco.
+func _check_flatten() -> void:
+	var plan := {"center": origin, "into": north, "ground": RADIUS + GROUND, "extent": 50.0}
+	var sea := RADIUS + GROUND - 400.0
+	for s in [0.08, 0.4]:
+		slope = s
+		var flat := SettlementFlatten.fit(plan, _ground, {}, RADIUS, sea)
+		var plane: Vector3 = flat.get("plane", Vector3.ZERO)
+		var want := minf(s, SettlementFlatten.MAX_TILT)
+		# _ground sube hacia el este: right del poblado (into = norte) es el este.
+		check(not flat.is_empty() and absf(absf(plane.y) - want) < 0.005 and absf(plane.z) < 0.005,
+			"con pendiente %.2f el plano la sigue con tope (%.3f, %.3f)" % [s, plane.y, plane.z])
+		var texels: PackedInt32Array = flat.texels
+		var weights: PackedFloat32Array = flat.w
+		var center_w := 0.0
+		var far_w := 0.0
+		for k in weights.size():
+			var p := _texel_dir(texels[2 * k], texels[2 * k + 1])
+			var d := _local(p).distance_to(Vector2.ZERO)
+			if d < 50.0:
+				center_w = maxf(center_w, weights[k])
+			elif d > 50.0 + SettlementFlatten.PLATEAU + SettlementFlatten.FALL + 5.0:
+				far_w = maxf(far_w, weights[k])
+		var full := center_w > SettlementFlatten.STRENGTH - 0.01 if s < SettlementFlatten.MAX_TILT else true
+		check(full and far_w < 0.01, "con pendiente %.2f pesa STRENGTH dentro (%.2f) y nada lejos (%.2f)" % [s, center_w, far_w])
+	slope = 0.0
+	# Un barranco de 30 m al este, a 60 m: ahí no se rellena.
+	var gully := func(dir: Vector3) -> float:
+		var q := _local(dir)
+		return RADIUS + GROUND - (30.0 if q.x > 60.0 and q.x < 90.0 else 0.0)
+	var flat := SettlementFlatten.fit(plan, gully, {}, RADIUS, sea)
+	var in_gully := 0.0
+	var texels: PackedInt32Array = flat.texels
+	for k in (flat.w as PackedFloat32Array).size():
+		var q := _local(_texel_dir(texels[2 * k], texels[2 * k + 1]))
+		if q.x > 65.0 and q.x < 85.0 and absf(q.y) < 40.0:
+			in_gully = maxf(in_gully, flat.w[k])
+	check(in_gully == 0.0, "no rellena un barranco de 30 m junto al poblado (peso %.2f)" % in_gully)
+	var imgs := SettlementFlatten.images({"flats": [flat]})
+	check(not imgs.is_empty() and (imgs.t as Image).get_format() == Image.FORMAT_RF,
+		"las imágenes del grafo salen de los téxeles")
+
+
+## La dirección del téxel [x], [y] de las imágenes del aplanado (convención del nodo).
+func _texel_dir(x: int, y: int) -> Vector3:
+	var size := SettlementFlatten.SIZE
+	var yy := RiverField.inv_node_v(float(y) / size.y)
+	var st := sqrt(maxf(1.0 - yy * yy, 0.0))
+	var lon := (float(x) / size.x - 0.5) * TAU
+	return Vector3(st * cos(lon), yy, -st * sin(lon))
+
+
+## Que en la villa [plan] la senda que llega (la de _check_sites: x = 0 hacia el sur) vaya por el eje de
+## una calle desde la cerca hasta fuera, alineada con la de fuera.
+func _check_trail_street(plan: Dictionary, t: SettlementTemplate, s: float) -> void:
+	var c := _local(plan.center)
+	var lines: Array = []
+	for street: Dictionary in plan.get("streets", []):
+		var line := PackedVector2Array()
+		for q: Vector3 in street.points:
+			line.append(_local(q.normalized()))
+		lines.append(line)
+	var worst := 0.0
+	var outer := t.street_length + SettlementLayout.WALL_GAP + 2.0
+	for k in 7:
+		# Puntos de la senda entre la ronda y la punta de la calle.
+		var r := lerpf(t.street_length * SettlementLayout.RING_AT + 6.0, outer, k / 6.0)
+		var y := c.y - sqrt(maxf(0.0, r * r - c.x * c.x))
+		var p := Vector2(0.0, y)
+		var best := INF
+		for line: PackedVector2Array in lines:
+			for i in line.size() - 1:
+				best = minf(best, Geometry2D.get_closest_point_to_segment(p, line[i], line[i + 1]).distance_to(p))
+		worst = maxf(worst, best)
+	check(worst < 1.0, "%s (%.2f): la calle de la llegada va encima de la senda (se aparta %.2f m)" % [t.id, s, worst])
 
 
 ## Que [plan] no solape, mire a la plaza, deje libre la llegada y apoye en el suelo.
@@ -271,10 +366,47 @@ func _check_plan(plan: Dictionary, t: SettlementTemplate, measures: Dictionary, 
 		for j in range(i + 1, centers.size()):
 			if (centers[i] as Vector2).distance_to(centers[j]) < 4.0:
 				apart = false
-	check(apart and facing and free_entry, "%s (%.2f): separadas, con la puerta a la plaza y la llegada libre" % [t.id, s])
+	if t.layout == &"streets":
+		# En la villa, cada puerta da a una calle (a su eje: medio ancho, el retranqueo y la holgura) o a la
+		# plaza, y no hay corona que deje libre la llegada: la llegada es una calle.
+		var lines: Array = []
+		for street: Dictionary in plan.get("streets", []):
+			var line := PackedVector2Array()
+			for q: Vector3 in street.points:
+				line.append(_local(q.normalized()))
+			lines.append(line)
+		var by_street := true
+		for b: Dictionary in buildings:
+			var door := _local((b.door as Vector3).normalized())
+			var near := door.distance_to(c) < t.plaza_radius + 5.0
+			for line: PackedVector2Array in lines:
+				for i in line.size() - 1:
+					near = near or Geometry2D.get_closest_point_to_segment(door, line[i], line[i + 1]).distance_to(door) \
+						< t.street_width * 0.5 + SettlementLayout.STREET_SETBACK + 2.5
+			by_street = by_street and near
+		check(apart and by_street, "%s (%.2f): separadas, con la puerta a una calle o a la plaza" % [t.id, s])
+	else:
+		check(apart and facing and free_entry, "%s (%.2f): separadas, con la puerta a la plaza y la llegada libre" % [t.id, s])
 	check(grounded and footed, "%s (%.2f): el suelo a menos de un escalón sobre el terreno y el zócalo dentro de él" % [t.id, s])
-	check(float(plan.extent) > t.plaza_radius and float(plan.extent) < t.plaza_radius + t.ring_depth + 30.0,
+	var reach := t.street_length + 12.0 if t.layout == &"streets" else t.plaza_radius + t.ring_depth + 30.0
+	check(float(plan.extent) > t.plaza_radius and float(plan.extent) < reach,
 		"%s (%.2f): ocupa %.0f m" % [t.id, s, plan.extent])
+	if t.wall != &"":
+		# La cerca rodea todas las construcciones y tiene puerta en la llegada de la senda (por el sur).
+		var wall: Dictionary = plan.get("wall", {})
+		var ring := PackedVector2Array()
+		for q: Vector3 in wall.get("points", PackedVector3Array()):
+			ring.append(_local(q.normalized()))
+		var inside := ring.size() >= 3
+		for mid: Vector2 in centers:
+			inside = inside and Geometry2D.is_point_in_polygon(mid, ring)
+		var gate := false
+		var open: PackedByteArray = wall.get("open", PackedByteArray())
+		for j in open.size():
+			var at := (ring[j] + ring[(j + 1) % ring.size()]) * 0.5
+			if open[j] == 1 and absf(at.x) < 4.0 and at.y < c.y:
+				gate = true
+		check(inside and gate, "%s (%.2f): la cerca rodea las %d construcciones y tiene puerta en la senda" % [t.id, s, centers.size()])
 
 
 func _check_clearance() -> void:
@@ -447,7 +579,14 @@ func _check_villagers() -> void:
 		var prefab := SettlementField.prefab(StringName(b.prefab))
 		prefabs[prefab.id] = prefab
 		beds += prefab.beds.size()
-	var expected := SettlementPopulation.residents(plan, 0, prefabs, 9).size()
+	var everyone := SettlementPopulation.residents(plan, 0, prefabs, 9)
+	var expected := everyone.size()
+	var guards := everyone.filter(func(who: Dictionary) -> bool:
+		return StringName(who.get("job", {}).get("kind", &"")) == &"guard")
+	var wall: Dictionary = plan.get("wall", {})
+	check(guards.size() >= 2 and not (wall.get("posts", []) as Array).is_empty()
+		and (wall.get("patrol", PackedVector3Array()) as PackedVector3Array).size() >= 3,
+		"la empalizada tiene guardias en las puertas (%d) y su ronda" % guards.size())
 	var people := manager.get_people()
 	var waited := 0.0
 	while (people.get_villagers().size() < expected or people.pending() > 0) and waited < 120.0:
@@ -504,10 +643,12 @@ func _check_villagers() -> void:
 			var stand: Vector3 = (village.workplace(job).stands as PackedVector3Array)[job.stand]
 			# Sin la colisión del terreno (aquí no hay) fuera siguen a la altura que traían: se mide en el plano.
 			var off := Villager._tangent_raw(v.local_position() - stand, stand).length()
-			if off >= 0.4 or v._tool == null or not v._tool.visible:
+			# Los que venden atienden sin nada en la mano.
+			var seller := StringName(job.kind) in SettlementWorkplace.SELLERS
+			if off >= 0.4 or (not seller and (v._tool == null or not v._tool.visible)):
 				at_work = false
 	check(out and opened and _doors_shut(village), "de día salen de casa y la puerta queda cerrada")
-	check(working > 0 and at_work, "los de oficio trabajan en su sitio con la herramienta en la mano (%d)" % working)
+	check(working > 0 and at_work, "los de oficio trabajan en su sitio con la herramienta en la mano, o atienden su puesto (%d)" % working)
 
 	village.hour_override = 12.5
 	for v in villagers:
@@ -586,13 +727,16 @@ func _check_villagers() -> void:
 	var talker: Villager
 	for v in villagers:
 		v._stand(200.0)
+	# Uno de fuera con alguien a mano: en un poblado grande el primero puede no tener a nadie cerca.
 	for v in villagers:
-		if v._inside < 0:
+		if v._inside < 0 and village.partner_for(v) != null:
 			talker = v
 			break
-	var paired := talker._start_talk()
+	var paired := talker != null and talker._start_talk()
 	var talking := false
 	for i in 40:
+		if not paired:
+			break
 		await _run_villagers(villagers, village, 1.0)
 		if talker.act == Villager.Act.TALK:
 			talking = talker._partner != null and talker._partner.act == Villager.Act.TALK \
@@ -631,6 +775,9 @@ func _run_villagers(villagers: Array[Villager], village: SettlementVillage, seco
 
 func _doors_shut(village: SettlementVillage) -> bool:
 	for b: int in village.homes:
+		# Los puestos y la herrería no tienen puerta.
+		if StringName(village.plan.buildings[b].kind) in [&"stall", &"smithy"]:
+			continue
 		var leaf := village._leaf(b)
 		if leaf == null or leaf.open_side != 0:
 			return false
@@ -647,8 +794,7 @@ func _settle(manager: SettlementManager) -> void:
 func _measures() -> Dictionary:
 	var out := {}
 	for t in SettlementField.load_templates():
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p != null:
 				out[p.id] = p.measure()

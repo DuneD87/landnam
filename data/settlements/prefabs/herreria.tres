@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="SettlementPrefab" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prop.gd" id="1_8oolp"]
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="2_thrpt"]
+[ext_resource type="Script" path="res://scripts/world/settlement_workplace.gd" id="3_x82k4"]
+
+[sub_resource type="Resource" id="Resource_5ijyg"]
+script = ExtResource("1_8oolp")
+kind = &"forge"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1, 2.35)
+
+[sub_resource type="Resource" id="Resource_pfdjs"]
+script = ExtResource("1_8oolp")
+kind = &"anvil"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1, 4.3)
+
+[sub_resource type="Resource" id="Resource_khy2i"]
+script = ExtResource("1_8oolp")
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.3, 1, 4.4)
+
+[sub_resource type="Resource" id="Resource_5breu"]
+script = ExtResource("1_8oolp")
+kind = &"crate"
+pose = Transform3D(0.9800666, 0, 0.19866933, 0, 1, 0, -0.19866933, 0, 0.9800666, 2.4, 1, 2.2)
+
+[sub_resource type="Resource" id="Resource_0k6vp"]
+script = ExtResource("1_8oolp")
+kind = &"goods"
+pose = Transform3D(0.8253356, 0, 0.5646425, 0, 1, 0, -0.5646425, 0, 0.8253356, 2.4, 1.55, 2.2)
+item = &"bronze_ingot"
+
+[sub_resource type="Resource" id="Resource_ngogh"]
+script = ExtResource("1_8oolp")
+kind = &"sign"
+pose = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 8, 3.3, 3.5)
+item = &"bronze_axe"
+
+[sub_resource type="Resource" id="Resource_2ed7o"]
+script = ExtResource("3_x82k4")
+kind = &"forge"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1, 3.4)
+indoor = true
+size = Vector2(1, 1)
+stands = PackedVector3Array(0, 0, 0)
+looks = PackedVector3Array(0, 0, 0.9000001)
+
+[resource]
+script = ExtResource("2_thrpt")
+id = &"herreria"
+kind = &"smithy"
+blueprint_path = "res://data/settlements/prefabs/herreria.json"
+door_cell = Vector2i(4, 5)
+workplaces = Array[ExtResource("3_x82k4")]([SubResource("Resource_2ed7o")])
+props = Array[ExtResource("1_8oolp")]([SubResource("Resource_5ijyg"), SubResource("Resource_pfdjs"), SubResource("Resource_khy2i"), SubResource("Resource_5breu"), SubResource("Resource_0k6vp"), SubResource("Resource_ngogh")])

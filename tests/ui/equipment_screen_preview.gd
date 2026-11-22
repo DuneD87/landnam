@@ -49,7 +49,7 @@ func _ready() -> void:
 	add_child(stamina)
 	_ui.set_vitals(health, stamina)
 	for entry in [[ItemData.ArmorSlot.CHEST, &"leather_chest"], [ItemData.ArmorSlot.LEGS, &"leather_leggings"],
-			[ItemData.ArmorSlot.HANDS, &"leather_hands"], [ItemData.ArmorSlot.RIGHT_HAND, &"spear"],
+			[ItemData.ArmorSlot.HANDS, &"leather_hands"], [ItemData.ArmorSlot.PRIMARY, &"spear"],
 			[ItemData.ArmorSlot.OFFHAND, &"wooden_shield"]]:
 		_character_window.equip_item(_character_window.equipment_slots[entry[0]],
 			InventoryItem.new(ItemCatalog.get_item(entry[1]), 1))

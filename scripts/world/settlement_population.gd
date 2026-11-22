@@ -30,6 +30,8 @@ const TOOLS := {
 	&"woodpile": [&"stone_axe_01", &"bronze_axe"],
 	&"garden": [&"stone_hoe_01", &"bronze_hoe"],
 	&"bench": [&"stone_hammer_01", &"stone_hammer_01"],
+	&"forge": [&"stone_hammer_01", &"stone_hammer_01"],
+	&"guard": [&"flint_spear", &"spear"],
 }
 const BRONZE_CHANCE := 0.3
 ## Mudas de pieles: ids de ItemData de la armadura de la edad de piedra que se fabrica (no la vieja de
@@ -104,15 +106,21 @@ static func residents(plan: Dictionary, v: int, prefabs: Dictionary, seed: int) 
 				outfit.append(head_for(outfit, look))
 			out.append({"id": "%d:%d:%d" % [v, b, k], "name": name, "sex": sex, "look": look, "outfit": outfit,
 				"home": b, "bed": k})
-	_assign_jobs(out, buildings, hash([seed, v, "work"]))
+	_assign_jobs(out, plan, hash([seed, v, "work"]))
 	return out
 
 
-## Reparte los puestos de los sitios de trabajo del plano entre [people], al azar, uno por puesto.
-static func _assign_jobs(people: Array[Dictionary], buildings: Array, seed: int) -> void:
+## Reparte los puestos de los sitios de trabajo del plano [plan] entre [people], al azar, uno por puesto:
+## primero los de guardia de la cerca (building -1, work: el puesto en wall.posts), luego los de las casas.
+static func _assign_jobs(people: Array[Dictionary], plan: Dictionary, seed: int) -> void:
+	var buildings: Array = plan.get("buildings", [])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var posts: Array[Dictionary] = []
+	var guards: Array = (plan.get("wall", {}) as Dictionary).get("posts", [])
+	for w in guards.size():
+		for s in (guards[w].stands as PackedVector3Array).size():
+			posts.append({"building": -1, "work": w, "stand": s, "kind": &"guard"})
 	for b in buildings.size():
 		var work: Array = buildings[b].get("work", [])
 		for w in work.size():

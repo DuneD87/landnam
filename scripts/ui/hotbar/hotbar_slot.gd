@@ -3,7 +3,7 @@ extends ItemSlotView
 
 ## Hueco de la barra rápida: lo que se saca con su tecla (en el pie del hueco). No guarda
 ## cantidad: apunta a un ItemData del inventario. Elegido (lo que va en la mano) se ilumina en
-## bronce; lo que lleva la otra mano (el escudo), en escarcha.
+## bronce; el arma principal equipada y lo que lleva la otra mano, en escarcha.
 
 @export var slot_index: int = 0
 

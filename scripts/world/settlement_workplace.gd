@@ -5,8 +5,14 @@ class_name SettlementWorkplace extends Resource
 ## oficio trabajan en él (Villager). Lo de fuera se asienta en el terreno al trazar el poblado
 ## (SettlementLayout) y cuenta en la huella de la casa: no pisa otras construcciones.
 
-## &"woodpile" (leñador, con hacha), &"garden" (granjero, con azada) o &"bench" (artesano, con martillo).
+## &"woodpile" (leñador, con hacha), &"garden" (granjero, con azada), &"bench" (artesano, con martillo),
+## &"forge" (herrero, con martillo, en la fragua), &"shop" (el tendero, tras el mostrador de la tienda) o
+## uno de los puestos del mercadillo: &"stall_food", &"stall_hides", &"stall_wares" (el que vende, tras
+## el mostrador). Lo que se vende sale del oficio (SettlementTrade.STOCK).
 @export var kind: StringName = &"woodpile"
+## Los oficios de vender: atienden de pie tras el mostrador en vez de trabajar con una herramienta.
+const SELLERS: Array[StringName] = [&"shop", &"stall_food", &"stall_hides", &"stall_wares"]
+
 ## Su pose en la grid principal (m). Fuera, el origen va a ras de suelo (la altura la pone el terreno);
 ## dentro, en lo alto del suelo de la casa.
 @export var pose := Transform3D.IDENTITY

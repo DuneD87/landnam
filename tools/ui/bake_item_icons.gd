@@ -43,8 +43,11 @@ const LEGACY_ARMOR := {
 	"leather_chest_01": "", "leather_pants_01": "",
 }
 const BRONZE_ARMOR := {
-	"lionheart_cuirass": [-5.0, -15.0, "", 0.88], "lionguard_kilt": [-7.0, -15.0, "", 0.86],
-	"lionheart_boots": [0.0, -32.0, "foot", 0.88], "lionguard_gauntlets": [0.0, -20.0, "hand", 0.86],
+	"lionheart_cuirass": [-5.0, -15.0, "", 0.88], "lionheart_kilt": [-7.0, -15.0, "", 0.86],
+	"lionheart_boots": [0.0, -32.0, "foot", 0.88], "lionheart_gauntlets": [0.0, -20.0, "hand", 0.86],
+	"bearpaw_chest": [-5.0, -15.0, "", 0.88], "bearpaw_leggings": [0.0, -15.0, "", 0.86],
+	"bearpaw_boot": [0.0, -32.0, "foot", 0.88], "bearpaw_gauntlet": [0.0, -20.0, "hand", 0.86],
+	"bearpaw_hood": [0.0, -25.0, "", 0.85], "bearpaw_cloak": [0.0, -12.0, "", 0.9],
 	"hoplite_helm": [0.0, -35.0, "", 0.82], "hoplite_cuirass": [0.0, -15.0, "", 0.88],
 	"hoplite_pteruges": [0.0, -15.0, "", 0.86], "hoplite_bracers": [-27.0, -22.0, "arm", 0.88],
 	"hoplite_greaves": [0.0, -32.0, "foot", 0.88],
@@ -59,6 +62,8 @@ var props := {
 	"water_trough": [preload("res://scripts/world/water_trough_visual.gd").make_mesh, 0, -32, 20],
 	"wooden_chest": [preload("res://scripts/world/wooden_chest_visual.gd").make_mesh, 0, -30, 20],
 	"hide_backpack": [preload("res://scripts/items/hide_backpack_visual.gd").make_mesh, -8, 155, 8],
+	"skin_backpack": [ResourceLoader.load.bind("res://models/equipable/back/skin_backpack.res"), -8, 155, 8],
+	"bearpaw_backpack": [ResourceLoader.load.bind("res://models/equipable/back/bearpaw_backpack.res"), -8, 155, 8],
 	"bedroll": [preload("res://scripts/world/bedroll_visual.gd").make_mesh, -12, -28, 58],
 	"rope_ladder": [RopeLadder.make_mesh.bind(1.3, 2.2), -32, -30, 12],
 	"wooden_door": [DoorMesh.make.bind(Vector2i(1, 3)), -24, 205, 8],

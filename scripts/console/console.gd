@@ -11,6 +11,8 @@ const COLOR_ERR := "#FF6B6B"
 const COLOR_INFO := "#9AD1FF"
 const COLOR_MUTED := "#9aa0a6"
 const MAX_HISTORY := 50
+## Tope de ejecuciones al desplegar un patrón con Enter (que `give *` no entierre al jugador).
+const MAX_EXPANSION := 64
 ## Palabras de `toon` y el global uniform de toon_light.gdshaderinc que ajusta cada una.
 const TOON_KEYS := {"threshold": &"toon_threshold", "softness": &"toon_softness", "gradient": &"toon_gradient"}
 ## Alias del prototipo para conservar los comandos ya usados; la ayuda y Tab usan inglés.
@@ -176,6 +178,11 @@ func _run(line: String) -> void:
 	if args.size() < cmd.min_args:
 		_err(tr("CON_USAGE") % cmd.usage)
 		return
+	if cmd.expander.is_valid():
+		for i in args.size():
+			if _is_pattern(args[i]):
+				_run_expanded(cmd, args, i)
+				return
 
 	var result: Variant = cmd.callable.call(PackedStringArray(args))
 	if result is String and not result.is_empty():
@@ -201,33 +208,113 @@ func _tokenize(line: String) -> PackedStringArray:
 	return tokens
 
 
+## Ejecuta [cmd] una vez por cada opción de su expander que case con el patrón de args[index].
+func _run_expanded(cmd: ConsoleCommand, args: PackedStringArray, index: int) -> void:
+	var pattern := args[index]
+	var matches: Variant = _match_pattern(pattern, cmd.expander.call())
+	if matches == null:
+		_err(tr("CON_PATTERN_BAD_REGEX") % pattern)
+		return
+	if matches.is_empty():
+		_err(tr("CON_PATTERN_NONE") % pattern)
+		return
+	if matches.size() > MAX_EXPANSION:
+		_err(tr("CON_PATTERN_TOO_MANY") % [pattern, matches.size(), MAX_EXPANSION])
+		return
+	_info(tr("CON_PATTERN_RUN") % [pattern, matches.size()])
+	for m: String in matches:
+		var each := args.duplicate()
+		each[index] = m
+		var result: Variant = cmd.callable.call(each)
+		if result is String and not result.is_empty():
+			_print(result)
+
+
+## Un argumento con * o ? es un patrón glob; entre barras (/^bear_(head|paw)/), una regex.
+func _is_pattern(token: String) -> bool:
+	return "*" in token or "?" in token or _is_regex(token)
+
+
+func _is_regex(token: String) -> bool:
+	return token.length() >= 2 and token.begins_with("/") and token.ends_with("/")
+
+
+## Las [options] que casan con [pattern] (sin distinguir mayúsculas), ordenadas; null si la regex
+## no compila. El glob casa la palabra entera; la regex, en cualquier parte (anclar con ^ y $).
+func _match_pattern(pattern: String, options: PackedStringArray) -> Variant:
+	var out: Array = []
+	if _is_regex(pattern):
+		var re := RegEx.new()
+		if re.compile("(?i)" + pattern.substr(1, pattern.length() - 2)) != OK:
+			return null
+		for o in options:
+			if re.search(o) != null:
+				out.append(o)
+	else:
+		for o in options:
+			if o.matchn(pattern):
+				out.append(o)
+	out.sort()
+	return out
+
+
+## Tab: completa la última palabra (comando o argumento). Con varias opciones avanza hasta su prefijo
+## común y las lista; con un patrón (bear_*, /regex/) lista las que casan sin tocar la línea, para que
+## Enter las aplique todas en los comandos que lo admiten.
 func _autocomplete() -> void:
 	var line := _input_field.text
 	var parts := _tokenize(line)
+	var prefix := ""
+	var options := PackedStringArray()
+	var cmd: ConsoleCommand = null
 	if parts.size() <= 1 and not line.ends_with(" "):
-		var prefix := "" if parts.is_empty() else parts[0]
-		var matches := _commands.keys().filter(func(n): return n.begins_with(prefix))
-		matches.sort()
-		_apply_completion(prefix, matches, "")
-		return
-	var cmd: ConsoleCommand = _commands.get(parts[0].to_lower())
-	if cmd == null or not cmd.completer.is_valid():
-		return
-	var arg_prefix := "" if line.ends_with(" ") else parts[parts.size() - 1]
-	var options: PackedStringArray = cmd.completer.call()
-	var arg_matches := Array(options).filter(func(o): return o.begins_with(arg_prefix))
-	arg_matches.sort()
-	_apply_completion(arg_prefix, arg_matches, parts[0] + " ")
+		prefix = "" if parts.is_empty() else parts[0]
+		options = PackedStringArray(_commands.keys())
+	else:
+		cmd = _commands.get(parts[0].to_lower())
+		if cmd == null or not cmd.completer.is_valid():
+			return
+		prefix = "" if line.ends_with(" ") else parts[parts.size() - 1]
+		options = cmd.completer.call()
+	var head := line.substr(0, line.rfind(prefix)) if prefix != "" else line
 
+	if _is_pattern(prefix):
+		var found: Variant = _match_pattern(prefix, options)
+		if found == null:
+			_err(tr("CON_PATTERN_BAD_REGEX") % prefix)
+		elif found.is_empty():
+			_print(_paint(COLOR_MUTED, tr("CON_NO_MATCHES")))
+		elif found.size() == 1:
+			_set_line(head + str(found[0]) + " ")
+		else:
+			var key := "CON_PATTERN_LIST_ENTER" if cmd != null and cmd.expander.is_valid() else "CON_PATTERN_LIST"
+			_print(_paint(COLOR_INFO, tr(key) % found.size()) + " " + _paint(COLOR_MUTED, " ".join(found)))
+		return
 
-func _apply_completion(prefix: String, matches: Array, head: String) -> void:
+	var matches := Array(options).filter(func(o: String) -> bool: return o.begins_with(prefix))
+	matches.sort()
 	if matches.is_empty():
 		return
 	if matches.size() == 1:
-		_input_field.text = head + str(matches[0]) + " "
-		_input_field.caret_column = _input_field.text.length()
-	else:
-		_print("[color=%s]%s[/color]" % [COLOR_MUTED, " ".join(matches)])
+		_set_line(head + str(matches[0]) + " ")
+		return
+	var common := _common_prefix(matches)
+	if common.length() > prefix.length():
+		_set_line(head + common)
+	_print(_paint(COLOR_MUTED, "(%d) %s" % [matches.size(), " ".join(matches)]))
+
+
+func _set_line(text: String) -> void:
+	_input_field.text = text
+	_input_field.caret_column = text.length()
+
+
+static func _common_prefix(words: Array) -> String:
+	var common: String = words[0]
+	for w: String in words:
+		while not w.begins_with(common):
+			common = common.left(-1)
+	return common
 
 
 
@@ -266,14 +353,15 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("help", "help [command]", "CON_HELP_HELP", _cmd_help))
 	_add(ConsoleCommand.new("clear", "clear", "CON_HELP_CLEAR", _cmd_clear))
 	_add(ConsoleCommand.new("character", "character", "CON_HELP_CHARACTER", _cmd_character))
-	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids))
+	_add(ConsoleCommand.new("give", "give <item_id> [amount]", "CON_HELP_GIVE", _cmd_give, 1, _complete_item_ids,
+		_complete_item_ids))
 	_add(ConsoleCommand.new("items", "items [filter]", "CON_HELP_ITEMS", _cmd_items))
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
 		_complete_weather))
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
-	_add(ConsoleCommand.new("village", "village [tp | trust <0-100>]", "CON_HELP_VILLAGE", _cmd_village, 0,
+	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
 	_add(ConsoleCommand.new("settler", "settler [amount] [kit]", "CON_HELP_SETTLER", _cmd_settler, 0,
 		func() -> PackedStringArray: return PackedStringArray(["kit"])))
@@ -301,14 +389,15 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("scale", "scale [0.25-2.0]", "CON_HELP_SCALE", _cmd_scale))
 	_add(ConsoleCommand.new("terrain", TERRAIN_USAGE, "CON_HELP_TERRAIN", _cmd_terrain))
 	_add(ConsoleCommand.new("spawn", "spawn <animal> [amount] [distance] [variant]", "CON_HELP_SPAWN", _cmd_spawn, 1,
-		_complete_animals))
+		_complete_animals, _complete_animals))
 	_add(ConsoleCommand.new("ai", "ai [radius]", "CON_HELP_AI", _cmd_ai))
 	_add(ConsoleCommand.new("die", "die", "CON_HELP_DIE", _cmd_die))
 	_add(ConsoleCommand.new("sever", "sever [0-1|auto]", "CON_HELP_SEVER", _cmd_sever))
 	_add(ConsoleCommand.new("blood", "blood", "CON_HELP_BLOOD", _cmd_blood))
-	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts))
+	_add(ConsoleCommand.new("cut", CUT_USAGE, "CON_HELP_CUT", _cmd_cut, 0, _complete_cuts, _complete_cuts))
 	_add(ConsoleCommand.new("status", "status [<id> [left|right|zone] [seconds] | remove [id]]", "CON_HELP_STATUS",
-		_cmd_status, 0, _complete_status))
+		_cmd_status, 0, _complete_status,
+		func() -> PackedStringArray: return StatusEffectData.ids()))
 	_add(ConsoleCommand.new("toon", TOON_USAGE, "CON_HELP_TOON", _cmd_toon, 0, _complete_toon))
 	_add(ConsoleCommand.new("needs", "needs [<name> <value> | fill | empty | pause [on|off] | rate <x>]",
 		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
@@ -318,7 +407,7 @@ func _register_commands() -> void:
 
 const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
-const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32] [shadow <max lod>|all]"
+const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32] [shadowlod <lod>|all] [horizon on|off]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
 
 
@@ -395,7 +484,7 @@ func _cmd_help(args: PackedStringArray) -> String:
 	for n in names:
 		var c: ConsoleCommand = _commands[n]
 		out += "  [color=%s]%s[/color] — %s\n" % [COLOR_OK, c.usage, tr(c.description)]
-	return out.strip_edges()
+	return (out + _paint(COLOR_MUTED, tr("CON_PATTERN_HELP"))).strip_edges()
 
 
 func _cmd_clear(_args: PackedStringArray) -> String:
@@ -475,7 +564,13 @@ func _cmd_items(args: PackedStringArray) -> String:
 	var filter := args[0].to_lower() if args.size() >= 1 else ""
 	var ids := ItemCatalog.items.keys().map(func(k): return str(k))
 	if filter != "":
-		ids = ids.filter(func(s): return filter in s.to_lower())
+		if _is_pattern(filter):
+			var found: Variant = _match_pattern(filter, PackedStringArray(ids))
+			if found == null:
+				return _paint(COLOR_ERR, tr("CON_PATTERN_BAD_REGEX") % filter)
+			ids = found
+		else:
+			ids = ids.filter(func(s): return filter in s.to_lower())
 	ids.sort()
 	if ids.is_empty():
 		return _paint(COLOR_MUTED, tr("CON_NO_MATCHES"))
@@ -583,6 +678,17 @@ func _cmd_village(args: PackedStringArray) -> String:
 	var frame := core.voxel_terrain.global_transform
 	var up := (frame.affine_inverse() * (player as Node3D).global_position).normalized()
 	var nearest := SettlementField.nearest(field, up)
+	if args.size() > 1 and args[0] == "tp":
+		# village tp <plantilla>: el más cercano de esa clase (granja, aldea, poblado, villa).
+		nearest = -1
+		var best := -INF
+		for i in (field.villages as Array).size():
+			var other: Dictionary = field.villages[i]
+			if String(other.template) == args[1].to_lower() and (other.center as Vector3).dot(up) > best:
+				best = (other.center as Vector3).dot(up)
+				nearest = i
+		if nearest < 0:
+			return _paint(COLOR_ERR, tr("CON_VILLAGE_NO_TEMPLATE") % args[1])
 	var plan: Dictionary = field.villages[nearest]
 	var center: Vector3 = plan.center
 	if args.size() > 0 and args[0] == "tp":
@@ -598,6 +704,8 @@ func _cmd_village(args: PackedStringArray) -> String:
 		var relations := manager.relations
 		relations.add(nearest, clampf(float(args[1]), 0.0, SettlementRelations.MAX_TRUST) - relations.trust(nearest))
 		return _paint(COLOR_OK, tr("CON_VILLAGE_TRUST_DONE") % roundi(relations.trust(nearest)))
+	if args.size() > 1 and args[0] == "quest" and manager != null:
+		return _village_quest(manager, nearest, player as Node3D, args[1].to_lower())
 	var template := SettlementField.template(plan.template)
 	var north := (Vector3.UP - up * up.y).normalized()
 	var to := (center - up).slide(up)
@@ -621,6 +729,26 @@ func _cmd_village(args: PackedStringArray) -> String:
 			text += "\n" + tr("CON_VILLAGE_QUEST") % [quest.name, quest.village_name, VillagerTalk.quest_status(quest,
 				player.get("inventory") as Inventory)]
 	return _paint(COLOR_INFO, text)
+
+
+## El aldeano más cercano al jugador del poblado [v] pide ahora un encargo de [kind] (para probarlos).
+func _village_quest(manager: SettlementManager, v: int, player: Node3D, kind: String) -> String:
+	if not SettlementQuests.KINDS.has(kind):
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_KINDS") % ", ".join(SettlementQuests.KINDS.keys()))
+	var village := manager.village_of(v)
+	var best: Villager
+	if village != null:
+		for villager in village.villagers:
+			if is_instance_valid(villager) and (best == null or villager.global_position.distance_to(player.global_position)
+					< best.global_position.distance_to(player.global_position)):
+				best = villager
+	if best == null:
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_NOBODY"))
+	var quest := manager.quests.force_offer(best.resident, v, village.name, village.prey_near(SettlementQuests.SCOUT_REACH), kind)
+	if quest.is_empty():
+		return _paint(COLOR_ERR, tr("CON_VILLAGE_QUEST_NOBODY"))
+	return _paint(COLOR_OK, tr("CON_VILLAGE_QUEST_FORCED") % [best.resident.get("name", ""),
+		VillagerTalk.quest_status(quest, player.get("inventory") as Inventory)])
 
 
 func _cmd_heal(args: PackedStringArray) -> String:
@@ -899,11 +1027,15 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 				# draws (medido: -0,7 ms de CPU de render), pero cada bloque del instancer y cada
 				# remallado al cavar abarca ocho veces más volumen.
 				t.mesh_block_size = value.to_int()
-			elif key == "shadow" and (value.is_valid_int() or value == "all") \
-					and "shadow_casting_max_lod" in t:
-				# Bloques de LOD mayor que el límite no proyectan sombra (módulo parcheado). Mirando
-				# hacia el barco el sol añadía ~860 dibujos de bloques lejanos al pase de sombra.
-				t.set("shadow_casting_max_lod", 99 if value == "all" else maxi(value.to_int(), 0))
+			elif key in ["shadowlod", "shadow"] and "shadow_casting_max_lod" in t \
+					and (value.is_valid_int() or value == "all"):
+				# LOD más grueso cuyos bloques proyectan sombra (módulo parcheado); "all" = todos.
+				# Mirando hacia el barco el sol añadía ~860 dibujos de bloques lejanos al pase de sombra.
+				t.set("shadow_casting_max_lod", 32 if value == "all" else maxi(value.to_int(), 0))
+			elif key == "horizon" and "horizon_culling_enabled" in t:
+				# Descarte de los bloques tapados por la curvatura del planeta (PlanetLoader._setup_horizon_culling).
+				# Sin radio de esfera maciza (planeta sin buscar) no hace nada.
+				t.set("horizon_culling_enabled", value in ["on", "1", "true"])
 			else:
 				return _paint(COLOR_ERR, tr("CON_USAGE") % TERRAIN_USAGE)
 		i += 2
@@ -913,6 +1045,18 @@ func _cmd_terrain(args: PackedStringArray) -> String:
 		out += "\n  %s: %s" % [owner_name, tr("CON_TERRAIN_LINE") % [
 			tr("CON_TERRAIN_ALL") if t.collision_lod_count == 0 else str(t.collision_lod_count), t.lod_count,
 			"on" if t.normalmap_enabled else "off"]]
+		if "shadow_casting_max_lod" in t:
+			out += " · shadowlod %d" % int(t.get("shadow_casting_max_lod"))
+		if "horizon_culling_enabled" in t:
+			if t.get("horizon_culling_enabled"):
+				var st: Dictionary = t.get_statistics()
+				out += " · horizon %d/%d bloques ocultos (r %.0f)" % [int(st.get("horizon_culled_blocks", 0)),
+					int(st.get("horizon_tested_blocks", 0)), float(t.get("horizon_occluder_radius"))]
+				var skip := str(st.get("horizon_skip_reason", ""))
+				if not skip.is_empty():
+					out += " [%s]" % skip
+			else:
+				out += " · horizon off"
 	return out
 
 

@@ -281,7 +281,7 @@ alta y una más hacia +Z. La cumbrera ocupa una fila central propia: su cara inf
 de la celda y el vértice medio metro más el grosor por encima. Encaja entre el extremo alto de
 un faldón a cada lado; el del otro lado se gira 180° alrededor de Y. Las hiladas tienen relieve geométrico y el grosor
 se prolonga hacia arriba de la pendiente: la cara inferior coincide con el remate de los muros
-y triángulos de madera. Las piezas de tejado se ofrecen solo en paja.
+y triángulos de madera. Las piezas de tejado se ofrecen en paja, tejuelas y tepe (ver «Materiales de las casas y carpintería»).
 
 **B → Madera → Panel triangular de madera** cierra los extremos bajo las pendientes. Es un
 triángulo rectángulo de 45° con grosor, en la cara de la celda como los paneles cuadrados; gira
@@ -309,6 +309,37 @@ godot --path . res://tests/building/thatch_roof_preview.tscn
 godot --path . res://tests/building/thatch_roof_preview.tscn -- --capture --background
 godot --headless --path . res://tests/building/test_thatch_roof.tscn
 ```
+
+## Materiales de las casas y carpintería
+
+Además de piedra, madera, vidrio y paja, el menú de bloques tiene los materiales de las casas de los
+[poblados](settlements.md). Sus texturas las genera `tools/building/gen_block_textures.py` (como las de
+los troncos, la piedra y la paja: cuatro mapas que tilean en 2 m, con la altura de la propia geometría) y
+sus materiales están en `data/building/<id>.tres`; se registran en `BlockDatabase._register_village_materials`.
+
+| Material | Id | Lo que pide | Formas |
+|---|---|---|---|
+| Enlucido: barro encalado, con pasadas de llana, grietas finas y algún desconchón | `plaster` | piedra ×1 | cubo, rampa, esquinas, panel, panel triangular, losa |
+| Tablas: de pie, de anchos sueltos, oscurecidas con brea | `planks` | madera ×1 | las básicas, panel triangular, losa y la carpintería |
+| Tejuelas: hiladas de 25 cm con la punta redondeada | `shingles` | madera ×1 | faldón y cumbrera (los de la paja), rampa y esquina para chapiteles |
+| Tepe: hierba que cae por la pendiente, con musgo | `turf` | fibra ×2 | faldón y cumbrera, cubo, rampa y esquinas (muros de tepe) |
+| Sillería: sillares labrados con argamasa | `ashlar` | piedra ×2 | las básicas, losa y poste |
+| Lona de lana a rayas rojas y crudas | `cloth` | fibra ×1 | panel, panel inclinado y panel triangular (toldos) |
+
+El panel de tablas y el de enlucido van a ras de la cara de su celda, como el de madera
+(`BlockMeshGenerator.FLUSH_PANE_MATERIALS`): cierran frontones siguiendo el plano del muro.
+
+**Carpintería y losa** (`BlockMeshGenerator`: `POST_BOX`, `BEAM_BOX`, `BEAM_L_BOXES`, `brace_points`,
+`SLAB_BOX`; el mallador las emite con `ChunkMeshBuilder._emit_box` y `_emit_brace`, y quita las caras que
+caen en el borde de la celda si las tapa un macizo):
+
+| Bloque | Id | Qué es |
+|---|---|---|
+| Poste | 11 | Madero de 22 × 22 cm de pie en el centro de la celda; tumbado, una viga. Madera, tablas, piedra y sillería |
+| Listón de fachada | 12 | Madero de 18 × 12 cm pegado a la cara -Z de la celda y a su canto -X. En la celda de fuera de un muro, girado con la cara hacia él, hace el entramado; tumbado, va por el canto de abajo (solera, dintel, peana). Las líneas van por los cantos de las celdas, así que siguen sin hueco de una celda a otra; con la simetría pasa al otro canto |
+| Escuadra de fachada | 15 | El listón de pie y otro tumbado por el canto de abajo: los cruces del entramado |
+| Riostra | 13 | El listón en diagonal, de la esquina de abajo a la de arriba de la cara: del travesaño al poste |
+| Losa | 14 | La mitad de abajo de la celda: mostradores, bancos, peldaños; de lado, medio muro |
 
 ## Piezas navales
 

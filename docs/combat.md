@@ -20,6 +20,48 @@ y sirven de banco de pruebas.
 | Fijar / soltar objetivo | Q o clic de rueda |
 | Cambiar de objetivo fijado | Mover el ratón de lado |
 | Recoger una lanza clavada | E |
+| Sacar / guardar el arma principal | R (reasignable en Opciones) |
+
+## Equipo y armas guardadas
+
+La pantalla de personaje distingue **arma principal**, **herramienta** y **mano secundaria**.
+Equipar un arma la empuña; al seleccionar un pico, hacha o martillo en la barra, el arma sigue
+equipada y pasa al cuerpo. Volver a su acceso la saca sin transferir otra unidad del inventario.
+Pulsar otra vez el acceso seleccionado la guarda; también se puede usar R. En mando se usa
+cruceta arriba (con el martillo sigue abriendo el menú de construcción). En cubierta R conserva
+su función de remar.
+
+Las espadas de una mano van en la cintura izquierda; las armas a dos manos, en diagonal sobre
+la espalda; arcos y lanzas también tienen su anclaje en la espalda. El escudo queda en el brazo
+con un arma de una mano o una herramienta, y pasa a la espalda con arco, arma a dos manos o
+las manos guardadas. Transportado no permite bloquear. La antorcha izquierda sigue disponible
+al guardar el arma si la mano está libre.
+
+El muñeco de equipo muestra arma y escudo transportados. La barra marca el arma principal
+equipada incluso al usar una herramienta. Guardar/cargar conserva el estado de las manos,
+y las partidas anteriores migran su arma de la mano al nuevo hueco sin crear otra unidad.
+
+`PlayerLoadout` presenta el equipo y cambia la misma instancia entre mano y cuerpo; los objetos
+pertenecen solo a sus huecos de `CharacterWindow`. `WeaponCarry` usa `BoneAttachment3D`, ajusta
+sus metros a la escala del esqueleto y deja espacio a la capa. Arma y escudo descansan contra
+el cuerpo, bajo la mochila; equiparla no desplaza ninguno de sus anclajes hacia fuera. `ItemData.carry_offset`
+permite corregir posición y giro de un modelo sobre el ajuste de su familia. El cambio de anclaje
+es inmediato en esta versión; las animaciones de sacar/guardar pueden añadirse sobre ese cambio.
+
+Comprobación de estados, conservación y compatibilidad de partidas:
+
+```sh
+godot --headless --path . res://tests/player/test_weapon_loadout.tscn
+godot --path . --audio-driver Dummy res://tests/combat/weapon_carry_preview.tscn -- --background
+```
+
+La segunda guarda una galería de las posiciones en `build/combat/weapon_carry.png`.
+Con `--back-sword` compara el espadón del Alba con/sin mochila desde cuatro ángulos y guarda
+`build/combat/weapon_carry_back_sword.png`.
+Con `--back-shield` hace la misma comparación con el escudo y guarda
+`build/combat/weapon_carry_back_shield.png`.
+Con `--hip-carry` muestra las armas de una mano en reposo, andando, corriendo y agachado en
+`build/combat/weapon_carry_hip.png`. La punta cae hacia fuera y atrás para dejar libre la pierna.
 
 Con un objetivo fijado, flechas, piedras y lanzas van a él con la caída compensada;
 sin fijar, van a lo que hay bajo la mira.
@@ -110,7 +152,7 @@ Mallas y escenas: `bake_weapons.gd -- --only=branch,litter`.
 
 Se para con un escudo (ranura de mano secundaria de la ventana del personaje, con un arma de una
 mano, una herramienta o nada en la derecha) o con un arma a dos manos. Con el arco o el tirachinas
-el escudo no se lleva en la mano (no se ve) y el clic derecho apunta; con la lanza y escudo, el
+el escudo se transporta en la espalda y el clic derecho apunta; con la lanza y escudo, el
 clic derecho bloquea y la lanza solo pica.
 
 - **`Guard`** (`scripts/combat/guard.gd`): cuelga del `HealthComponent` de quien se defiende y
@@ -154,9 +196,59 @@ centro de la cara interior de la tabla, y `SHIELD_ON_FOREARM` la separa del braz
 es de Mixamo, en el canal de tronco y brazos (`PlayerCombat.GUARD_ANIMS`): con escudo, alzarlo
 (`shield_block`, a ×1,4: arriba a los ~0,25 s, lo que dura la parada), sostenerlo
 (`shield_block_idle`, en bucle) y encajar (`shield_block_hit`); con un arma a dos manos,
-sostenerla (`greatsword_block_idle`) y el golpe lo encaja `HitReact`. Las grabaciones están de lado (la cadera girada 50-70°) y en el jugador la
+sostenerla (`greatsword_block_idle`) y encajar un golpe (`styles/greatsword_block_hit`),
+acompañado de `HitReact`. Las grabaciones están de lado (la cadera girada 50-70°) y en el jugador la
 cadera va con las piernas: `CombatPose._apply_guard` gira el tronco sobre ella hasta dejar el
 escudo, o las manos en el arma, delante del cuerpo.
+
+## Estilos de los packs de combate
+
+El **Great Sword Pack** da a los espadones un combo de tres golpes (descendente, barrido y
+corte bajo), un pesado cargable con salto y una entrada deslizante tras esquivar. Hachas y
+mazos a dos manos usan ese repertorio con los ligeros más lentos. El remate hace más daño y
+rompe más guardia; los golpes de dos manos resisten interrupciones durante la descarga.
+La izquierda sigue el mango mediante IK y cierra los dedos sobre él, también al bloquear.
+
+Con espada, hacha o maza de una mano y escudo empuñado, el **Pro Sword and Shield Pack**
+aporta otro combo de tres tajos, un pesado descendente y su propio ataque tras esquivar.
+Quitar o guardar el escudo devuelve el repertorio sin escudo. Las herramientas conservan
+sus gestos de trabajo y la lanza conserva sus estocadas.
+
+`CombatStance` mezcla las posturas de reposo y marcha de cada estilo debajo de los ataques
+y la guardia. En cuerpo a cuerpo solo afecta al tronco y brazos; las piernas conservan la
+locomoción. Al correr y esprintar, los packs solo ponen los brazos: el tronco conserva el
+contrabalanceo del ciclo que mueve las piernas. Esto evita sumar balanceos de capturas con
+distinta cadencia; el cambio entre la postura de andar y la de correr se funde suavemente.
+En la carrera con escudo, `combat_carry/shield_run` mantiene la postura media de transporte
+y un 15 % del movimiento original de brazos. Así el escudo queda recogido y la espada no
+barre de lado a lado; la animación original y los ataques conservan todo su movimiento.
+El espadón usa `combat_carry/greatsword_run`, con un 45 % del movimiento original de
+brazos para moderar el balanceo de la hoja. La mano izquierda sigue el mango mediante IK.
+El **Longbow Locomotion Pack** aporta reposo, marcha y carrera en cuatro direcciones,
+con las fases de los pasos sincronizadas y el ritmo ajustado a la velocidad real. El tensado
+y la suelta existentes se reproducen encima, así que se puede seguir apuntando al desplazarse.
+Al guardar el arma, agacharse, nadar, saltar o trepar se retiran las posturas de combate.
+
+Los tres packs originales están en `models/player/mixamo/combat/`. Sus clips adaptados viven
+en `models/player/mixamo/combat_styles.tres` (librería `styles`), separada de las acciones
+anteriores. Para regenerarla y comprobar ventanas, colisiones y agarres:
+
+```sh
+godot --headless --path . --script res://tools/combat/retarget_mixamo.gd -- --set=styles
+godot --headless --path . res://tests/combat/test_combat_styles.tscn
+godot --headless --path . res://tests/combat/test_combat_run.tscn
+godot --path . --audio-driver Dummy --fixed-fps 30 --script res://tests/combat/anim_stage.gd -- --scene=style --clip=greatsword_slash_1 --item=greatsword --tag=styles --views=front,side --background
+```
+
+El escenario también acepta `--clip=shield_slash_1 --item=iron_sword` (muestra el escudo) y
+`--clip=greatsword_heavy`. Los tiempos de daño, carga, avance y recuperación están en
+`MeleeMoveset`; el mazo solo hiere con la cabeza y necesita más separación al entrar o saltar.
+`--scene=armed_run` o `--scene=armed_sprint`, con `--item=greatsword` o `--item=iron_sword`,
+captura la carrera con el árbol de posturas del juego. Añadir `--legacy` permite comparar la
+mezcla anterior. La prueba de carrera verifica el tronco al avanzar, de lado y hacia atrás,
+con ambos estilos y también esprintando. Además mide el desplazamiento de ambas manos y
+los giros de las armas respecto al pecho para detectar un braceo horizontal excesivo,
+incluido el espadón con el agarre a dos manos resuelto.
 
 ## Cómo funciona
 
@@ -167,10 +259,11 @@ escudo, o las manos en el arma, delante del cuerpo.
   segmento de la hoja desde la pose anterior a la actual con cápsulas intermedias,
   así un tajo rápido no atraviesa el cuerpo sin tocarlo. Cada criatura se golpea
   una vez por pasada. Los animales pequeños sin hurtbox se miden contra el segmento.
-- **Ataques del jugador** (`PlayerCombat`): usan las animaciones `attack_horizontal`
-  y `attack_vertical` con un `TimeScale` insertado en el árbol, de forma que cada arma
-  golpea a su ritmo. El combo alterna los dos. El pesado se congela arriba mientras
-  se mantiene el botón para cargar. Una pulsación temprana se guarda 0,45 s (buffer).
+- **Ataques del jugador** (`PlayerCombat`): `MeleeMoveset` elige el repertorio según el arma
+  y el escudo. Los canales del árbol llevan un `TimeScale` para que cada arma golpee a su ritmo;
+  `attack_horizontal` y `attack_vertical` siguen siendo los gestos de las herramientas y de las
+  familias sin repertorio específico. El pesado se congela arriba mientras se mantiene el botón
+  para cargar. Una pulsación temprana se guarda 0,45 s (buffer).
 - **Golpe en marcha**: el que sale andando, corriendo o esprintando no para al jugador: suena
   solo en el tronco y los brazos (canales `run_a`/`run_b`, que se turnan como los de cuerpo
   entero), las piernas siguen con la locomoción y se avanza al 85 % de la marcha

@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SettlementTemplate" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_8p3eu"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="2_dyuut"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_alta.tres" id="3_t2f67"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_tablas.tres" id="4_35ci6"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_turba.tres" id="5_htqsy"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="6_pc242"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="7_oa4rb"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="8_s4ohg"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/herreria.tres" id="9_3h2ka"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/iglesia.tres" id="10_iyiss"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/tienda.tres" id="11_pgwrs"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_comida.tres" id="12_p50v0"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_pieles.tres" id="13_6auxo"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_cacharros.tres" id="14_uvh3d"]
+[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="15_esdka"]
+
+[resource]
+script = ExtResource("15_esdka")
+id = &"villa"
+display_name = "SETTLEMENT_TOWN"
+weight = 0.08
+center = ExtResource("10_iyiss")
+buildings = Array[ExtResource("1_8p3eu")]([ExtResource("2_dyuut"), ExtResource("2_dyuut"), ExtResource("3_t2f67"), ExtResource("3_t2f67"), ExtResource("4_35ci6"), ExtResource("4_35ci6"), ExtResource("5_htqsy"), ExtResource("6_pc242"), ExtResource("7_oa4rb"), ExtResource("8_s4ohg"), ExtResource("9_3h2ka")])
+count_min = 26
+count_max = 40
+plaza_radius = 16.0
+wall = &"palisade"
+layout = &"streets"
+plaza_buildings = Array[ExtResource("1_8p3eu")]([ExtResource("11_pgwrs"), ExtResource("12_p50v0"), ExtResource("13_6auxo"), ExtResource("14_uvh3d"), ExtResource("12_p50v0"), ExtResource("13_6auxo"), ExtResource("14_uvh3d"), ExtResource("9_3h2ka")])
+plaza_count_min = 8
+plaza_count_max = 12
+streets = 5
+street_length = 68.0

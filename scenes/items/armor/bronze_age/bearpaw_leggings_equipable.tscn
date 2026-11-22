@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://models/equipable/bronze_age/bearpaw_leggings.res" id="1_wnjlc"]
+[ext_resource type="Skin" path="res://models/player/xavivar/firstage_human_male_player_skin.tres" id="2_rr6g8"]
+[ext_resource type="Script" path="res://scripts/items/mesh_item.gd" id="3_00d7m"]
+[ext_resource type="Resource" path="res://data/items/Armor/BronzeAge/bearpaw_leggings.tres" id="4_wpv8p"]
+
+[node name="bearpaw_leggings" type="MeshInstance3D" unique_id=776887759]
+mesh = ExtResource("1_wnjlc")
+skin = ExtResource("2_rr6g8")
+script = ExtResource("3_00d7m")
+item_data = ExtResource("4_wpv8p")

@@ -73,6 +73,7 @@ var selected_index: int = -1
 var is_ctrl_hold: bool = false
 ## Lo que lleva la otra mano (id), para resaltar su hueco. Lo dice el jugador con set_offhand().
 var _offhand_id: StringName = &""
+var _primary_id: StringName = &""
 var _fit_pending := false
 
 var _key_actions: Array[StringName] = [
@@ -355,10 +356,16 @@ func set_offhand(data: ItemData) -> void:
 	_refresh_offhand_marks()
 
 
+## El arma principal sigue marcada aunque esté guardada o se use una herramienta.
+func set_primary(data: ItemData) -> void:
+	_primary_id = data.id if data != null else &""
+	_refresh_offhand_marks()
+
+
 func _refresh_offhand_marks() -> void:
 	for slot in slots:
-		slot.set_equipped(_offhand_id != &"" and slot.assigned_data != null \
-			and slot.assigned_data.id == _offhand_id)
+		slot.set_equipped(slot.assigned_data != null \
+			and slot.assigned_data.id in [_offhand_id, _primary_id])
 
 
 func get_selected_data() -> ItemData:

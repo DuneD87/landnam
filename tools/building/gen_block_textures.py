@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Genera texturas de construcción: troncos apilados, muro de piedra y paja.
+"""Genera texturas de construcción: troncos apilados, muro de piedra, paja, enlucido, tablas,
+tejuelas, tepe, sillería y lona.
 
 Cada material sale en textures/build_materials/<nombre>/ con cuatro mapas que tilean en los dos
 ejes y cubren TILE_METERS de lado:
@@ -463,6 +464,316 @@ def make_thatch(size: int, seed: int) -> Maps:
                 normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
 
 
+# --- Enlucido de cal ----------------------------------------------------------------------------
+
+def make_plaster(size: int, seed: int) -> Maps:
+    """Barro enlucido y encalado: blanco roto a manchas, pasadas de llana, grietas finas y algún
+    desconchón donde asoma el barro."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    broad = noise(rng, shape, 60 * k)
+    mottle = noise(rng, shape, 14 * k)
+    trowel = noise(rng, shape, 22 * k, 6 * k)
+    fine = noise(rng, shape, 1.2 * k)
+    pits = noise(rng, shape, 0.8 * k)
+    # Grietas: las crestas de un ruido de grano medio, finas y solo en parte de la pared.
+    crack_field = noise(rng, shape, 9 * k)
+    crack = smoothstep(0.93, 1.0, 1.0 - np.abs(crack_field) * 3.2)
+    crack *= smoothstep(0.3, 1.2, noise(rng, shape, 45 * k))
+    # Desconchones: manchas donde falta la cal y se ve el barro, con el borde algo levantado.
+    flake_field = noise(rng, shape, 40 * k) + 0.3 * noise(rng, shape, 5 * k)
+    flake = smoothstep(2.5, 2.65, flake_field)
+    rim = smoothstep(2.3, 2.5, flake_field) * (1.0 - flake)
+    streaks = smoothstep(0.4, 2.0, noise(rng, shape, 5 * k, 70 * k)) * smoothstep(-0.5, 1.0, broad)
+
+    lime = np.array([0.86, 0.83, 0.76])
+    lime_dirty = np.array([0.74, 0.70, 0.61])
+    daub = np.array([0.50, 0.40, 0.29])
+    t = np.clip(0.45 + 0.45 * broad + 0.15 * mottle, 0, 1)
+    albedo = lerp(lime, lime_dirty, t[..., None] * 0.55)
+    albedo *= (1.0 + 0.025 * fine + 0.03 * trowel - 0.10 * streaks)[..., None]
+    albedo = lerp(albedo, daub * (1.0 + 0.08 * mottle)[..., None], flake[..., None])
+    albedo *= (1.0 - 0.45 * crack)[..., None]
+
+    height = 0.55 + 0.10 * trowel + 0.05 * mottle + 0.015 * fine - 0.03 * smoothstep(1.6, 2.6, -pits)
+    height = height - 0.35 * flake + 0.06 * rim - 0.25 * crack
+    height = np.clip(height, 0, 1)
+    rough = np.clip(0.9 + 0.04 * fine - 0.04 * flake, 0.75, 1.0)
+    ao = cavity_ao(height, [(6 * k, 1.2), (1.5 * k, 1.5)], 0.45)
+    relief_m = 0.012
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
+# --- Tablas -------------------------------------------------------------------------------------
+
+def make_planks(size: int, seed: int) -> Maps:
+    """Tablas de pie, de anchos sueltos, con su veta, nudos, juntas y una pátina de brea."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    y, x = np.mgrid[:size, :size].astype(np.float64)
+    # Anchos de 16 a 28 cm que suman la tesela.
+    widths = []
+    while sum(widths) < size:
+        widths.append(rng.uniform(0.16, 0.28) / TILE_METERS * size)
+    widths = np.array(widths) * size / sum(widths)
+    edges = np.concatenate([[0.0], np.cumsum(widths)])
+    col_id = np.clip(np.searchsorted(edges, x[0], side="right") - 1, 0, len(widths) - 1)
+    board = np.broadcast_to(col_id[None, :], shape)
+    left = edges[board]
+    across = (x - left) / widths[board]  # 0-1 dentro de la tabla
+    n = len(widths)
+    tint = rng.uniform(0.82, 1.15, n)[board]
+    lift = rng.uniform(-0.06, 0.06, n)[board]
+    # Veta: líneas a lo largo de V que ondulan, distintas en cada tabla.
+    phase = rng.uniform(0, 100, n)[board]
+    warp = noise(rng, shape, 6 * k, 90 * k)
+    grain = np.sin((across * 9.0 + phase + 0.6 * warp) * np.pi * 2)
+    grain_fine = noise(rng, shape, 0.7 * k, 30 * k)
+    # Nudos: unas pocas manchas elípticas oscuras.
+    knots = np.zeros(shape)
+    for _ in range(int(14)):
+        cx, cy = rng.uniform(0, size), rng.uniform(0, size)
+        rx, ry = rng.uniform(5, 9) * k, rng.uniform(9, 16) * k
+        dx = wrap(x - cx, size) / rx
+        dy = wrap(y - cy, size) / ry
+        knots = np.maximum(knots, np.clip(1.0 - (dx * dx + dy * dy), 0, 1))
+    gap = 1.0 - smoothstep(0.0, 0.035, np.minimum(across, 1.0 - across))
+    edge_round = smoothstep(0.0, 0.12, np.minimum(across, 1.0 - across))
+    weather = noise(rng, shape, 40 * k)
+
+    light = np.array([0.46, 0.33, 0.22])
+    dark = np.array([0.24, 0.16, 0.10])
+    grey = np.array([0.42, 0.39, 0.35])
+    v = np.clip(0.5 + 0.22 * grain + 0.18 * grain_fine, 0, 1)
+    albedo = lerp(dark, light, v[..., None]) * tint[..., None]
+    albedo = lerp(albedo, grey * tint[..., None], np.clip(0.25 + 0.2 * weather, 0, 0.6)[..., None])
+    albedo = lerp(albedo, np.array([0.12, 0.07, 0.04]), (knots ** 0.6 * 0.85)[..., None])
+    albedo = lerp(albedo, np.array([0.06, 0.045, 0.03]), gap[..., None])
+
+    height = 0.6 + lift + 0.06 * grain + 0.03 * grain_fine - 0.05 * knots
+    height = height * (0.55 + 0.45 * edge_round)
+    height = np.clip(height * (1.0 - gap), 0, 1)
+    rough = np.clip(0.8 + 0.08 * grain_fine, 0.6, 1.0)
+    ao = cavity_ao(height, [(5 * k, 1.5), (1.2 * k, 1.0)], 0.3)
+    relief_m = 0.02
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
+# --- Tejuelas -----------------------------------------------------------------------------------
+
+def make_shingles(size: int, seed: int) -> Maps:
+    """Tejuelas de madera en hiladas de 25 cm (las del faldón), con la punta redondeada como en
+    las iglesias de madera: cada hilada tapa la cabeza de la de abajo. V baja por la pendiente."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    rows = 8  # 2 m / 25 cm
+    row_h = size / rows
+    y, x = np.mgrid[:size, :size].astype(np.float64)
+    grain_n = noise(rng, shape, 0.8 * k, 20 * k)
+    weather = noise(rng, shape, 35 * k)
+    moss = smoothstep(1.2, 2.2, noise(rng, shape, 20 * k)) * 0.6
+
+    # Cada hilada: anchos sueltos y desfase propio.
+    per_row = []
+    for r in range(rows):
+        widths = []
+        while sum(widths) < size:
+            widths.append(rng.uniform(0.11, 0.17) / TILE_METERS * size)
+        widths = np.array(widths) * size / sum(widths)
+        per_row.append((np.concatenate([[0.0], np.cumsum(widths)]), rng.uniform(0, size),
+                        rng.uniform(0.8, 1.15, len(widths)), rng.uniform(-0.04, 0.04, len(widths))))
+
+    def locate(r: int, xx: np.ndarray):
+        edges, offset, tints, lifts = per_row[r % rows]
+        xs = np.mod(xx - offset, size)
+        i = np.clip(np.searchsorted(edges, xs, side="right") - 1, 0, len(edges) - 2)
+        w = edges[i + 1] - edges[i]
+        s = (xs - edges[i]) / w
+        return i, s, tints[i], lifts[i]
+
+    height = np.zeros(shape)
+    albedo = np.zeros(shape + (3,))
+    tint_map = np.ones(shape)
+    edge_dark = np.zeros(shape)
+    row_idx = np.floor(y / row_h).astype(int)
+    t = y / row_h - row_idx  # 0 arriba de la hilada, 1 abajo
+    BULGE = 0.38
+    for r in range(rows):
+        m = row_idx == r
+        xx = x[m]
+        tt = t[m]
+        # ¿Lo tapa la punta de la tejuela de la hilada de encima?
+        _, s_up, tint_up, lift_up = locate(r - 1, xx)
+        tip_up = 1.0 + BULGE * np.sqrt(np.clip(1.0 - (2 * s_up - 1) ** 2, 0, 1))
+        covered = (tt + 1.0) < tip_up
+        _, s_own, tint_own, lift_own = locate(r, xx)
+        # Altura: crece hacia la punta; la de encima va más alta.
+        h_own = 0.25 + 0.45 * tt + lift_own
+        h_up = 0.25 + 0.45 * np.clip(tt + 1.0, 0, 1.0 + BULGE) / (1.0 + BULGE) * (1.0 + BULGE) * 0.75 + 0.25 + lift_up
+        s_use = np.where(covered, s_up, s_own)
+        side = smoothstep(0.0, 0.06, np.minimum(s_use, 1.0 - s_use))
+        h = np.where(covered, h_up, h_own) * (0.6 + 0.4 * side)
+        # La sombra justo bajo la punta de la de encima.
+        under = np.where(covered, 0.0, smoothstep(0.25, 0.0, (tt + 1.0) - tip_up + 0.0))
+        height[m] = h
+        tint_map[m] = np.where(covered, tint_up, tint_own)
+        edge_dark[m] = np.maximum(1.0 - side, under * 0.8)
+    height = np.clip(height / height.max(), 0, 1)
+
+    fresh = np.array([0.52, 0.40, 0.28])
+    grey = np.array([0.45, 0.42, 0.38])
+    dark = np.array([0.20, 0.15, 0.11])
+    a = np.clip(0.45 + 0.2 * weather, 0, 1)
+    albedo = lerp(fresh, grey, a[..., None]) * (tint_map * (1.0 + 0.10 * grain_n))[..., None]
+    albedo = lerp(albedo, dark, (edge_dark * 0.75)[..., None])
+    albedo = lerp(albedo, np.array([0.30, 0.34, 0.17]), (moss * smoothstep(0.3, 0.8, height))[..., None])
+    rough = np.clip(0.85 + 0.06 * grain_n, 0.7, 1.0)
+    ao = cavity_ao(height, [(8 * k, 1.4), (2 * k, 1.0)], 0.3)
+    relief_m = 0.03
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
+# --- Tepe ---------------------------------------------------------------------------------------
+
+def make_turf(size: int, seed: int) -> Maps:
+    """Tepe de los tejados de hierba: matas de hierba que caen por la pendiente (a lo largo de V),
+    entre verde y pajiza, con musgo, tierra en los claros y alguna flor."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    clumps = noise(rng, shape, 18 * k)
+    patches = noise(rng, shape, 55 * k)
+    dry = noise(rng, shape, 30 * k)
+    # Hojas: ruido muy alargado a lo largo de V, en dos escalas, algo torcido.
+    blades = np.zeros(shape)
+    for sx, sy, gain in [(1.0, 9.0, 1.0), (1.6, 16.0, 0.8), (0.7, 5.0, 0.6)]:
+        b = noise(rng, shape, sx * k, sy * k)
+        blades = np.maximum(blades, gain * smoothstep(0.6, 1.8, b))
+    density = smoothstep(-2.6, -0.6, clumps + 0.4 * patches)
+    blades = np.clip(blades * (0.55 + 0.45 * density) + 0.25 * smoothstep(-0.5, 1.5, noise(rng, shape, 0.6 * k, 4 * k)), 0, 1)
+    soil = 1.0 - smoothstep(0.0, 0.5, density)
+    moss = smoothstep(0.2, 1.4, -clumps) * (1.0 - soil) * 0.6
+    flowers_n = noise(rng, shape, 1.4 * k)
+    flowers = smoothstep(3.1, 3.4, flowers_n) * smoothstep(0.0, 1.0, patches)
+
+    green = np.array([0.36, 0.44, 0.18])
+    deep = np.array([0.20, 0.27, 0.10])
+    straw = np.array([0.60, 0.55, 0.32])
+    mossc = np.array([0.32, 0.38, 0.15])
+    soilc = np.array([0.24, 0.18, 0.12])
+    tip = np.clip(0.45 + 0.35 * dry + 0.25 * patches, 0, 1)
+    grass = lerp(deep, lerp(green, straw, (tip * 0.6)[..., None]), np.clip(blades, 0, 1)[..., None])
+    albedo = lerp(grass, mossc * (1.0 + 0.1 * patches)[..., None], (moss * (1.0 - blades) * 0.8)[..., None])
+    albedo = lerp(albedo, soilc, (soil * (1.0 - blades))[..., None])
+    albedo = lerp(albedo, np.array([0.85, 0.82, 0.55]), flowers[..., None])
+
+    height = 0.25 + 0.45 * blades + 0.15 * moss + 0.1 * density + 0.1 * flowers
+    height = np.clip(height, 0, 1)
+    rough = np.clip(0.88 + 0.05 * blades, 0.8, 1.0)
+    ao = cavity_ao(height, [(4 * k, 1.6), (1 * k, 1.0)], 0.35)
+    relief_m = 0.03
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
+# --- Sillería -----------------------------------------------------------------------------------
+
+def make_ashlar(size: int, seed: int) -> Maps:
+    """Sillares labrados en hiladas de 33 a 50 cm, con el canto biselado, huellas de cincel y
+    juntas de argamasa."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    y, x = np.mgrid[:size, :size].astype(np.float64)
+    # Hiladas que suman la tesela.
+    heights = []
+    while sum(heights) < size:
+        heights.append(rng.choice([0.33, 0.4, 0.5]) / TILE_METERS * size)
+    heights = np.array(heights) * size / sum(heights)
+    yedges = np.concatenate([[0.0], np.cumsum(heights)])
+    row = np.clip(np.searchsorted(yedges, y[:, 0], side="right") - 1, 0, len(heights) - 1)
+    row = np.broadcast_to(row[:, None], shape)
+    down = (y - yedges[row]) / heights[row]
+    label = np.zeros(shape, dtype=np.int64)
+    across = np.zeros(shape)
+    width_px = np.zeros(shape)
+    count = 0
+    for r in range(len(heights)):
+        widths = []
+        while sum(widths) < size:
+            widths.append(rng.uniform(0.45, 0.9) / TILE_METERS * size)
+        widths = np.array(widths) * size / sum(widths)
+        xedges = np.concatenate([[0.0], np.cumsum(widths)])
+        offset = rng.uniform(0, size)
+        m = row == r
+        xs = np.mod(x[m] - offset, size)
+        i = np.clip(np.searchsorted(xedges, xs, side="right") - 1, 0, len(widths) - 1)
+        across[m] = (xs - xedges[i]) / widths[i]
+        width_px[m] = widths[i]
+        label[m] = count + i
+        count += len(widths)
+    hpx = heights[row]
+    # Distancia al borde del sillar, en píxeles.
+    edge_px = np.minimum(np.minimum(across, 1 - across) * width_px, np.minimum(down, 1 - down) * hpx)
+    joint = 1.0 - smoothstep(2.0 * k, 3.5 * k, edge_px)
+    bevel = smoothstep(2.5 * k, 12 * k, edge_px)
+    chisel = noise(rng, shape, 1.0 * k, 3.0 * k)
+    face = noise(rng, shape, 20 * k)
+    grit = noise(rng, shape, 0.7 * k)
+
+    palette = np.array([[0.62, 0.60, 0.56], [0.56, 0.55, 0.52], [0.66, 0.62, 0.55],
+                        [0.52, 0.50, 0.47], [0.60, 0.56, 0.49]])
+    base = palette[rng.integers(0, len(palette), count)] * rng.uniform(0.9, 1.08, (count, 1))
+    col = base[label] * (1.0 + 0.05 * face + 0.04 * chisel + 0.04 * grit)[..., None]
+    col *= (0.75 + 0.25 * bevel)[..., None]
+    mortar = np.array([0.70, 0.67, 0.60]) * (1.0 + 0.06 * grit)[..., None]
+    albedo = lerp(col, mortar, joint[..., None])
+
+    height = 0.35 + 0.55 * bevel + 0.03 * chisel + 0.03 * face
+    height = np.where(joint > 0.5, 0.15 + 0.03 * grit, height)
+    height = np.clip(height, 0, 1)
+    rough = np.where(joint > 0.5, 0.95, np.clip(0.8 + 0.05 * chisel, 0.6, 1.0))
+    ao = cavity_ao(height, [(10 * k, 1.0), (2 * k, 1.5)], 0.3)
+    relief_m = 0.035
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
+# --- Lona ---------------------------------------------------------------------------------------
+
+def make_cloth(size: int, seed: int) -> Maps:
+    """Lona de lana tejida a rayas rojas y crudas de 25 cm, a lo largo de V (bajan por el toldo)."""
+    rng = np.random.default_rng(seed)
+    k = size / 1024.0
+    shape = (size, size)
+    y, x = np.mgrid[:size, :size].astype(np.float64)
+    stripe = np.floor(x / (size / 8)).astype(int) % 2
+    weave_f = size / 2.0 / 0.004 / (size / 2.0)  # un hilo cada 4 mm
+    warp_t = np.sin(x / size * TILE_METERS / 0.004 * np.pi)
+    weft_t = np.sin(y / size * TILE_METERS / 0.004 * np.pi)
+    weave = warp_t * weft_t
+    slub = noise(rng, shape, 0.6 * k, 8 * k)
+    fade = noise(rng, shape, 50 * k)
+    dirt = smoothstep(1.5, 3.0, noise(rng, shape, 60 * k))
+    red = np.array([0.55, 0.13, 0.09])
+    cream = np.array([0.80, 0.74, 0.60])
+    albedo = np.where(stripe[..., None] == 1, red, cream)
+    albedo = albedo * (1.0 + 0.06 * weave + 0.05 * slub + 0.04 * fade)[..., None]
+    albedo = lerp(albedo, np.array([0.35, 0.30, 0.24]), (dirt * 0.35)[..., None])
+    height = np.clip(0.5 + 0.25 * weave + 0.1 * slub, 0, 1)
+    rough = np.full(shape, 0.95)
+    ao = cavity_ao(height, [(1 * k, 0.8)], 0.7)
+    relief_m = 0.002
+    return Maps(np.clip(albedo, 0, 1), height, rough, ao,
+                normal_from_height(height * relief_m, TILE_METERS / size), relief_m)
+
+
 # --- Salida -------------------------------------------------------------------------------------
 
 def to_u8(x: np.ndarray) -> np.ndarray:
@@ -515,15 +826,25 @@ def write_preview(name: str, maps: Maps, folder: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--size", type=int, default=2048)
-    parser.add_argument("--only", choices=["logs", "stone", "thatch"])
+    parser.add_argument("--size", type=int, default=0, help="lado en píxeles (0: el de cada material)")
+    parser.add_argument("--only", choices=["logs", "stone", "thatch", "plaster", "planks", "shingles", "turf",
+                                           "ashlar", "cloth"])
     parser.add_argument("--preview", type=Path, help="carpeta donde dejar renders de revisión")
     args = parser.parse_args()
 
+    def px(default: int) -> int:
+        return args.size or default
+
     jobs = {
-        "stacked_logs": lambda: make_logs(args.size, 7),
-        "stacked_stone": lambda: make_stone(args.size, 11),
-        "thatch": lambda: make_thatch(args.size, 23),
+        "stacked_logs": lambda: make_logs(px(2048), 7),
+        "stacked_stone": lambda: make_stone(px(2048), 11),
+        "thatch": lambda: make_thatch(px(1024), 23),
+        "plaster": lambda: make_plaster(px(1024), 31),
+        "planks": lambda: make_planks(px(1024), 37),
+        "shingles": lambda: make_shingles(px(1024), 41),
+        "turf": lambda: make_turf(px(1024), 43),
+        "ashlar": lambda: make_ashlar(px(1024), 47),
+        "cloth": lambda: make_cloth(px(1024), 53),
     }
     for name, job in jobs.items():
         if args.only and not name.endswith(args.only):

@@ -1,0 +1,160 @@
+[gd_resource type="VoxelGraphFunction" format=3]
+
+[sub_resource type="Image" id="Image_f0lfx"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RFloat",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[sub_resource type="Image" id="Image_moycv"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RFloat",
+"height": 2,
+"mipmaps": false,
+"width": 4
+}
+
+[resource]
+graph_data = {
+"connections": [[20, 0, 21, 0], [18, 0, 19, 0], [17, 0, 18, 1], [16, 0, 17, 1], [15, 0, 16, 0], [14, 0, 16, 1], [14, 0, 20, 1], [1, 0, 5, 0], [1, 0, 6, 0], [1, 0, 11, 0], [2, 0, 5, 1], [2, 0, 6, 1], [2, 0, 11, 1], [3, 0, 5, 2], [3, 0, 6, 2], [3, 0, 11, 2], [4, 0, 12, 0], [4, 0, 15, 1], [4, 0, 17, 0], [4, 0, 18, 0], [5, 0, 7, 1], [6, 0, 7, 0], [7, 0, 8, 0], [8, 0, 9, 0], [8, 0, 14, 0], [9, 0, 10, 0], [10, 0, 18, 2], [10, 0, 20, 2], [11, 0, 15, 0], [12, 0, 13, 0], [13, 0, 14, 1]],
+"nodes": {
+"1": {
+"auto_connect": false,
+"gui_position": Vector2(-1000, 0),
+"type": "InputX"
+},
+"10": {
+"auto_connect": false,
+"b": 0.0,
+"gui_position": Vector2(-150, -100),
+"name": &"settlement_flat_test",
+"type": "Max"
+},
+"11": {
+"auto_connect": true,
+"factor": 1000.0,
+"gui_position": Vector2(-800, 200),
+"image": SubResource("Image_moycv"),
+"name": &"settlement_flat_t",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"12": {
+"auto_connect": false,
+"gui_position": Vector2(-800, 400),
+"type": "Abs"
+},
+"13": {
+"auto_connect": false,
+"edge0": 90.0,
+"edge1": 60.0,
+"gui_position": Vector2(-600, 400),
+"name": &"settlement_flat_surface",
+"type": "Smoothstep"
+},
+"14": {
+"auto_connect": false,
+"gui_position": Vector2(-300, 200),
+"type": "Multiply"
+},
+"15": {
+"auto_connect": false,
+"gui_position": Vector2(-300, 300),
+"type": "Subtract"
+},
+"16": {
+"auto_connect": false,
+"gui_position": Vector2(-150, 250),
+"type": "Multiply"
+},
+"17": {
+"auto_connect": false,
+"gui_position": Vector2(0, 300),
+"type": "Add"
+},
+"18": {
+"auto_connect": false,
+"gui_position": Vector2(200, 300),
+"name": &"settlement_flat_select",
+"threshold": 1e-07,
+"type": "Select"
+},
+"19": {
+"auto_connect": false,
+"gui_position": Vector2(400, 300),
+"name": &"flat_field",
+"type": "CustomOutput"
+},
+"2": {
+"auto_connect": false,
+"gui_position": Vector2(-1000, 80),
+"type": "InputY"
+},
+"20": {
+"a": 0.0,
+"auto_connect": false,
+"gui_position": Vector2(200, 450),
+"name": &"settlement_flat_weight_select",
+"threshold": 1e-07,
+"type": "Select"
+},
+"21": {
+"auto_connect": false,
+"gui_position": Vector2(400, 450),
+"name": &"flat_weight",
+"type": "CustomOutput"
+},
+"3": {
+"auto_connect": false,
+"gui_position": Vector2(-1000, 160),
+"type": "InputZ"
+},
+"4": {
+"auto_connect": false,
+"gui_position": Vector2(-1000, 400),
+"name": &"earth_field",
+"type": "CustomInput"
+},
+"5": {
+"auto_connect": true,
+"gui_position": Vector2(-800, -200),
+"name": &"settlement_planet_sdf",
+"radius": 30000.0,
+"type": "SdfSphere"
+},
+"6": {
+"auto_connect": true,
+"factor": 1000000.0,
+"gui_position": Vector2(-800, 0),
+"image": SubResource("Image_f0lfx"),
+"name": &"settlement_flat_w",
+"radius": 30000.0,
+"type": "SdfSphereHeightmap"
+},
+"7": {
+"auto_connect": false,
+"gui_position": Vector2(-600, 0),
+"type": "Subtract"
+},
+"8": {
+"auto_connect": false,
+"b": -1e-06,
+"gui_position": Vector2(-450, 0),
+"name": &"settlement_flat_weight",
+"type": "Multiply"
+},
+"9": {
+"auto_connect": false,
+"b": 0.002,
+"gui_position": Vector2(-300, -100),
+"type": "Subtract"
+}
+},
+"version": 2
+}
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0]]
+output_definitions = [["flat_field", "CustomOutput", 0], ["flat_weight", "CustomOutput", 0]]

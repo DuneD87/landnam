@@ -1,8 +1,8 @@
 # Aldeanos
 
 Los [poblados](settlements.md) tienen gente cuando el jugador se acerca: aldeanos nórdicos vestidos de
-pieles que duermen en sus casas, trabajan en la leñera, el huerto o el banco con las herramientas del
-jugador y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
+pieles que duermen en sus casas, trabajan en la leñera, el huerto, el banco o la fragua con las
+herramientas del jugador, atienden la tienda y los puestos del mercadillo, y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
 apartan, huyen a casa si ataca una fiera y se meten en ella cuando llueve. Se puede hablar con ellos,
 hacerles regalos, comerciar y hacerles encargos, y cada poblado recuerda la confianza que le tiene al
 jugador. Con bastante, alguno se va con el jugador: lo sigue, le lleva cosas y pelea a su lado, y se
@@ -16,7 +16,7 @@ guardan; la confianza, los encargos, el compañero y los colonos sí.
 | `SettlementVillagers` (`scripts/world/settlement_villagers.gd`) | Cuándo un poblado tiene gente; los viste en un hilo y los saca |
 | `Villager` (`scripts/world/villager.gd`) | El aldeano: su rutina, cómo anda y sus animaciones |
 | `SettlementPrefab.beds` | Los lechos de cada casa, que pone `SettlementManager` como decorado |
-| `SettlementWorkplace`, `SettlementDecor` | Los sitios de trabajo de cada casa (leñera, huerto, banco) y lo que se ve de ellos |
+| `SettlementWorkplace`, `SettlementDecor` | Los sitios de trabajo de cada casa (leñera, huerto, banco, fragua, mostrador) y lo que se ve de ellos |
 | `SettlementFire` (`scripts/world/settlement_fire.gd`) | La hoguera de la plaza, encendida al atardecer y cuando nieva |
 | `SettlementRelations` (`scripts/world/settlement_relations.gd`) | La confianza de cada poblado en el jugador, a quién conoce y lo regalado hace poco |
 | `VillagerTalk` (`scripts/world/villager_talk.gd`) | Qué dice un aldeano y cuánto le gusta un regalo |
@@ -25,7 +25,12 @@ guardan; la confianza, los encargos, el compañero y los colonos sí.
 | `SettlementCompanions` (`scripts/world/settlement_companions.gd`) | Quién se ha ido con el jugador: reclutar y guardar |
 | `Companion` (`scripts/world/companion.gd`) | El compañero: sigue o espera al jugador, con física; lleva cosas y pelea |
 | `SettlementTrade` (`scripts/world/settlement_trade.gd`) | El trueque: lo que tiene cada vecino y a cuánto |
-| `SettlementQuests` (`scripts/world/settlement_quests.gd`) | Los encargos: lo que pide cada vecino, cómo va y lo que da |
+| `SettlementQuests` (`scripts/world/settlement_quests.gd`) | Los encargos: lo que pide cada vecino, su plazo, cómo va y lo que da |
+| `QuestDirector` (`scripts/world/quest_director.gd`) | Lo que los encargos ponen en el mundo: el perdido, el escoltado, las emboscadas, la fiera con nombre |
+| `QuestJournal` (`scripts/player/quest_journal.gd`) | El diario de encargos (L) y sus marcas en el mapa |
+| `SettlerZones` (`scripts/world/settler_zones.gd`) | Las zonas de trabajo del trono, con su cupo |
+| `SettlerScaffold` (`scripts/world/settler_scaffold.gd`) | El andamio del constructor |
+| `AnimSplice` (`scripts/character/anim_splice.gd`) | Clips empalmados (piernas de uno, tronco de otro): despiezar agachado |
 
 ## Quién vive
 
@@ -50,6 +55,17 @@ al azar entre los vecinos, uno por puesto, y los que quedan sin puesto no tienen
 | Leñera: pila de troncos y tajo | detrás de la choza y de la casa larga | leñador | hacha de piedra o de bronce | el golpe de arriba abajo del jugador, con respiros |
 | Huerto: surcos de matas sobre montones de tierra | detrás de la casa (2 puestos) | granjero | azada de piedra o de bronce | cavar (Mixamo) |
 | Banco de trabajo | dentro de la casa larga y del granero | artesano | martillo de piedra | el mismo golpe, más rápido |
+| Fragua y yunque | en la herrería | herrero | martillo de piedra | el golpe rápido del banco, sobre el yunque |
+| Mostrador de la tienda | tras el mostrador abierto a la calle | tendero | ninguna | de pie, y a ratos pregona (la de hablar) |
+| Puesto del mercadillo (comida, pieles, cacharros) | tras el mostrador del puesto | vendedor de comida, peletero, buhonero | ninguna | igual que el tendero |
+| Puesto de guardia | a los lados de cada puerta de la empalizada, por dentro | guardia | lanza de sílex o de bronce | de pie mirando fuera; a veces hace la ronda |
+
+**La guardia.** Los puestos de la cerca (`SettlementLayout._guard_posts`, building -1 en el oficio) se reparten
+antes que los demás. Al volver a su puesto, cuatro de cada diez veces hacen antes la ronda: de cuatro a
+ocho puntos de la cerca por dentro, en un sentido al azar. Si ataca una fiera (la alarma del poblado), no
+huyen: corren hasta ella con la lanza (`Villager._fight`), la encaran y le dan lanzazos (`DamageInfo` contra
+su hurtbox, 14 como poco o lo de su lanza) hasta que cae o se va, y vuelven a lo suyo. La fiera, al
+recibir, va a por ellos; no tienen salud ni hurtbox, así que no caen.
 
 Talar y picar son solo gesto: no producen nada. La herramienta cuelga del hueso del dedo corazón con
 el marco de agarre del jugador (`CombatPose.RIGHT_GRIP`). La mano no se cierra sobre el mango, así que
@@ -69,6 +85,14 @@ ella. La herramienta de prefabs los coloca contra la pared del fondo, con la cab
 hacia ella.
 
 ## Cuándo aparecen
+
+**Por cercanía** (`SettlementVillagers._stream`). Cuando el poblado cobra vida, sus vecinos no salen todos:
+cada uno sale si el sitio donde le toca aparecer (`Villager.spawn_point`: su lecho de noche o con lluvia o
+alarma, su puesto en hora de trabajo, la plaza si no) está a menos de 90 m del jugador, o de 30 si es dentro
+de una casa; los más cercanos primero (la cola de vestir se ordena por distancia cada medio segundo) y como
+mucho 60 a la vez entre todos los poblados. Quien queda a más de 130 m del jugador se va (si cruzaba una
+puerta, la suelta), y vuelve a salir donde le toque cuando el jugador se acerca. En hora de trabajo
+aparecen ya trabajando en su puesto. Así una villa de cien vecinos solo tiene en pie a los de alrededor.
 
 A menos de `villager_distance` (200 m) del centro, con todas las casas levantadas, el poblado se llena
 y se vacía a 60 m más. La casa que el jugador ya ha tocado es suya, y en ella no vive nadie.
@@ -246,6 +270,11 @@ siguiente.
 | Leñera | Madera y ramas siempre; a veces fibra, antorchas o un hacha de piedra |
 | Huerto | Fibra y milenrama siempre; a veces emplastos y bebedizos, o una azada |
 | Banco | Herramientas y armas de piedra y sílex, arco, flechas, escudo, odre, escala; muy rara vez algo de bronce |
+| Herrería | Bronce: lingotes, hacha, pico, azada, espada, seax, lanza; mineral de cobre y estaño, carbón, anzuelos |
+| Tienda | De todo para el camino: odres, escalas, antorchas, petate, morrales, caña y cebo, flechas, arco, escudo, emplastos, tablillas, vidrio, comida |
+| Puesto de comida | Carne y pescado, asados y crudos, siempre; milenrama y bebedizos a veces |
+| Peletero | Pieles y tendones siempre; mantos, mocasines, manoplas, casacas, botas y capuchas de piel, cuernas, plumas |
+| Buhonero | Fibra, sílex, huesos, antorchas, flechas; cuchillos, dagas, porras, honda, anzuelos, odres |
 | Sin oficio | La despensa: carne asada y cruda, pescado, pieles, huesos, tendones, plumas; a veces una cuerna o unas manoplas o mocasines |
 
 **Los precios** salen de lo que vale cada cosa (`ItemValue`, en leños) según la confianza del poblado:
@@ -267,36 +296,93 @@ confianza 2, una vez al día por vecino y hasta 60: comerciando se llega a amigo
 
 ## Encargos
 
-Algunos vecinos tienen algo que pedir. Entonces su charla tiene **¿Te echo una mano?**, que dice lo que
-pide y lo que hay a cambio; **Cuenta conmigo** lo acepta. Con uno abierto, el botón pasa a **El
-encargo**: cómo va, **Entregar** (o **Ya está**, si es de caza), que solo se puede pulsar cuando está
-cumplido, y **Dejarlo**, que lo cierra sin más. Debajo salen todos los encargos que tiene el jugador
-(quién, de qué poblado y cómo van). Al aceptarlo, al avanzar y al cobrarlo se avisa en la barra.
-
 **Quién pide qué** (`SettlementQuests.offer`): cada vecino puede pedir algo una vez cada 2 días de juego
-(`PERIOD`, con el reloj de `SettlementRelations`), con un 45 % de probabilidad, sorteado y siempre igual
+(`PERIOD`, con el reloj de `SettlementRelations`), con un 50 % de probabilidad, sorteado y siempre igual
 en ese tiempo. Hay como mucho un encargo abierto por poblado y 3 en total (`MAX_OPEN`); mientras su
-poblado tiene uno, los demás vecinos no piden. Quien cumple uno no pide otro hasta el periodo siguiente.
+poblado tiene uno, los demás vecinos no piden. Quien cumple (o falla) uno no pide otro hasta el periodo
+siguiente. El tipo se sortea por peso (`KINDS`) entre los que se pueden pedir allí:
 
-- **Traer cosas** (`FETCH`), según su oficio: el leñero, sílex, carne asada, pieles o tendones; la
+- **Traer cosas** (`fetch`), según su oficio: el leñero, sílex, carne asada, pieles o tendones; la
   hortelana, huesos, pescado, sílex o plumas; el artesano, sílex, mineral de cobre o de estaño, cuernas,
   tendones o huesos; sin oficio, comida, pieles o milenrama. De 2 a 6 de algo. Al entregar sale del
   inventario.
-- **Cazar** (`PREY`): si rondan fieras a menos de 400 m de la plaza (`SettlementVillage.prey_near`,
-  despiertas o dormidas), la mitad de las veces pide acabar con una o unas cuantas de una de esas
-  especies (2-3 lobos o hienas, 1-2 jabalíes o linces, 1 oso, puma, caimán, león...). Cuentan las que
-  caen a menos de 600 m de la plaza (`HUNT_REACH`) por mano del jugador o de su compañero: al morir, una
-  criatura avisa al grupo `NPCController.KILLS_GROUP` con quien la hirió por última vez, y
-  `SettlementManager.creature_killed` lo cuenta.
+- **Cazar** (`hunt`): si rondan fieras a menos de 400 m de la plaza (`SettlementVillage.prey_near`),
+  acabar con una o unas cuantas de una de esas especies (2-3 lobos o hienas, 1-2 jabalíes o linces, 1
+  oso, puma, caimán, león...). Cuentan las que caen a menos de 600 m de la plaza (`HUNT_REACH`) por mano
+  del jugador o de su compañero (`NPCController.KILLS_GROUP` → `SettlementManager.creature_killed`).
+- **Rescate** (`rescue`): otro vecino del poblado se ha perdido, malherido, a 250-600 m, hacia el poblado
+  vecino (por donde hay tierra) con hasta 35° de desvío. Mientras está perdido no sale en su poblado
+  (`away_ids`). En el mapa sale la zona (a hasta 70 m del sitio), no el sitio.
+- **Escolta** (`escort`, desde cautos): quien lo pide quiere ir al poblado más cercano (a menos de 3 km).
+- **Recado** (`errand`, desde cautos): llevar un mensaje a un vecino del poblado más cercano y volver con
+  su respuesta.
+- **Fiera con nombre** (`beast`): si rondan fieras, una de esas especies, más grande y dura que ninguna
+  y con nombre («el Tuerto», «Crin Gris»: `VBEAST_*`), ronda un sitio a 300-700 m.
 
-**Lo que da** (`SettlementQuests.complete`): lo que vale el encargo (lo traído por 1,5, o cada fiera lo
-suyo: un lobo 12, un oso 40) por 0,3 de confianza, entre 4 y 15, **sin tope**: es lo que hace a alguien
-de la familia. Y cosas de las que tiene para cambiar según su oficio (`SettlementTrade.STOCK`), una o
-dos, por hasta 0,8 de ese valor. Las frases (`VTALK_QUEST_*`) y los nombres de las fieras (`VPREY_*`, con
-`_ONE` y `_MANY`) van en `translations.csv`.
+**La charla**: el que tiene algo que pedir lleva un **!** sobre la cabeza (en ámbar, hasta 45 m:
+`Villager.set_mark`, que pone `SettlementVillage._update_marks` cada 2 s); el que espera que se le cobre
+uno ya cumplido, o al que se le trae un recado, un **?** verde. Si el jugador pasa a menos de 10 m del que
+tiene algo que pedir, lo saluda con la mano y le llama («¡Eh, tú! ¿Tienes un momento?», en la barra), una
+vez por periodo. En su charla, **¿Te echo una mano?** dice lo que pide y debajo lo que hay a cambio, y se
+le puede contestar:
 
-`SettlementManager` guarda los encargos abiertos, lo que pide cada vecino en este periodo y quién ha
-cumplido (`quests` en su `get_save_data`).
+- **Cuenta conmigo**: lo acepta; empieza a correr su plazo (`HOURS`: traer, 3 días; cazar, 2; rescate,
+  18 horas; escolta, 1 día; recado, 2 días; fiera, 3 días; el día de juego dura lo que diga el sol).
+- **¿Qué gano yo?** (una vez por oferta): regatear. Sale bien con un 35 % más un 10 % por nivel de
+  confianza, y entonces la paga es 1,35 veces más; si no, se molesta y baja la confianza 2.
+- **Cuéntame más** (`VillagerTalk.quest_details`): hacia dónde y a cuántos metros (el rescate y la fiera),
+  a qué poblado y lo lejos (la escolta y el recado), qué cuenta (la caza) y el plazo.
+- **Ahora no**: vuelve a la charla, sin más.
+
+Con uno abierto, el botón pasa a **El encargo**: cómo va, lo que le queda de plazo, qué hay que hacer,
+**Entregar** (traer) o **Ya está** (lo demás), que solo se puede pulsar cuando está cumplido, y **Dejarlo**,
+que lo cierra y **baja la confianza** la mitad de lo que bajaría fallarlo. Al aceptarlo, al avanzar y al
+cobrarlo se avisa en la barra.
+
+**En el mundo** lo lleva `QuestDirector` (hijo de `SettlementManager`, cada segundo):
+
+- **Rescate**: al acercarse el jugador a 150 m del sitio, el perdido sale allí (en el suelo), con un 45 %
+  de vida, esperando, como un compañero que va por un encargo (`Companion.ward`, el "id" de quien lo
+  pidió: no ocupa sitio en el grupo ni se le manda trabajar, solo **Sígueme** y **Espera aquí**). A 70 m
+  salen dos fieras (de las que rondan el poblado o, si no se sabe, lobos) que van a por él; a 8 m se le
+  ha encontrado. Siguiendo al jugador, al llegar a 40 m de su plaza se va a su casa y queda para cobrar
+  («Ya está» a quien lo pidió). Si muere, se pierde. Esperando y con el jugador a más de 450 m, se quita
+  (vuelve a salir al volver).
+- **Escolta**: al aceptarla, quien la pide se va ya con el jugador (como al reclutarlo, pero de encargo).
+  A 45 m de la plaza del poblado vecino paga ahí mismo («Ya hemos llegado») y se vuelve. Por el camino,
+  con el jugador a más de 250 m de los dos poblados y él siguiéndolo, cada 110-200 s salen 2-3 fieras
+  alrededor, la primera a por él, hasta 2 veces. Si muere, se pierde.
+- **Recado**: el del otro poblado tiene en su charla **Traigo un recado de…**: contesta, da algo pequeño
+  de lo suyo (`ERRAND_GIFT`), sube la confianza de su poblado 4 y el encargo queda para volver a cobrarlo.
+- **Fiera con nombre**: al acercarse el jugador a 220 m de su sitio sale allí, con la variante más grande
+  de su especie ×1,3 y 2,5 veces su vida, y su nombre encima (hasta 45 m). Muerta (por quien sea), suelta
+  su **trofeo** (`TROPHY`: la cabeza de lobo, la de jabalí o la capucha de oso; las demás, 2 de oro) y
+  queda para cobrar.
+- **El plazo**: el que se pasa (salvo lo que ya solo falta cobrar) se pierde, igual que si muere el perdido
+  o el escoltado: baja la confianza el valor del encargo por 0,15, entre 3 y 10, y se avisa.
+
+**Lo que da** (`SettlementQuests.complete`): lo que vale el encargo (lo traído por 1,5; cada fiera lo
+suyo, un lobo 12, un oso 40; el rescate 40; la escolta 25 + 12 por km; el recado 16 + 7 por km; la fiera
+con nombre, tres veces su especie) por 0,3 de confianza, entre 4 y 15, **sin tope**: es lo que hace a
+alguien de la familia. Y cosas de las que tiene para cambiar según su oficio (`SettlementTrade.STOCK`),
+una o dos, por hasta 0,8 de ese valor (por 1,35 si se regateó bien).
+
+**El diario** (`QuestJournal`, **L**, acción `journal`, se cambia en las opciones): un panel a la
+derecha, sin soltar el ratón, con cada encargo abierto: de qué es, quién lo pidió y de dónde, cómo va, lo
+que le queda de plazo, si ya se puede cobrar y hacia dónde y a cuánto queda lo siguiente
+(`SettlementQuests.target_of`: la zona del perdido o de la fiera, el poblado de destino o el de quien lo
+pidió). Esos sitios salen también en el **mapa** y el minimapa, con el aro en ámbar
+(`MapMarkers.provider`: no se guardan ni se pueden editar).
+
+Para probar, la consola: `village quest <fetch|hunt|rescue|escort|errand|beast>` hace que el aldeano más
+cercano del poblado más cercano pida ahora eso (si se puede allí: la escolta y el recado piden confianza
+de cautos, `village trust 30`, y la caza y la fiera, fieras que ronden).
+
+Las frases (`VTALK_QUEST_*`, `VTALK_WARD_*`, `VTALK_CALL_*`...), los nombres de las fieras (`VPREY_*`,
+`VBEAST_*`) y los avisos (`VQUEST_*`, `JOURNAL_*`) van en `translations.csv`. `SettlementManager` guarda
+los encargos abiertos (con su plazo y cómo van), lo que pide cada vecino en este periodo y quién ha
+cumplido (`quests` en su `get_save_data`); el perdido y el escoltado se guardan con los compañeros (con
+su `ward`). La prueba de la lógica: `tests/world/test_quests.tscn`.
 
 ## Compañeros
 
@@ -313,12 +399,40 @@ flotante lo mueve con ellas.
   distancia: anda (1,4 m/s), a más de 7 m trota (2,4 m/s) y a más de 10 m corre, de 4 m/s a la carrera
   (8 m/s a 15 m). La animación (andar, trotar, correr) sale de la velocidad real, con margen para no
   cambiar a cada paso.
+  Va en línea recta y, si una pared, una casa o unas rocas se lo impiden, **por un camino**
+  (`Companion.steer` con `moving`, el `GroundPath` de los colonos): rodea la pared, sale de una casa
+  por la puerta (abriéndola y cerrándola) y entra a por el jugador. Como el jugador se mueve, no mide
+  si se acerca (yendo detrás no se acerca aunque ande bien) sino si anda lo que quiere: busca camino
+  cuando lleva 0,5 s sin avanzar (`CHASE_STUCK`) o ve una pared delante, como mucho una vez cada 1,5 s;
+  si el jugador sigue andando, acaba el camino que llevaba y luego va derecho. En formación, igual
+  hacia su hueco.
   Si avanza mucho menos de lo que quiere, salta (5 m/s: un bloque), pero solo si lo que tiene delante
-  es bajo: con algo a 1,3 m del suelo (una pared) no salta y, en la base, busca camino al momento.
+  es bajo: con algo a 1,3 m del suelo (una pared) no salta y busca camino al momento.
   Apoyado, empuja hacia el suelo a 0,5 m/s: sin eso, contra una pared de una construcción dejaba el
-  suelo un tick sí y otro no. Si sigue atascado 4 s a más de
-  8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia donde va, en un
-  sitio a su vista y con suelo.
+  suelo un tick sí y otro no. Si ni por un camino sale de ahí (tres búsquedas sin acercarse, o 8 s
+  atascado) a más de 8 m, o se queda a más de 50 m, aparece a 2,5 m del jugador, por detrás de hacia
+  donde va, en un sitio a su vista y con suelo.
+- **Nada**: con los pies a más de 1,45 m bajo la superficie, como el jugador (el mar, los lagos y los
+  ríos, a la altura del mar y con las olas que haya allí, `WaterHeightSampler` del jugador; no en un
+  compartimento seco de un barco), se pone a nadar, a 2,5 m/s (3,2 si se queda atrás o va a pelear).
+  Flota con la cabeza fuera: nadando (`swimming`, tumbado, la cabeza a 0,9 m de los pies) con los pies
+  a 0,8 m y quieto (`swimming_idle`, de pie, la cabeza a 1,55 m) a 1,4 m. Sigue nadando hasta que hace
+  pie, con el fondo a menos de 1,25 m bajo la superficie (un rayo desde los pies), o sale del agua. En
+  el agua va derecho (sin caminos), no golpea ni dispara, guarda el arco y baja el escudo; contra una
+  orilla alta se impulsa para salir.
+- **Trepa detrás del jugador** (`ClimbRoutes`, en `SettlementCompanions.routes`). Mientras el jugador
+  trepa una pared o una escala (`ClimbController`), se apunta por dónde va su cuerpo cada 0,25 m, con
+  la normal de la pared, y al coronar, dónde acaba de pie y hacia dónde mira. Si se suelta sin coronar,
+  baja a una escala desde arriba, trepa por un barco (se mueve) o no sube al menos 1,5 m (eso se sube de
+  un salto), la ruta no vale. Quien le sigue y está a menos de 30 m de su pie, por debajo de donde acaba
+  (con el jugador a menos de 30 m de allí arriba) va al pie mientras el jugador trepa y espera de cara
+  a la pared; al coronar sube por los mismos puntos a 0,9 m/s, sin colisión, con `climb_up` o
+  `climb_down` al ritmo que casa sus manos con la pared, y corona con `climb_top` hasta donde acabó de pie
+  el jugador (el clip acaba de pie en su origen; empieza en el instante en que su cadera queda a la
+  altura de la suya y su marco se corre de donde estaba a donde acaba). Suben de uno en uno, cada 1,6 s.
+  Trepando no pelea, no se le puede hablar y los golpes no lo sueltan; malherido, cae desde donde
+  esté. Si en 30 s no llega al pie, la deja. Las rutas duran 3 minutos y se guardan las cuatro
+  últimas; guardando la partida mientras trepa, se guarda donde acabará de pie.
 - **Espera aquí**: se queda quieto, mirando al jugador si está cerca, y a los 25 s se sienta.
 - **Vuelve a casa**: se despide en el aviso de la barra y echa a andar hacia su poblado. Se va del
   todo a 35 m del jugador o a los 45 s, y su poblado lo vuelve a sacar la próxima vez que se llene.
@@ -346,9 +460,46 @@ tiro (los dos cuerpos, el brazo y lo que mide el arma), la encara y golpea con l
 ritmo y con un respiro entre golpe y golpe. El golpe le da en el cuerpo si sigue a tiro y delante, con
 el 0,8 del daño del arma (los puños, 6; nunca menos) y su tipo. El arma (`refresh_weapon`) es la mejor
 que lleve en el morral para golpear con la derecha (ni arcos ni hondas) o, si no, la herramienta de su
-oficio; se ve mientras pelea y un rato después.
+oficio; se ve mientras pelea y un rato después. Hasta la fiera va como siguiendo al jugador: derecho y,
+si algo se lo impide, por un camino.
 
-**Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de su ropa sumada por 0,4) y un
+**Con arco** (el mejor arco del morral, `CompanionGear.bow`, si le quedan flechas de las suyas en el
+morral): a la fiera que está a más de 6 m le dispara; a más de 35 m, o si no la ve desde el pecho, se
+acerca corriendo. Quieto y de cara, tensa (`combat/bow_draw`, saca la flecha de la aljaba, la encaja y
+tensa), aguanta un momento y suelta (`combat/bow_recoil`), con un respiro entre flecha y flecha. Apunta
+adelantándose a lo que corre la fiera y a lo que cae la flecha, con 1,5° de error; la flecha
+(`CombatProjectile`) hace el 0,8 del daño del arco más el de la flecha, se clava como las del jugador y
+gasta una del morral. No da al jugador ni a otro compañero. Si la fiera se le echa encima (a menos de
+3 m mientras tensa, o de 6 m antes de empezar), o le dan tensando, lo deja y pelea con la mano. El arco
+solo se ve fuera; con él fuera, lo de la mano no. Mientras tensa y suelta, una `CombatPose` colgada de su
+esqueleto (`Companion.combat_pose`, la del jugador) lleva el tronco hacia la fiera y coloca con `BowAnimRig`
+el arco en el puño, la cuerda en los dedos y la flecha (en la mano al sacarla de la aljaba, luego en la
+cuerda), que pone `CompanionGear.place_bow` como `PlayerCombat._place_bow`.
+
+**Con escudo** (el mejor escudo del morral, `CompanionGear.shield`): lo lleva en el antebrazo izquierdo,
+colocado como el del jugador, y para con la misma `Guard` (lo que para el escudo, su ventana de parada y
+su estabilidad), con un aguante propio (80, que se recupera a 22 por segundo). Cuando la fiera con la
+que pelea va a por él y empieza un golpe (`get_combat_situation`: `windup` o `active`) cerca, lo alza
+(`combat/shield_block`, luego `shield_block_idle`) tras 0,08-0,3 s; uno de cada cinco golpes no lo ve
+venir. Lo baja 0,35 s después de que acabe y entonces golpea. Lo que para suena, saca chispas si es metal
+y lo encaja (`shield_block_hit`) sin respingo; una parada en seco deja a la fiera vendida; sin aguante
+cede y le llega lo que no ha podido parar. No lo usa con el arco, con un arma a dos manos, nadando ni
+sentado; durmiendo y sentado no se ve.
+
+**Sin escudo**: con un arma a dos manos que para (`guard_reduction`: la maza, el hacha grande, el
+espadón) se cubre con ella igual que con el escudo (`Companion._guard_item`), con la guardia del espadón
+(`combat/greatsword_block_idle`). Sin con qué parar (una mano sin escudo, una herramienta, los puños)
+**esquiva**: al ver venir el golpe (tras 0,08-0,3 s; tres de cada diez no lo ve) da el paso atrás del
+jugador (`BodyMotion.BACKSTEP` en su `CombatPose`, 2,1 m en 0,42 s) hacia atrás o en diagonal (hasta
+40°), sin dejar de mirarla y sin que le den entre 0,03 y 0,24 s. Gasta 10 de su aguante (sin él no
+esquiva) y no vuelve a esquivar hasta 1 s después.
+
+**Se viste del morral** (`CompanionGear`): en cada hueco (cabeza, pecho, manos, piernas, pies) se pone
+la pieza del morral que más protege y, si no hay ninguna, la de su poblado; al quitársela vuelve a la
+suya. Lo que lleva puesto sigue en el morral (ocupa su hueco y se guarda con él), y al ponérselo se le
+ajusta al cuerpo como al jugador (`CharacterAppearanceRig.dress`).
+
+**Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de lo que lleva puesto sumada por 0,4) y un
 `Hurtbox`, así que las zarpas y los dientes le dan. La criatura a la que golpea se le revuelve
 (`NPCController._on_damaged`), y `Perception` lo sigue viendo aunque el jugador ande cerca. Al encajar
 un golpe da un respingo (si no está a mitad de golpe) y se revuelve contra quien ha sido. El jugador no
@@ -512,9 +663,14 @@ que se guardan con él) para volver con **A la base**.
   «· con sed»). No muere. El reloj es el del mundo (`WorldTime`): durmiendo el jugador, también. Lo que
   se le queda en el morral y las horas de hambre y de sed se guardan.
 
+Al **cargar la partida**, los del grupo y los colonos a menos de 150 m del jugador se visten en el momento
+(~0,1 s cada uno); los demás, en un hilo de uno en uno (`SettlementCompanions._dress_pending`), y salen
+según están listos. Mientras, cuentan como colonos y se guardan tal cual venían.
+
 El **comedero** (`feeding_trough`, banco de piedra: 10 de madera) es un `Storage` con
-`StorageTrait.feeder` y 12 huecos que solo admiten comida (`FeederInventoryRules`): nadie deja en él lo
-que saca, salvo el cocinero lo asado; al abrirlo no salen los oficios. El **bebedero** (`water_trough`,
+`StorageTrait.feeder` y 12 huecos que solo admiten comida (`FeederInventoryRules`): el cocinero deja en él
+lo asado y, si en la base no hay cocinero, el cazador y el pescador dejan en él lo que se come de lo que
+traen (`SettlerTask.food_drop`; lo demás, al cofre), porque de los cofres no come nadie; al abrirlo no salen los oficios. El **bebedero** (`water_trough`,
 banco de piedra: 8 de madera y 2 pieles; `WaterTrough`) guarda hasta 60 tragos, como los odres, y se ve
 el agua subir. Con E el jugador vierte en él lo que llevan sus odres; si no lleva agua y tiene sed, bebe
 de él; si no, dice cuánto tiene. También lo llena la lluvia (hasta 4 tragos por hora de juego; la
@@ -603,7 +759,13 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   blueprints colocados sin pagar, y las reparaciones) de su zona (60 m de la base o la marcada). Necesita
   un **martillo**. Coge de los cofres que aceptan su oficio (Constructor) lo que le falta a la obra (hasta
   60 unidades por viaje), lo aporta como el jugador con la E y la martillea desde fuera de su caja con el
-  golpe vertical, que pone lo mismo que un martillazo del jugador. Si en los cofres no hay nada de lo que
+  golpe vertical, que pone lo mismo que un martillazo del jugador. Lo que queda a más de 2,4 m sobre sus
+  pies (`BlueprintSite.next_point`: la obra sube por capas) lo pone desde un **andamio**
+  (`SettlerScaffold`): lo planta en su sitio junto a la obra, con la plataforma 1,3 m por debajo de lo
+  que pone (de 1 a 9 m, de medio en medio metro), sube por la escalera de atrás con las animaciones de
+  trepar (`Companion.climb_ladder`) y martillea desde arriba. Si la obra sube de capa, baja, lo sube y
+  vuelve a subir; para ir a por material, baja; al acabar, baja y lo quita. Solo la plataforma choca. No
+  se guarda: al cargar está al pie de la escalera y lo vuelve a plantar. Si en los cofres no hay nada de lo que
   falta, se queda parado diciendo qué (*faltan 12 de Madera en los cofres*). Varios comparten obra: cada
   uno descuenta lo que ya traen los demás. Acabada, avisa y lo sobrante vuelve al cofre. Lleva la cuenta
   de los bloques puestos. Lejos: un viaje cada 30 s y un martillazo cada 2,5 s.
@@ -615,14 +777,20 @@ en el morral*). Lejos del jugador cada uno sigue a su manera, sin moverse.
   80 m acuden. No usa cofre.
 - **Cazador** (`SettlerHunt`, **Sal a cazar**): caza las presas de su zona (las que huyen al herirlas;
   a las fieras no va) como en una pelea, persiguiéndolas hasta 25 m fuera de ella; la que se le escapa la
-  deja 2 minutos. Muerta, la despieza (6 s; lo que da es lo del jugador, `HuntingLoot`, con el cuchillo
-  que lleve) y lo lleva al cofre. También despieza lo muerto sin despellejar de su zona. Necesita un arma
+  deja 2 minutos. Muerta, la despieza (6 s, agachado y a tajos con el cuchillo en la mano: el clip `work/butcher` de
+  `AnimSplice`, que empalma las piernas de `loco/crouch_idle` con el tronco y los brazos del `butcher`
+  del jugador; lo que da es lo del jugador, `HuntingLoot`, con el cuchillo que lleve) y lo lleva al
+  cofre; sin cocinero en la base, la carne al comedero (ver arriba). También despieza lo muerto sin despellejar de su zona. Necesita un arma
   (o la herramienta de su oficio). Los animales solo aparecen cerca del jugador: si no ve ninguno y está
   fuera de su zona, va a ella antes de darla por vacía. Lejos: 4 de carne y 1 de piel cada 8 minutos.
 - **Pescador** (`SettlerFish`, **Ponte a pescar**): necesita una **caña** (sin gastar anzuelos ni cebo).
   Busca la orilla más cercana de su zona (tantea el agua en anillos cada 3 m y vuelve hacia tierra hasta
-  pisar seco), va y, de cara al agua con la caña en la mano, saca un pescado crudo cada 1-2 minutos; con 5
-  los lleva al cofre. Sin agua en su zona se queda parado. El terreno solo está cargado cerca del
+  pisar seco), va y pesca como el jugador: lanza la boya (`FishingFloat`, sin el aro ni el aviso del jugador) unos
+  metros más allá de la orilla, espera a que un pez de los que hay (`AmbientFish`) vaya a por el
+  anzuelo, lo engancha o se le escapa (`hook_chance` de su caña) y recoge hasta tenerlo en la orilla;
+  los brazos son los de `FishingPose`, en una `CombatPose` colgada de su esqueleto. Sin picada en 40-70 s
+  recoge y vuelve a lanzar. Los peces solo salen alrededor del jugador: sin ninguno cerca, pica uno que
+  no se ve cada 1,5-3 minutos. Con 5 los lleva al cofre (sin cocinero, al comedero). Sin agua en su zona se queda parado. El terreno solo está cargado cerca del
   jugador: si su zona queda lejos de la cámara (`SettlerWork._zone_loaded`), no ve el agua y va hacia
   ella (`SettlerTask.toward_zone`; antes se quedaba en la base diciendo que pescaba). Lejos, si ya
   había encontrado su orilla (se guarda) o el mapa del mundo dice que en su zona hay mar
@@ -680,6 +848,13 @@ se sienta (`ThroneView`: `village/throne_sit` y luego `village/throne_idle`, en 
   (Sal a cazar, Ponte a pescar, Cocina, Trae agua), **Obras** (Construye las obras) y **Defensa** (Guardia de día,
   Guardia de noche); aparte, **Deja eso** y **Seguidme**. Salvo cocinar, sale un círculo bajo el ratón: clic lo pone (la rueda cambia el radio, de
   4 a 60 m); con clic derecho van alrededor de su base, y limpiar y la guardia se cancelan.
+  Con zona, la orden queda como **zona del trono** (`SettlerZones`, en `SettlementCompanions.zones`, que
+  se guarda): su oficio, su círculo y un **cupo** de tantos como elegidos. Sin elegir a nadie también se
+  puede marcar (cupo 1). Cada 3 s, los colonos sin oficio cuya base está a menos de 200 m la van llenando
+  hasta el cupo, el más cercano antes, y si sobra alguno, el más lejano lo deja; quien recibe otra orden
+  sale de ella y entra otro. En el mapa sale con su cartel («Tala árboles · 2/3»); pinchándolo se elige y
+  en el panel salen **−** y **+** (el cupo, hasta 20) y **Quitar zona**, que para a los suyos. Una zona de
+  limpiar se quita sola al quedar limpia.
   **Seguidme** se lleva a los elegidos que quepan en el grupo: dejan la base (acordándose de ella y de
   su trabajo) y siguen al jugador en cuanto se levanta.
 
@@ -710,7 +885,14 @@ lejos sin moverse), el guardia (ronda por el borde, turnos, puesto de noche), el
 la hoguera y lo asado al cofre o al comedero; lejos), las comidas (del comedero y no de los cofres,
 lo asado antes que lo crudo, medio ritmo con hambre), la sed (el bebedero y su guardado, beber lejos
 sin moverse, cerca ir andando primero al comedero y luego al bebedero, un cuarto de ritmo con hambre y
-sed, el aguador sin odre, lejos y su guardado), el cazador y el pescador lejos, y el guardado de cada trabajo. El cazador y el pescador de
+sed, el aguador sin odre, lejos y su guardado), el cazador y el pescador lejos, el guardado de cada trabajo,
+el equipo (`_check_gear`: se pone del morral la pieza que más protege en su hueco en vez de la de su
+poblado, vuelve a ella al quitársela, el escudo con su guardia y el arco solo con flechas), seguir al
+jugador al otro lado de una pared rodeándola andando (`_check_follow_wall`), nadar (`_check_swim`: en
+agua honda flota con la cabeza fuera y no se hunde nadando, sigue al jugador y, donde hace pie, anda por
+el fondo) y trepar detrás del jugador (`_check_climb`: mientras trepa esperan al pie, al coronar suben
+los dos por su ruta, de uno en uno, y quedan de pie arriba sin aparecer de golpe). Con
+`-- --only=swim,climb` (los nombres de `_check_*` sin el prefijo) corre solo esas secciones. El cazador y el pescador de
 cerca necesitan criaturas y agua reales: solo se prueban con ventana.
 
 `tests/world/test_settlements.tscn` (`_check_villagers`). Sobre un poblado de prueba, con los pasos de
@@ -734,13 +916,11 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
 
 ## Limitaciones
 
-- Los colonos no se intoxican con lo crudo, y sin cocinero lo que cazan y pescan se queda en los cofres:
-  hay que pasarlo al comedero a mano. Comen y beben de pie, sin animación. El bebedero lejos del jugador
-  no recoge lluvia. El pescador no lanza de verdad (saca a su ritmo,
-  haya peces o no) y el cazador despieza con la animación de cavar. El constructor no sube a andamios:
-  una obra alta se martillea desde el suelo. El trono aún usa el icono del cofre. Sin ventana no se puede probar el
-  trabajo de cerca: los cuerpos de los árboles no se regeneran alrededor del jugador. Cargar una partida
-  con muchos colonos los viste todos en ese momento (~0,1 s cada uno).
+- Los colonos no se intoxican con lo crudo. Comen y beben de pie, sin animación. El bebedero lejos del
+  jugador no recoge lluvia. El pescador lejos del jugador (o sin peces a la vista) saca a su ritmo, y al
+  despiezar no se desmiembra ni se despelleja el animal como cuando lo hace el jugador. El andamio no
+  sirve a nadie más que a su constructor, y si se le quita el oficio estando arriba, cae. Sin ventana no
+  se puede probar el trabajo de cerca: los cuerpos de los árboles no se regeneran alrededor del jugador.
 - Esquivar es solo torcer el paso: dos que se encuentran en una puerta o contra una pared se rozan, y
   al jugador lo empuja su cápsula si se le pone delante.
 - Sentarse y tumbarse son fundidos desde estar de pie, sin animación de transición.
@@ -749,17 +929,27 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   buscan camino: si en 12 s no llegan, aparecen en su sitio. El jugador no se sienta en las bancadas
   ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
-- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea, pero no
-  se protege (ni guardia ni escudo), no usa arcos y no se pone la ropa ni las armaduras que lleva.
+- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea: para con el
+  escudo o con un arma a dos manos y, si no, esquiva hacia atrás (no rueda); no usa hondas ni lanzas
+  arrojadizas. La armadura le protege toda sumada, no por partes como al
+  jugador, y la ropa no le abriga.
 - El tiempo es el del sitio del jugador, no el del poblado: valen porque solo hay gente en los
   poblados cercanos. No cambian de ropa con el frío.
 - Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
   revenden.
-- Suelto o peleando, el compañero va en línea recta (los caminos, `Companion.steer`, los usan el colono
-  en la base y en su trabajo y el grupo en formación): no rodea paredes ni busca puertas
-  (salta o, si no sale, aparece detrás del jugador). No nada: en el agua anda por el fondo. Las fieras
-  solo van a por él si les pega; las que no, siguen con el jugador.
-- Los encargos no tienen plazo ni salen en ningún diario: solo en la charla y en los avisos de la barra.
-  Las fieras de un encargo de caza no se marcan: valen cualesquiera de esa especie cerca del poblado.
-- La confianza solo sube (hablando, regalando, comerciando y con los encargos); aún no baja por nada.
+- Solo trepa por donde ha trepado el jugador, y sin la pared de verdad: va por los puntos del jugador
+  (sin inclinarse con ella, ni de lado con `climb_left`/`climb_right`), así que una pared que se ha
+  roto o construido después no le cambia nada. No trepa por su cuenta (para salir de un hoyo, para
+  llegar a una fiera) ni baja trepando: baja saltando o por un camino.
+- Los caminos (`GroundPath`) llegan a 35 m: lo que queda más lejos detrás de una pared lo alcanza por
+  tramos, y si aun así no sale, aparece detrás del jugador. En el agua va derecho: no bucea, no rodea
+  rocas sumergidas y bajo la banquisa nada como en agua abierta. Las fieras solo van a por él si les
+  pega; las que no, siguen con el jugador.
+- Las fieras de un encargo de caza no se marcan: valen cualesquiera de esa especie cerca del poblado. El
+  perdido no cojea ni se tumba: espera de pie. Escoltado o perdido, cuando el jugador se aleja mucho
+  aparece detrás de él como cualquier compañero. La fiera con nombre que se deja atrás se quita y vuelve
+  a salir con toda su vida. Las fieras de un rescate o de una emboscada no tienen en cuenta el bioma: son
+  las que rondan el poblado o lobos.
+- La confianza baja solo con los encargos (fallarlos, dejarlos o regatear mal); no por pegarles ni por
+  robar.
 - Una casa que ha pasado a la partida pierde sus lechos al cargarla, porque son decorado.

@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="SettlementPrefab" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/settlement_prop.gd" id="1_qdxnw"]
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="2_l15k0"]
+[ext_resource type="Script" path="res://scripts/world/settlement_workplace.gd" id="3_lnpqv"]
+
+[sub_resource type="Resource" id="Resource_2yk21"]
+script = ExtResource("1_qdxnw")
+kind = &"hide_rack"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 1, 0.12)
+
+[sub_resource type="Resource" id="Resource_i85a4"]
+script = ExtResource("1_qdxnw")
+kind = &"sack"
+pose = Transform3D(0.921061, 0, 0.38941833, 0, 1, 0, -0.38941833, 0, 0.921061, 3.6, 1, 0.45)
+
+[sub_resource type="Resource" id="Resource_og83o"]
+script = ExtResource("1_qdxnw")
+kind = &"goods"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 1.5, 1.45)
+item = &"fur_mittens"
+scale = 1.5
+
+[sub_resource type="Resource" id="Resource_tg73w"]
+script = ExtResource("1_qdxnw")
+kind = &"goods"
+pose = Transform3D(0.8253356, 0, 0.5646425, 0, 1, 0, -0.5646425, 0, 0.8253356, 1.5, 1.5, 1.65)
+item = &"antler"
+scale = 1.5
+
+[sub_resource type="Resource" id="Resource_0a37o"]
+script = ExtResource("1_qdxnw")
+kind = &"goods"
+pose = Transform3D(0.3623577, 0, 0.9320391, 0, 1, 0, -0.9320391, 0, 0.3623577, 1.8, 1.5, 1.45)
+item = &"fur_moccasins"
+scale = 1.5
+
+[sub_resource type="Resource" id="Resource_m557t"]
+script = ExtResource("1_qdxnw")
+kind = &"goods"
+pose = Transform3D(-0.22720204, 0, 0.9738476, 0, 1, 0, -0.9738476, 0, -0.22720204, 3.3, 1.5, 1.65)
+item = &"sinew"
+scale = 1.5
+
+[sub_resource type="Resource" id="Resource_1bmy8"]
+script = ExtResource("1_qdxnw")
+kind = &"goods"
+pose = Transform3D(-0.7373938, 0, 0.67546314, 0, 1, 0, -0.67546314, 0, -0.7373938, 3.7, 1.5, 1.45)
+item = &"fur_hood"
+scale = 1.5
+
+[sub_resource type="Resource" id="Resource_phtt5"]
+script = ExtResource("3_lnpqv")
+kind = &"stall_hides"
+pose = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 1, 0.65)
+indoor = true
+size = Vector2(1, 1)
+stands = PackedVector3Array(0, 0, 0)
+looks = PackedVector3Array(0, 0, 2.85)
+
+[resource]
+script = ExtResource("2_l15k0")
+id = &"puesto_pieles"
+kind = &"stall"
+blueprint_path = "res://data/settlements/prefabs/puesto_pieles.json"
+door_cell = Vector2i(2, 2)
+workplaces = Array[ExtResource("3_lnpqv")]([SubResource("Resource_phtt5")])
+props = Array[ExtResource("1_qdxnw")]([SubResource("Resource_2yk21"), SubResource("Resource_i85a4"), SubResource("Resource_og83o"), SubResource("Resource_tg73w"), SubResource("Resource_0a37o"), SubResource("Resource_m557t"), SubResource("Resource_1bmy8")])

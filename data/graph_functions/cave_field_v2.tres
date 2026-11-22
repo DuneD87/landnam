@@ -4,8 +4,20 @@
 
 [resource]
 graph_data = {
-"connections": [[54, 0, 32, 0], [53, 0, 54, 1], [50, 0, 26, 0], [38, 0, 31, 0], [38, 0, 54, 0], [51, 0, 52, 0], [33, 0, 31, 1], [32, 0, 30, 0], [3, 0, 51, 2], [26, 0, 33, 0], [52, 0, 53, 0], [31, 0, 40, 0], [2, 0, 51, 1], [30, 0, 33, 1], [1, 0, 51, 0]],
+"connections": [[54, 0, 61, 0], [60, 0, 61, 1], [61, 0, 32, 0], [53, 0, 54, 1], [50, 0, 26, 0], [38, 0, 31, 0], [38, 0, 54, 0], [51, 0, 52, 0], [33, 0, 31, 1], [32, 0, 30, 0], [3, 0, 51, 2], [26, 0, 33, 0], [52, 0, 53, 0], [31, 0, 40, 0], [2, 0, 51, 1], [30, 0, 33, 1], [1, 0, 51, 0]],
 "nodes": {
+"60": {
+"auto_connect": false,
+"gui_position": Vector2(-200, 420),
+"name": &"cave_roof",
+"type": "CustomInput"
+},
+"61": {
+"auto_connect": false,
+"gui_position": Vector2(-40, 380),
+"name": &"cave_roof_add",
+"type": "Add"
+},
 "1": {
 "auto_connect": false,
 "gui_position": Vector2(440, -100),
@@ -109,5 +121,5 @@ graph_data = {
 },
 "version": 2
 }
-input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0]]
+input_definitions = [["x", "InputX", 0], ["y", "InputY", 0], ["z", "InputZ", 0], ["earth_field", "CustomInput", 0], ["cave_roof", "CustomInput", 0]]
 output_definitions = [["cave_field", "CustomOutput", 0]]

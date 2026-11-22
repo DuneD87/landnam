@@ -86,7 +86,7 @@ const GUARD_MIN_TIME := 0.25
 ## fundido del canal la alza; sin "hit", el golpe solo sacude el tronco (HitReact).
 const GUARD_ANIMS := {
 	&"shield": {"raise": &"shield_block", "hold": &"shield_block_idle", "hit": &"shield_block_hit"},
-	&"two_handed": {"hold": &"greatsword_block_idle"},
+	&"two_handed": {"hold": &"greatsword_block_idle", "hit": &"greatsword_block_hit"},
 }
 ## Ritmo de alzar el escudo (a 1,4 queda arriba a los ~0,25 s: lo que dura la ventana de parada)
 ## y de encajar un golpe.
@@ -118,6 +118,7 @@ const SKIP_AFTER := 0.5
 
 ## Animaciones de Mixamo reorientadas al jugador (tools/combat/retarget_mixamo.gd). Tiempos en
 ## segundos de cada animación, medidos sobre ella.
+const STYLE_LIBRARY := "res://models/player/mixamo/combat_styles.tres"
 const COMBAT_LIBRARY := "res://models/player/mixamo/combat_anims.tres"
 ## Qué acciones usan la animación de Mixamo (true) y cuáles la procedural (false). Elegido a ojo
 ## en el juego: la voltereta y el arco (Pro Longbow Pack, con BowAnimRig) de Mixamo; el resto,
@@ -225,6 +226,7 @@ var _riposte_left: float = 0.0
 ## Empujón que deja un golpe encajado en guardia (m/s, se va apagando).
 var _guard_push: Vector3 = Vector3.ZERO
 var _shield_node: Node3D = null
+var _shield_carry: WeaponCarry
 var _shield_data: ItemData = null
 ## Antorcha en la mano izquierda (attach_offhand_torch).
 var _offhand_torch: Node3D = null
@@ -307,6 +309,8 @@ var _bow_nocked: bool = false
 var _quiver: QuiverVisual = null
 ## Giro del cuerpo (grados) al apuntar con el arco quieto: de perfil al blanco.
 var _stance_yaw: float = 0.0
+## Posturas de los packs debajo de los canales de acción.
+var stance := CombatStance.new()
 ## 0..1 llevar el arma al correr (CombatPose.carry), y a qué ritmo entra y sale (1/s).
 var _carry: float = 0.0
 const CARRY_BLEND_SPEED := 5.0
@@ -448,6 +452,8 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 		return
 	if not animator.has_animation_library(&"combat"):
 		animator.add_animation_library(&"combat", load(COMBAT_LIBRARY))
+	if not animator.has_animation_library(&"styles"):
+		animator.add_animation_library(&"styles", load(STYLE_LIBRARY))
 	# Andar y correr en todas direcciones y agachado, dentro de la locomoción de debajo.
 	Locomotion.build(tree_root, animator, _skeleton)
 	var top := AnimGraph.input_of(tree_root, &"output", 0)
@@ -483,11 +489,14 @@ func _setup_action_channels(tree_root: AnimationNodeBlendTree) -> void:
 	_anims_ready = true
 
 
-## Ruta de la animación [anim_name] en el AnimationPlayer: la de la librería "combat" si está
-## ahí, si no la de la librería por defecto (las que trae el rig, como los golpes originales).
+## Ruta de [anim_name]: primero "styles" (packs), después "combat" y, por último,
+## la librería por defecto del rig (como los golpes originales).
 func _anim_path(anim_name: StringName) -> StringName:
 	var combat := StringName("combat/" + String(anim_name))
+	var style := StringName("styles/" + String(anim_name))
 	var animator: AnimationPlayer = player.animation_controller.animator
+	if animator != null and animator.has_animation(style):
+		return style
 	return combat if animator == null or animator.has_animation(combat) else anim_name
 
 
@@ -651,6 +660,13 @@ func attach_weapon(node: Node3D, data: ItemData) -> void:
 
 ## Suelta el arma de la mano y la devuelve (el que llama la libera).
 func detach_weapon() -> Node3D:
+	_press_pending = false
+	_buffered = &""
+	_guard_held = false
+	if state == State.AIM:
+		_end_aim()
+	if state == State.GUARD:
+		_set_state(State.IDLE)
 	if player.fishing != null:
 		player.fishing.cancel()
 	var node := _weapon_node
@@ -884,6 +900,7 @@ func physics_update(delta: float, input_dir: Vector3) -> void:
 	cripple.update(delta, input_dir)
 	_update_aim_blend(delta)
 	_update_guard_blend()
+	stance.update(self, delta)
 	_update_carry(delta)
 	_update_recovery(input_dir)
 
@@ -1087,7 +1104,8 @@ func _guard_item() -> ItemData:
 	var data := weapon()
 	if data != null and data.two_handed:
 		return data if data.guard_reduction > 0.0 else null
-	if _shield_data == null or (data != null and data.is_left_handed()) or not _shield_arm():
+	if _shield_data == null or (data != null and data.is_left_handed()) or not _shield_arm() \
+			or (player.loadout != null and not player.loadout.hands_ready):
 		return null
 	return _shield_data
 
@@ -1183,14 +1201,15 @@ func _on_guard_broken(info: DamageInfo) -> void:
 	_start_stagger(info)
 
 
-## Escudo en la mano secundaria (ranura OFFHAND): va en el antebrazo izquierdo y se ve salvo
-## cuando esa mano tiene otra cosa (arco, tirachinas) o el arma es a dos manos.
+## Escudo en la mano secundaria (ranura OFFHAND): antebrazo izquierdo o transporte en la espalda.
 func attach_shield(node: Node3D, data: ItemData) -> void:
 	detach_shield()
 	_shield_node = node
 	_shield_data = data
 	node.top_level = true
 	add_child(node)
+	_shield_carry = WeaponCarry.create(pose.skeleton(), data)
+	refit_shield_carry()
 	_update_shield_visibility()
 
 
@@ -1204,7 +1223,15 @@ func detach_shield() -> Node3D:
 		_set_state(State.IDLE)
 	if node != null and is_instance_valid(node) and node.get_parent() != null:
 		node.get_parent().remove_child(node)
+	if _shield_carry != null:
+		_shield_carry.queue_free()
+		_shield_carry = null
 	return node
+
+
+func refit_shield_carry() -> void:
+	if _shield_carry != null:
+		_shield_carry.fit_to_body(player.appearance_rig)
 
 
 ## Antorcha en la mano izquierda (ranura OFFHAND), con un arma o el martillo en la derecha. Cuelga
@@ -1222,6 +1249,10 @@ func detach_offhand_torch() -> Node3D:
 	var node := _offhand_torch
 	_offhand_torch = null
 	if node != null and is_instance_valid(node) and node.get_parent() != null:
+		# Un arranque diferido del loop no debe sonar después de sacar la antorcha del árbol.
+		for audio in node.find_children("*", "", true, false):
+			if audio is EntityAudio:
+				audio.set_loop_active(false)
 		node.get_parent().remove_child(node)
 	return node
 
@@ -1231,9 +1262,9 @@ func holds_offhand_torch() -> bool:
 	return _offhand_torch != null and is_instance_valid(_offhand_torch) and _offhand_torch.visible
 
 
-## Lo de la mano izquierda, escudo o antorcha, se ve salvo cuando esa mano tiene otra cosa (arco,
-## tirachinas, muleta), el arma es a dos manos o falta el brazo. El escudo tampoco de muerto: va con
-## la pose, y el muñeco de trapo no la sigue (la antorcha cuelga del hueso y cae con él).
+## Con la izquierda libre, escudo al brazo y antorcha visible. Con ambas manos ocupadas o
+## guardadas, el escudo va a su anclaje de espalda y no interviene en la guardia. De muerto se
+## oculta: el muñeco de trapo no sigue la pose del antebrazo.
 func _update_shield_visibility() -> void:
 	if pose == null:
 		return
@@ -1248,8 +1279,16 @@ func _update_shield_visibility() -> void:
 				node.set_loop_active(shown)
 	if _shield_node == null or not is_instance_valid(_shield_node):
 		return
-	_shield_node.visible = shown and state != State.DEAD
-	pose.shield_on = _shield_node.visible
+	var in_hand := shown and (player.loadout == null or player.loadout.hands_ready)
+	if in_hand:
+		if _shield_node.get_parent() != self:
+			_shield_node.get_parent().remove_child(_shield_node)
+			add_child(_shield_node)
+		_shield_node.top_level = true
+	elif _shield_carry != null and _shield_node.get_parent() != _shield_carry:
+		_shield_carry.carry(_shield_node)
+	_shield_node.visible = state != State.DEAD and (in_hand or _shield_carry != null)
+	pose.shield_on = in_hand and state != State.DEAD
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1275,7 +1314,7 @@ func _start_attack(heavy: bool, work := Callable()) -> void:
 	var data := weapon()
 	if data == null:
 		return
-	var family := MeleeMoveset.family_for(data)
+	var family := MeleeMoveset.family_for(data, _guard_item() == _shield_data and _shield_data != null)
 	var kind := "heavy" if heavy else "light"
 	var after_dodge := state == State.DODGE or _since_dodge < DASH_WINDOW
 	# En marcha (andando, corriendo o esprintando) no se para: el golpe va en el tronco y los
@@ -2208,7 +2247,7 @@ func _update_carry(delta: float) -> void:
 	# como en la de cojear (la pose de correr lo pegaría al costado).
 	var target := 1.0 if pose.grip_right and data != null and not data.two_handed and state == State.IDLE \
 		and (m.is_sprinting or (m.is_running and not m.walking)) and not m.is_swimming \
-		and not cripple.active() else 0.0
+		and not cripple.active() and not stance.active(&"shield") else 0.0
 	# Al golpear, esquivar o apuntar se suelta enseguida para no arrastrarla sobre la acción.
 	var rate := CARRY_BLEND_SPEED if state == State.IDLE else CARRY_BLEND_SPEED * 3.0
 	_carry = move_toward(_carry, target, delta * rate)
@@ -2246,6 +2285,10 @@ func _update_aim_blend(delta: float) -> void:
 	if data != null:
 		pose.fp_reach_both = data.two_handed
 		pose.fp_blade_mid = (data.blade_start + data.reach) * 0.5 if data.reach > 0.0 else 0.3
+	var support := data != null and data.two_handed and pose.grip_right and not cripple.active() \
+		and state in [State.IDLE, State.ATTACK, State.GUARD] and _shield_arm() \
+		and not player.movement.is_swimming and not player.climb.is_active()
+	pose.two_hand_grip = move_toward(pose.two_hand_grip, 1.0 if support else 0.0, delta * 12.0)
 	pose.draw = _draw
 	pose.release = clampf(_release_t, 0.0, 1.0) if _release_t >= 0.0 else 0.0
 	pose.throw.draw = _draw
@@ -2769,21 +2812,25 @@ func _update_body_visual() -> void:
 			pose.roll_x = -1.0
 			pose.tuck = 0.0
 			if state != State.DEAD:
-				_set_body_ik(1.0)
+				var air: Vector2 = _move.get("air", Vector2.ZERO)
+				var time := _act_time(_attack_slot)
+				var jumping_attack := state == State.ATTACK and not _on_the_run and air.y > air.x \
+					and time >= air.x and time <= air.y
+				_set_body_ik(0.0 if jumping_attack else 1.0)
 			# Apuntando con el arco sin moverse, el cuerpo se pone de perfil (los pies con él);
 			# andando vuelve de frente y el giro lo hace solo el tronco.
 			var data := weapon()
 			var target := 0.0
-			var stance := 0.0
+			var aim_stance := 0.0
 			if state == State.AIM and data != null:
 				if data.weapon_type == ItemData.WeaponType.BOW and not _mixamo(&"bow"):
-					stance = BOW_STANCE_YAW
+					aim_stance = BOW_STANCE_YAW
 				elif data.throwable and not _mixamo(&"throw"):
-					stance = THROW_STANCE_YAW
-			if stance != 0.0:
+					aim_stance = THROW_STANCE_YAW
+			if aim_stance != 0.0:
 				var up := -player.gravity_direction.normalized()
 				var h_speed := (player.velocity - up * player.velocity.dot(up)).length()
-				target = stance * _aim_weight * (1.0 - clampf(h_speed / 1.5, 0.0, 1.0))
+				target = aim_stance * _aim_weight * (1.0 - clampf(h_speed / 1.5, 0.0, 1.0))
 				# En cuesta, girar los pies deja uno muy por encima del otro: se gira menos.
 				if player.is_on_floor():
 					var slope := rad_to_deg(player.get_floor_normal().angle_to(up))

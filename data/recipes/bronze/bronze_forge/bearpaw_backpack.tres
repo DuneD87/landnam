@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeData" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/recipe_data.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+result = &"bearpaw_backpack"
+inputs = Dictionary[StringName, int]({
+&"raw_hide": 10,
+&"sinew": 4,
+&"plant_fiber": 6,
+&"bronze_ingot": 1
+})
+station = &"bronze_forge"
+era = 1

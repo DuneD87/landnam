@@ -29,6 +29,7 @@ const SLOT_COVERAGE := {
 	ItemData.ArmorSlot.HANDS: (1 << Region.HANDS) | (1 << Region.FOREARMS),
 	ItemData.ArmorSlot.LEGS: (1 << Region.THIGHS) | (1 << Region.SHINS),
 	ItemData.ArmorSlot.FEET: 1 << Region.FEET,
+	ItemData.ArmorSlot.CLOAK: 1 << Region.TORSO,
 }
 
 ## Claves del nombre de cada tipo de golpe.

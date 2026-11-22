@@ -129,10 +129,12 @@ const REBINDABLE_ACTIONS := [
 		[&"toggle_free_flight", "ACTION_FREE_FLIGHT"]]],
 	["OPT_GROUP_COMBAT", [
 		[&"attack_1", "ACTION_ATTACK_1"], [&"attack_2", "ACTION_ATTACK_2"], [&"lock_on", "ACTION_LOCK_ON"],
+		[&"toggle_weapon", "ACTION_TOGGLE_WEAPON"],
 		[&"group_orders", "ACTION_GROUP_ORDERS"]]],
 	["OPT_GROUP_INTERFACE", [
 		[&"action", "ACTION_USE"], [&"inventory", "ACTION_INVENTORY"], [&"character_window", "ACTION_CHARACTER"],
-		[&"world_map", "ACTION_WORLD_MAP"], [&"throne_view", "ACTION_THRONE"], [&"toggle_console", "ACTION_CONSOLE"]]],
+		[&"world_map", "ACTION_WORLD_MAP"], [&"throne_view", "ACTION_THRONE"], [&"journal", "ACTION_JOURNAL"],
+		[&"toggle_console", "ACTION_CONSOLE"]]],
 	["OPT_GROUP_BUILDING", [
 		[&"open_build_menu", "ACTION_BUILD_MENU"], [&"switch_build_modes", "ACTION_BUILD_MODE"],
 		[&"toggle_symmetry_mode", "ACTION_SYMMETRY"], [&"switch_symmetry_plane", "ACTION_SYMMETRY_PLANE"],

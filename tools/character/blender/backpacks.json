@@ -1,0 +1,12 @@
+{
+  "skin_backpack": {
+    "model": "skin_backpack/Meshy_AI_Rugged_Furbound_Satchel_20261121_texture.fbx",
+    "decimate": 0.3,
+    "height": 0.47
+  },
+  "bearpaw_backpack": {
+    "model": "bearpaw_backpack/Meshy_AI_Midnight_Rucksack_20261121_texture.fbx",
+    "decimate": 0.3,
+    "height": 0.53
+  }
+}

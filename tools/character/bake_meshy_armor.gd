@@ -36,6 +36,7 @@ extends SceneTree
 const SKIN := "res://models/player/xavivar/firstage_human_male_player_skin.tres"
 const SKIRT_SKIN := "res://models/player/xavivar/firstage_human_male_player_skirt_skin.tres"
 const PELT_SKIN := "res://models/player/xavivar/firstage_human_male_player_pelt_skin.tres"
+const CLOAK_SKIN := "res://models/player/xavivar/firstage_human_male_player_cloak_skin.tres"
 const MODEL := "res://scenes/character/character_model.tscn"
 const MESH_ITEM := "res://scripts/items/mesh_item.gd"
 const FUR := "res://models/equipable/stone_age/fur/"
@@ -57,12 +58,27 @@ const ROUGHNESS_RANGE := Vector2(0.8, 1.0)
 ## Less shine and a softer relief than Meshy's maps, which glint on every tuft.
 const SPECULAR := 0.25
 const NORMAL_SCALE := 0.7
+## Meshy paints its metal almost black (3-5 % reflectance; bronze reflects
+## most of the light) and lets a bright studio HDRI make it shine: under the
+## sky it looks like dull brown paint. Where its metallic map says metal, the
+## albedo is brightened this much (linear) and saturated this much;
+## the rest (leather) a little, as it is a shade dark too (tone_albedo()).
+const METAL_GAIN := 8.0
+const METAL_SATURATION := 1.3
+const DIELECTRIC_GAIN := 1.5
 
 var _models := "res://models/equipable/stone_age/"
 var _scenes := "res://scenes/items/armor/stone_age/"
 var _items := "res://data/items/Armor/StoneAge/"
 var _bronze := false
 var _fur_materials := {}
+
+
+## See _tights(): metres; skin above TIGHTS_HIPS is round the waist.
+const TIGHTS_MARGIN := 0.025
+const TIGHTS_WAIST := 0.06
+const TIGHTS_SECTORS := 24
+const TIGHTS_HIPS := -0.15
 
 
 func _initialize() -> void:
@@ -89,6 +105,9 @@ func _initialize() -> void:
 	else:
 		skins[SkirtBones.PREFIX] = _added_skin(skins[""], SkirtBones.rests, SKIRT_SKIN)
 		skins[PeltBones.PREFIX] = _added_skin(skins[""], PeltBones.rests, PELT_SKIN)
+	# The cloak's, made the first time a cloak is baked; its arms bound
+	# hanging (CloakBones.arm_hang()).
+	skins[CloakBones.PREFIX] = _cloak_skin(skins[""])
 	DirAccess.make_dir_recursive_absolute(_models)
 	DirAccess.make_dir_recursive_absolute(_scenes)
 	var waiting := []
@@ -126,6 +145,13 @@ func _initialize() -> void:
 ## to its bone's; the scan's all do it with their bone at rest, so the skin's
 ## space is where the hips' bind puts it.
 func _added_skin(skin: Skin, rests_of: Callable, path: String) -> Skin:
+	if ResourceSaver.save(_with_added(skin, rests_of), path) != OK:
+		push_error("Could not save " + path)
+	return load(path)
+
+
+## `skin` with the bones of `rests_of` (SkirtBones.rests...) bound at their rest.
+func _with_added(skin: Skin, rests_of: Callable) -> Skin:
 	var model: Node3D = load(MODEL).instantiate()
 	var skeleton: Skeleton3D = model.get_node("Armature/Skeleton3D")
 	var hips := skeleton.find_bone(SkirtBones.HIPS)
@@ -138,9 +164,30 @@ func _added_skin(skin: Skin, rests_of: Callable, path: String) -> Skin:
 	for name: StringName in rests:
 		result.add_named_bind(name, (rests[name][1] as Transform3D).affine_inverse() * to_skeleton)
 	model.free()
-	if ResourceSaver.save(result, path) != OK:
-		push_error("Could not save " + path)
-	return load(path)
+	return result
+
+
+## The cloaks' Skin (CLOAK_SKIN): the scan's with the cloak's bones added
+## and its upper arms bound hanging (CloakBones.arm_hang()), as cloaks are
+## made. Its binds are made anew (CloakBones' chains may have changed) but
+## it is updated in place, so the scenes that use it keep it.
+func _cloak_skin(player: Skin) -> Skin:
+	var skin: Skin = load(CLOAK_SKIN) if ResourceLoader.exists(CLOAK_SKIN) \
+			else _added_skin(player, CloakBones.rests, CLOAK_SKIN)
+	var fresh := _with_added(player, CloakBones.rests)
+	skin.clear_binds()
+	for b in fresh.get_bind_count():
+		skin.add_named_bind(fresh.get_bind_name(b), fresh.get_bind_pose(b))
+	for arm in CloakBones.ARMS.size():
+		var hang := CloakBones.arm_hang(player, arm)
+		for b in skin.get_bind_count():
+			if skin.get_bind_name(b) == CloakBones.ARMS[arm]:
+				for p in player.get_bind_count():
+					if player.get_bind_name(p) == CloakBones.ARMS[arm]:
+						skin.set_bind_pose(b, player.get_bind_pose(p) * hang)
+	if ResourceSaver.save(skin, CLOAK_SKIN) != OK:
+		push_error("Could not save " + CLOAK_SKIN)
+	return skin
 
 
 ## The prefix of the added bones the piece hangs from (SkirtBones.PREFIX,
@@ -152,7 +199,7 @@ static func _added_bones(data: Dictionary) -> String:
 		for k in influences.size():
 			var bone := String(data.bones[int(influences[k])])
 			if weights[k] > 0.0:
-				for prefix: String in [SkirtBones.PREFIX, PeltBones.PREFIX]:
+				for prefix: String in [SkirtBones.PREFIX, PeltBones.PREFIX, CloakBones.PREFIX]:
 					if bone.begins_with(prefix):
 						return prefix
 	return ""
@@ -175,6 +222,8 @@ func _textures(id: String, maps: Dictionary) -> bool:
 		if image.get_width() != size:
 			image.resize(size, size, Image.INTERPOLATE_LANCZOS)
 		image.convert(Image.FORMAT_RGB8)
+		if kind == "albedo" and _bronze and maps.has("metallic"):
+			tone_albedo(image, Image.load_from_file(maps.metallic))
 		if kind == "roughness" and not _bronze:
 			for y in image.get_height():
 				for x in image.get_width():
@@ -189,6 +238,27 @@ func _textures(id: String, maps: Dictionary) -> bool:
 		options.set_value("params", "mipmaps/generate", true)
 		options.save(path + ".import")
 	return ready
+
+
+## Brightens Meshy's albedo (sRGB) by its metallic map (METAL_GAIN,
+## DIELECTRIC_GAIN), keeping each texel's hue.
+static func tone_albedo(albedo: Image, metallic: Image) -> void:
+	var mask := metallic.duplicate() as Image
+	mask.convert(Image.FORMAT_L8)
+	if mask.get_size() != albedo.get_size():
+		mask.resize(albedo.get_width(), albedo.get_height(), Image.INTERPOLATE_BILINEAR)
+	for y in albedo.get_height():
+		for x in albedo.get_width():
+			var metal := mask.get_pixel(x, y).r
+			var c := albedo.get_pixel(x, y).srgb_to_linear()
+			var grey := c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+			var saturation := lerpf(1.0, METAL_SATURATION, metal)
+			var v := Vector3(c.r, c.g, c.b)
+			v = (Vector3(grey, grey, grey) + (v - Vector3(grey, grey, grey)) * saturation).maxf(0.0)
+			v *= lerpf(DIELECTRIC_GAIN, METAL_GAIN, metal)
+			# Past white it would lose its hue: scaled down whole.
+			v /= maxf(1.0, maxf(v.x, maxf(v.y, v.z)))
+			albedo.set_pixel(x, y, Color(v.x, v.y, v.z).linear_to_srgb())
 
 
 func _mesh(id: String, data: Dictionary, binds: Dictionary) -> ArrayMesh:
@@ -216,7 +286,38 @@ func _mesh(id: String, data: Dictionary, binds: Dictionary) -> ArrayMesh:
 		else:
 			mesh.surface_set_material(index, _material(id))
 	mesh.resource_name = id
+	if data.has("tights"):
+		var tights: Dictionary = _tights(data.get("surfaces", [data])[0].positions)
+		var c: Array = data.tights
+		tights.color = Color(c[0], c[1], c[2])
+		mesh.set_meta(&"tights", tights)
 	return mesh
+
+
+## Where a leg piece's tights (CharacterAppearanceRig._update_tights()) end,
+## from its points (player skin space, metres, Y up, origin at the hips):
+## TIGHTS_MARGIN over its hem and TIGHTS_WAIST under its waist (ArmorFit
+## carries it onto each body a few centimetres up or down from the scan's,
+## and the waistband covers that skin anyway), where that is lowest
+## round the body (a ragged or sloping waistband: what stands over the
+## waist in one of TIGHTS_SECTORS sectors, a strap or a buckle, does not
+## lift it).
+static func _tights(positions: Array) -> Dictionary:
+	var hem := INF
+	var tops := PackedFloat32Array()
+	tops.resize(TIGHTS_SECTORS)
+	tops.fill(-INF)
+	for i in positions.size() / 3:
+		var p := Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+		hem = minf(hem, p.y)
+		if p.y > TIGHTS_HIPS:
+			var sector := posmod(int(floor((atan2(p.x, p.z) + PI) / TAU * TIGHTS_SECTORS)), TIGHTS_SECTORS)
+			tops[sector] = maxf(tops[sector], p.y)
+	var waist := INF
+	for sector in TIGHTS_SECTORS:
+		var around := minf(tops[posmod(sector - 1, TIGHTS_SECTORS)], tops[(sector + 1) % TIGHTS_SECTORS])
+		waist = minf(waist, minf(tops[sector], around + 0.01))
+	return {hem = hem + TIGHTS_MARGIN, waist = waist - TIGHTS_WAIST}
 
 
 static func _weight_flags(arrays: Array) -> int:
@@ -256,6 +357,13 @@ func _reweight(directory: String, only: PackedStringArray, exporting: bool) -> i
 				push_error("Invalid weights: " + path)
 				scene.free()
 				return 1
+			# New weights may hang it from the skirt's or a pelt's bones, or
+			# no longer: the scene takes the Skin with their binds.
+			var skin_path: String = {"": SKIN, SkirtBones.PREFIX: SKIRT_SKIN, PeltBones.PREFIX: PELT_SKIN,
+					CloakBones.PREFIX: CLOAK_SKIN}[_added_bones(data)]
+			var reskinned: bool = scene.skin == null or scene.skin.resource_path != skin_path
+			if reskinned:
+				scene.skin = load(skin_path)
 			var binds := {}
 			for b in scene.skin.get_bind_count():
 				binds[String(scene.skin.get_bind_name(b))] = b
@@ -290,6 +398,8 @@ func _reweight(directory: String, only: PackedStringArray, exporting: bool) -> i
 			if ResourceSaver.save(mesh, _models + file) != OK:
 				scene.free()
 				return 1
+			if reskinned:
+				_scene(id, load(_models + file), scene.skin)
 		scene.free()
 		processed += 1
 		print("%s: %s weights" % [id, "exported for" if exporting else "updated"])
@@ -357,7 +467,8 @@ func _material(id: String) -> StandardMaterial3D:
 	material.roughness_texture = load(_models + id + "_roughness.jpg")
 	material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	if _bronze:
-		material.normal_scale = 0.52
+		# Meshy's relief whole: the lion, the rims and the rivets.
+		material.normal_scale = 1.0
 		material.metallic_specular = 0.5
 		var path := _models + id + "_metallic.jpg"
 		if ResourceLoader.exists(path):

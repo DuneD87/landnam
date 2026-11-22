@@ -29,6 +29,17 @@ func stop() -> void:
 	pass
 
 
+## Dónde guardarlo si está en algo que no se guarda (el andamio del constructor), o Vector3.INF.
+func ground_spot() -> Vector3:
+	return Vector3.INF
+
+
+## Ha dejado de darle pasos (duerme, pelea, charla, se ha alejado el jugador): suelta lo que tenga a la
+## vista (la caña lanzada).
+func paused() -> void:
+	pass
+
+
 ## Un paso cerca del jugador: [hacia dónde, a qué velocidad].
 func step(_delta: float) -> Array:
 	return still()
@@ -123,6 +134,35 @@ func feeders() -> Array[Storage]:
 	if not home.is_finite():
 		return []
 	return Storage.feeders(c.get_tree(), home, w.chest_reach(), c.global_position)
+
+
+## Dónde dejar [data] que trae a la base: sin cocinero (has_cook), lo que se come va al comedero con
+## sitio más cercano, porque de los cofres no come nadie; con cocinero, al cofre, que él lo asa y lo
+## pone en el comedero. null: al cofre como siempre (también en campo y con los comederos llenos).
+func food_drop(data: ItemData) -> Storage:
+	if w.field or data == null or not _edible(data) or has_cook():
+		return null
+	return chest_with_room(feeders(), data)
+
+
+## Si en la base hay un colono cocinero (otro o él mismo).
+func has_cook() -> bool:
+	var home := w.home()
+	if not home.is_finite():
+		return false
+	for node in c.get_tree().get_nodes_in_group(Companion.GROUP):
+		var other := node as Companion
+		if other == null or other.dead or other.mode != Companion.Mode.SETTLE or other.work.job != SettlerWork.Job.COOK:
+			continue
+		var there := other.work.home()
+		if there.is_finite() and there.distance_to(home) <= w.chest_reach():
+			return true
+	return false
+
+
+static func _edible(data: ItemData) -> bool:
+	var edible := data.get_trait(EdibleTrait) as EdibleTrait
+	return edible != null and edible.hunger > 0.0
 
 
 ## Cuánto hay de [data] entre [from].

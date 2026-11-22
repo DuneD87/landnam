@@ -18,6 +18,9 @@ const MAX_NAME_LENGTH := 48
 
 var _entries: Array[Dictionary] = []
 var _next_id := 1
+## Marcas que no son del jugador ni se guardan (las de los encargos, QuestJournal.markers): [planet_id] ->
+## Array de {"uv", "icon", "name"}. Salen con id negativo y no se pueden editar.
+var provider: Callable
 
 
 func add(planet_id: String, uv: Vector2, icon: String, marker_name: String = "") -> int:
@@ -70,6 +73,13 @@ func for_planet(planet_id: String) -> Array[Dictionary]:
 	for entry in _entries:
 		if entry.planet_id == planet_id:
 			out.append(entry.duplicate())
+	if provider.is_valid():
+		var extra: Array = provider.call(planet_id)
+		for i in extra.size():
+			var entry: Dictionary = extra[i]
+			if entry.get("icon", "") in ICONS and is_valid_uv(entry.get("uv", Vector2(-1, -1))):
+				out.append({"id": -1 - i, "planet_id": planet_id, "uv": entry.uv, "icon": entry.icon,
+					"name": String(entry.get("name", "")), "kind": "quest"})
 	return out
 
 

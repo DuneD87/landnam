@@ -54,9 +54,16 @@ func _check_catalog_and_menu() -> void:
 		"el material carga sus mapas de color y relieve")
 	var groups := BlockDatabase.get_block_items_by_material()
 	check(groups["thatch"]["items"].size() == 2, "Paja ofrece faldón y cumbrera")
-	for id in ["stone", "glass"]:
-		check(groups[id]["items"].size() == 6, "%s conserva sus seis formas" % id)
-	check(groups["wood"]["items"].size() == 7, "Madera ofrece también el panel triangular")
+	check(groups["glass"]["items"].size() == 6, "glass conserva sus seis formas")
+	check(groups["stone"]["items"].size() == 8, "La piedra suma la losa y el poste a sus seis formas")
+	check(groups["wood"]["items"].size() == 12,
+		"Madera ofrece también el panel triangular, la carpintería (poste, listón, escuadra, riostra) y la losa")
+	for id in ["shingles", "turf"]:
+		var roofs := 0
+		for item: ItemData in groups[id]["items"]:
+			if item.block_id in [BlockDatabase.BLOCK_THATCH_SLOPE_ID, BlockDatabase.BLOCK_THATCH_RIDGE_ID]:
+				roofs += 1
+		check(roofs == 2, "%s ofrece el faldón y la cumbrera" % id)
 	var triangle := BlockDatabase.get_block_material_item(BlockDatabase.BLOCK_PANE_TRIANGLE_ID, "wood")
 	check(triangle != null and triangle.get_display_name() != triangle.display_name,
 		"el panel triangular de madera tiene nombre traducido")

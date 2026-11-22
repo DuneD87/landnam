@@ -81,6 +81,8 @@ var resting: RestController
 var throne_view: ThroneView
 ## Hablar con los aldeanos de los poblados.
 var villager_chat: VillagerChat
+## El diario de encargos (L): QuestJournal.
+var quest_journal: QuestJournal
 ## Las órdenes al grupo que lo acompaña (la rueda de group_orders).
 var group_command: GroupCommand
 ## Comer, beber, despellejar y las hogueras.
@@ -157,6 +159,7 @@ var _feet_in_water: bool = false
 
 var equiped_weapon: ItemData
 var right_hand_equipped: bool = false
+var loadout: PlayerLoadout
 var is_holding_atack: bool = false
 
 ## Materiales con iluminación planetaria que el jugador lleva encima (cuerpo, armaduras,
@@ -382,14 +385,8 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 				combat.attach_offhand_torch(torch)
 				_register_worn_node(torch)
 			ItemData.Category.TOOL, ItemData.Category.WEAPON:
-				equiped_weapon = data
-				# Antes de colgarla: el combate mira lo que lleva para esconder lo de la izquierda
-				# (el arco la ocupa).
-				right_hand_equipped = true
 				var item = scene.instantiate()
-				# El combate decide la mano y el marco de agarre (armas en metros, arco en la
-				# izquierda, herramientas antiguas con su propia escala).
-				combat.attach_weapon(item, data)
+				loadout.equip(slot, item, data)
 				_register_worn_node(item)
 			ItemData.Category.ARMOR when data.is_shield():
 				# El escudo no se viste: va en el antebrazo izquierdo (PlayerCombat).
@@ -411,9 +408,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 					_unregister_worn_node(torch)
 					torch.queue_free()
 			ItemData.Category.TOOL, ItemData.Category.WEAPON:
-				# Antes de soltarla, como al ponerla: soltar el arco deja ver lo de la izquierda.
-				right_hand_equipped = false
-				var equipped_child := combat.detach_weapon()
+				var equipped_child := loadout.unequip(slot)
 				if equipped_child != null:
 					_unregister_worn_node(equipped_child)
 					equipped_child.queue_free()
@@ -431,6 +426,7 @@ func equip_item(equip: bool, slot: ItemData.ArmorSlot, scene: PackedScene, data:
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HEAD && child.item_data.armor_slot == ItemData.ArmorSlot.HEAD
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.HANDS && child.item_data.armor_slot == ItemData.ArmorSlot.HANDS
 						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.FEET && child.item_data.armor_slot == ItemData.ArmorSlot.FEET
+						remove_condition = remove_condition || data.armor_slot == ItemData.ArmorSlot.CLOAK && child.item_data.armor_slot == ItemData.ArmorSlot.CLOAK
 
 						if remove_condition:
 							appearance_rig.undress(child)
@@ -444,28 +440,31 @@ func on_equipment_changed(slot: ItemData.ArmorSlot, item: InventoryItem, equip: 
 	var category = data.category
 	if category == ItemData.Category.TOOL || category == ItemData.Category.WEAPON || category == ItemData.Category.ARMOR:
 		equip_item(equip, slot, scene, data, category)
-	if slot == ItemData.ArmorSlot.OFFHAND:
+	if slot == ItemData.ArmorSlot.CLOAK:
+		# La mochila va encima de la capa: se aparta lo que abulta, o vuelve a la espalda.
+		for child in player_model.get_node("Armature/Skeleton3D").get_children():
+			if child is BackEquipment:
+				child.fit_to_body(appearance_rig)
+	if slot == ItemData.ArmorSlot.OFFHAND or slot == ItemData.ArmorSlot.PRIMARY:
 		_sync_hotbar_offhand()
+	loadout.refit()
 	_sync_armor()
 	_sync_build_mode()
 
 func _on_hotbar_selection_changed(old_data: ItemData, new_data: ItemData) -> void:
-	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
 	var new_is_equippable := new_data != null and (new_data.category == ItemData.Category.TOOL or new_data.category == ItemData.Category.WEAPON)
 
 	var new_is_placeable := new_data != null and new_data.placeable
 
 	if new_is_placeable:
 		building_system.select_placeable(new_data)
-		if old_is_equippable:
-			_unequip_right_hand()
+		loadout.set_active(-1)
 	elif new_is_equippable:
 		building_system.select_placeable(null)
 		_equip_from_hotbar(old_data, new_data)
 	else:
 		building_system.select_placeable(null)
-		if old_is_equippable:
-			_unequip_right_hand()
+		loadout.set_active(-1)
 
 	_sync_build_mode()
 	inventory.inventory_changed.emit()
@@ -508,28 +507,33 @@ func _hold_left_torch() -> void:
 	animation_controller.overlay["bLeftTorchRun"] = 1.0 if running else 0.0
 
 
-func _equip_from_hotbar(old_data: ItemData, new_data: ItemData) -> void:
-	var held := _get_right_hand_item()
-	if held != null and held.id == new_data.id:
+func _equip_from_hotbar(_old_data: ItemData, new_data: ItemData) -> void:
+	if new_data == null:
 		return
-	# La barra guarda accesos: solo se equipa una unidad que exista en el inventario.
-	if inventory.remove_item(new_data, 1) == 0:
+	var slot_type := ItemData.ArmorSlot.PRIMARY if new_data.category == ItemData.Category.WEAPON else ItemData.ArmorSlot.RIGHT_HAND
+	var eq_slot := character_window.get_slot(slot_type)
+	if eq_slot == null or not new_data.fits_slot(slot_type):
 		return
-
-	var old_is_equippable := old_data != null and (old_data.category == ItemData.Category.TOOL or old_data.category == ItemData.Category.WEAPON)
-	if old_is_equippable:
-		var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
-		if eq_slot and eq_slot.has_item():
-			var unequipped = character_window.unequip_item(eq_slot)
-			if unequipped:
-				inventory.add_item(unequipped.data, 1)
-
-	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
-	if eq_slot:
-		var inv_item := InventoryItem.new(new_data, 1)
-		var returned = character_window.equip_item(eq_slot, inv_item)
-		if returned:
-			inventory.add_item(returned.data, 1)
+	if eq_slot.has_item() and eq_slot.equipped_item.data.id == new_data.id:
+		loadout.set_active(slot_type)
+		return
+	# Se toma primero una unidad real: su hueco permite devolver el equipo sustituido.
+	# Si era parte de un montón y no cabe el anterior, se cancela sin perder ninguno.
+	var source := -1
+	for i in inventory.items.size():
+		if inventory.items[i] != null and inventory.items[i].data.id == new_data.id:
+			source = i
+			break
+	if source < 0:
+		return
+	var incoming := inventory.take_at(source, 1)
+	var previous := eq_slot.equipped_item
+	if previous != null and not inventory.can_insert(previous):
+		inventory.put_at(source, incoming)
+		return
+	var returned := character_window.equip_item(eq_slot, incoming)
+	if returned != null:
+		inventory.insert(returned)
 	inventory.inventory_changed.emit()
 
 
@@ -547,15 +551,29 @@ func _on_hotbar_offhand_toggled(data: ItemData) -> void:
 			character_window.unequip_item(eq_slot)
 		return
 	var right_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
-	if right_slot != null and right_slot.has_item() and right_slot.equipped_item.data.id == data.id:
+	var from_hand := right_slot != null and right_slot.has_item() and right_slot.equipped_item.data.id == data.id
+	var source := -1
+	var incoming: InventoryItem
+	if not from_hand:
+		for i in inventory.items.size():
+			if inventory.items[i] != null and inventory.items[i].data.id == data.id:
+				source = i
+				break
+		if source < 0:
+			return
+		incoming = inventory.take_at(source, 1)
+	# La antorcha puede venir de un montón sin dejar hueco para el escudo sustituido.
+	if eq_slot.has_item() and not inventory.can_insert(eq_slot.equipped_item):
+		if incoming != null:
+			inventory.put_at(source, incoming)
+		return
+	if from_hand:
+		incoming = right_slot.equipped_item
 		character_window.unequip_item(right_slot)
 		current_animation = AnimationController.Anim.IDLE
-	# Si no, se pone el del inventario: si ya no está (tirado, en un cofre), la tecla no hace nada.
-	elif inventory.remove_item(data, 1) == 0:
-		return
-	var returned = character_window.equip_item(eq_slot, InventoryItem.new(data, 1))
+	var returned = character_window.equip_item(eq_slot, incoming)
 	if returned:
-		inventory.add_item(returned.data, 1)
+		inventory.insert(returned)
 	inventory.inventory_changed.emit()
 
 
@@ -563,6 +581,8 @@ func _on_hotbar_offhand_toggled(data: ItemData) -> void:
 func _sync_hotbar_offhand() -> void:
 	var eq_slot: EquipmentSlot = character_window.equipment_slots.get(ItemData.ArmorSlot.OFFHAND)
 	hotbar.set_offhand(eq_slot.equipped_item.data if eq_slot and eq_slot.has_item() else null)
+	var primary := character_window.get_equipped_item(ItemData.ArmorSlot.PRIMARY)
+	hotbar.set_primary(primary.data if primary != null else null)
 
 
 ## Lo que protege lo puesto en cada parte del cuerpo (Armor), para los golpes que le den ahí.
@@ -572,27 +592,25 @@ func _sync_armor() -> void:
 
 
 func _unequip_right_hand() -> void:
-	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	var eq_slot := character_window.get_slot(loadout.active_slot as ItemData.ArmorSlot)
 	if eq_slot and eq_slot.has_item():
+		if not inventory.can_insert(eq_slot.equipped_item):
+			loadout.set_active(-1)
+			return
 		var unequipped = character_window.unequip_item(eq_slot)
 		if unequipped:
-			var target = inventory.find_empty_slot()
-			if target >= 0:
-				inventory.items[target] = InventoryItem.new(unequipped.data, 1)
-				current_animation = AnimationController.Anim.IDLE
+			inventory.insert(unequipped)
+			inventory.inventory_changed.emit()
 
 
 func _get_right_hand_item() -> ItemData:
-	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
-	if eq_slot and eq_slot.has_item() and eq_slot.equipped_item:
-		return eq_slot.equipped_item.data
-	return null
+	return equiped_weapon if right_hand_equipped else null
 
 
 ## Consume el item equipado en la mano derecha (al colocar el prop que llevas en la mano):
 ## lo desequipa sin devolverlo al inventario.
 func _consume_right_hand_item() -> bool:
-	var eq_slot = character_window.equipment_slots.get(ItemData.ArmorSlot.RIGHT_HAND)
+	var eq_slot := character_window.get_slot(loadout.active_slot as ItemData.ArmorSlot)
 	if eq_slot == null or not eq_slot.has_item():
 		return false
 	var unequipped = character_window.unequip_item(eq_slot)
@@ -645,6 +663,10 @@ func _ready():
 	combat = PlayerCombat.new()
 	add_child(combat)
 	combat.setup(self)
+	loadout = PlayerLoadout.new()
+	loadout.name = "Loadout"
+	add_child(loadout)
+	loadout.setup(self)
 	_sync_armor()
 	needs = SurvivalNeeds.new()
 	needs.name = "SurvivalNeeds"
@@ -691,6 +713,10 @@ func _ready():
 	villager_chat.name = "VillagerChat"
 	add_child(villager_chat)
 	villager_chat.setup(self)
+	quest_journal = QuestJournal.new()
+	quest_journal.name = "QuestJournal"
+	add_child(quest_journal)
+	quest_journal.setup(self)
 	group_command = GroupCommand.new()
 	group_command.name = "GroupCommand"
 	add_child(group_command)
@@ -831,6 +857,7 @@ func get_save_data() -> Dictionary:
 		"inventory": inventory_data,
 		"inventory_base_slots": character_window.inventory_capacity.base_slots,
 		"equipment": equipment_data,
+		"loadout": loadout.save_data(),
 		"game_state": {
 			"free_flight": free_flight_enabled,
 			"input_enabled": input_enabled,
@@ -896,6 +923,9 @@ func restore_save_data(save: Dictionary) -> void:
 		var slot_type: ItemData.ArmorSlot = int(slot_key_str) as ItemData.ArmorSlot
 		var item_id: String = save.equipment[slot_key_str]
 		var item_data: ItemData = ItemCatalog.get_item(StringName(item_id))
+		# Antes las armas ocupaban el hueco de la herramienta/mano. Conserva esa unidad.
+		if item_data != null and item_data.category == ItemData.Category.WEAPON and slot_type == ItemData.ArmorSlot.RIGHT_HAND:
+			slot_type = ItemData.ArmorSlot.PRIMARY
 		if item_data and character_window.equipment_slots.has(slot_type):
 			var eq_slot: EquipmentSlot = character_window.equipment_slots[slot_type]
 			var inv_item := InventoryItem.new(item_data, 1)
@@ -911,6 +941,7 @@ func restore_save_data(save: Dictionary) -> void:
 		hotbar.restore_save_data(save.hotbar)
 	if save.has("hotbar_selected"):
 		hotbar.restore_selection(int(save.hotbar_selected))
+	loadout.restore(save.get("loadout", {}))
 	# Restaurar la barra no mueve objetos: solo hay que recuperar el modo del colocable elegido.
 	var selected := hotbar.get_selected_data()
 	building_system.select_placeable(selected if selected != null and selected.placeable else null)
@@ -995,10 +1026,7 @@ func post_restore() -> void:
 
 
 func _clear_visual_equipment() -> void:
-	var weapon_node := combat.detach_weapon()
-	if weapon_node != null:
-		_unregister_worn_node(weapon_node)
-		weapon_node.queue_free()
+	loadout.clear()
 	equiped_weapon = null
 	right_hand_equipped = false
 	var shield_node := combat.detach_shield()
@@ -1336,6 +1364,17 @@ func _setup_gaits() -> void:
 
 func is_mouse_captured() -> bool:
 	return Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED
+
+
+func _can_toggle_weapon() -> bool:
+	return input_enabled and mouse_captured and not inventory_ui.visible \
+		and not _is_text_field_focused() and not blueprint_placer.is_active() \
+		and not climb.is_active() and not build_radial.is_open() \
+		and not ship_spawn_menu.visible and not grid_manipulator_menu.visible \
+		and not build_menu.visible and not world_map_ui.visible \
+		and not combat.upper_busy() and combat.state == PlayerCombat.State.IDLE \
+		and not (is_instance_valid(_platform_body) and _platform_body is DynamicGridBody \
+			and _platform_body.movement_type == DynamicGridBody.MovementType.BOAT)
 	
 func _input(event):
 	# La creación gestiona su Escape; durante el descenso no se puede activar el movimiento
@@ -1409,6 +1448,10 @@ func _input(event):
 				build_radial.close()
 				build_menu.open()
 				capture_mouse(false)
+			elif event is InputEventJoypadButton and _can_toggle_weapon():
+				loadout.toggle_weapon()
+				get_viewport().set_input_as_handled()
+				return
 			else:
 				hotbar.notify(tr("BUILD_NEED_HAMMER"))
 		elif event.is_action_pressed("open_ship_menu") and not _is_text_field_focused():
@@ -1420,6 +1463,8 @@ func _input(event):
 		elif event.is_action_pressed("world_map") and not _is_text_field_focused():
 			world_map_ui.toggle()
 			capture_mouse(not world_map_ui.visible)
+		elif event.is_action_pressed(QuestJournal.ACTION) and not _is_text_field_focused():
+			quest_journal.toggle()
 		elif event.is_action_pressed(ThroneView.REMOTE_ACTION) and is_mouse_captured() and not _is_text_field_focused():
 			# Los colonos de la base desde cualquier sitio cerca de un trono (ThroneView.try_remote).
 			throne_view.try_remote()
@@ -1427,6 +1472,10 @@ func _input(event):
 	# Con el menú de grids, el de bloques o el mapa abiertos el ratón es de la UI: los clics que
 	# van a sus botones (o que arrastran el mapa) no deben además colocar bloques ni girar la cámara.
 	if grid_manipulator_menu.visible or build_menu.visible or world_map_ui.visible:
+		return
+	if event.is_action_pressed("toggle_weapon") and not event.is_echo() and _can_toggle_weapon():
+		loadout.toggle_weapon()
+		get_viewport().set_input_as_handled()
 		return
 
 	if blueprint_placer.is_active() and _handle_blueprint_placement(event):

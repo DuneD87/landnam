@@ -119,6 +119,8 @@ var status := Status.IDLE
 ## La zona (marco del terreno; Vector3.INF: alrededor de la base) y su radio.
 var zone := Vector3.INF
 var zone_radius := WORK_RADIUS
+## La zona del trono (SettlerZones) a la que va, o -1 (la suya sola, o alrededor de la base).
+var zone_id := -1
 ## Lo que lleva sacado desde que se le dio el trabajo.
 var gathered := 0
 ## Lo que saca por segundo con cada oficio (medido; sin medir, rate lo calcula).
@@ -173,6 +175,8 @@ var _stuck_key := ""
 var _stuck_since := 0.0
 var _noticed := {}
 var _watch_left := 0.0
+## El fotograma de física del último paso de su oficio (task), o -1 (watch: SettlerTask.paused).
+var _task_frame := -1
 
 
 func _init(companion: Companion) -> void:
@@ -200,6 +204,7 @@ func busy() -> bool:
 ## turno del guardia (0 de día, 1 de noche). [in_field]: en campo (ver arriba).
 func assign(what: Job, at := Vector3.INF, radius := -1.0, turn := 0, in_field := false) -> void:
 	stop()
+	zone_id = -1
 	field = in_field
 	job = what
 	zone = at
@@ -454,6 +459,7 @@ func step(delta: float) -> Array:
 	if not _delivery.is_empty():
 		return _delivering(delta)
 	if task != null:
+		_task_frame = Engine.get_physics_frames()
 		return task.step(delta)
 	if _swing_left > 0.0:
 		return _swinging(delta)
@@ -1176,6 +1182,10 @@ func say_stuck(what: Array) -> String:
 ## jugador (un aviso: «Thorgerd: Necesito un hacha en el morral»), y no repite el mismo antes de
 ## NOTICE_REPEAT s.
 func watch(delta: float) -> void:
+	# El oficio que ha dejado de dar pasos (a dormir, a pelear, a charlar...) recoge lo suyo (la caña).
+	if task != null and _task_frame >= 0 and Engine.get_physics_frames() - _task_frame > 2:
+		_task_frame = -1
+		task.paused()
 	_watch_left -= delta
 	if _watch_left > 0.0:
 		return
@@ -1245,6 +1255,8 @@ func save_data() -> Dictionary:
 		out.zone = [zone.x, zone.y, zone.z]
 	if shift != 0:
 		out.shift = shift
+	if zone_id >= 0:
+		out.zone_id = zone_id
 	if task != null:
 		var extra := task.save_data()
 		if not extra.is_empty():
@@ -1260,6 +1272,7 @@ func restore(data: Dictionary) -> void:
 			float(data.get("radius", -1.0)), int(data.get("shift", 0)), bool(data.get("field", false)))
 		if task != null:
 			task.restore(data.get("task", {}))
+		zone_id = int(data.get("zone_id", -1))
 	gathered = int(data.get("gathered", 0))
 	var saved: Dictionary = data.get("rates", {})
 	for key in saved:

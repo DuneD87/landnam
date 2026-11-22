@@ -6,8 +6,9 @@ extends Node
 ## martillo o sin material; lejos del jugador), el guardia (ronda, turnos y cuándo duerme), el
 ## cocinero (del cofre a la hoguera y lo asado al cofre o al comedero; lejos), las comidas (comen del
 ## comedero; con hambre van a medio ritmo), la sed (beben del bebedero, lejos sin moverse y cerca
-## andando; el aguador lo llena), los bordes (no se tira de un risco, sí baja un escalón), el cazador lejos y lo que se guarda de cada trabajo.
-##   godot --headless --path . --audio-driver Dummy res://tests/world/test_settlers.tscn
+## andando; el aguador lo llena), los bordes (no se tira de un risco, sí baja un escalón), el cazador lejos, lo que se guarda de cada trabajo,
+## el equipo del morral (ropa, armadura, escudo, arco), rodear una pared siguiendo al jugador y nadar.
+##   godot --headless --path . --audio-driver Dummy res://tests/world/test_settlers.tscn [-- --only=swim,climb]
 
 const RADIUS := 10000.0
 const SPEEDUP := 8.0
@@ -20,11 +21,50 @@ class TestCompanion extends Companion:
 		return hour
 
 
+## El planeta de pega para el agua (_check_swim): el mar a [sea] m del centro.
+class FakeCore extends RefCounted:
+	var has_water := true
+	var radius := 0.0
+	var water_radius := 0.0
+
+
+## Lo que trepa el jugador de pega (como ClimbController, para ClimbRoutes).
+class FakeClimb extends RefCounted:
+	var active := false
+	var topping := false
+	var normal := Vector3.BACK
+	var frame := Transform3D.IDENTITY
+
+	func is_active() -> bool:
+		return active
+
+	func on_ship() -> bool:
+		return false
+
+	func descending() -> bool:
+		return false
+
+	func topping_up() -> bool:
+		return topping
+
+	func wall_normal() -> Vector3:
+		return normal
+
+	func top_frame() -> Transform3D:
+		return frame
+
+
+class FakeLoader extends Node3D:
+	var planet := FakeCore.new()
+	var global_pos := Vector3.ZERO
+
+
 ## El jugador de pega: un cuerpo que anda a [walk] (mundo) y sabe su velocidad real.
 class FakePlayer extends CharacterBody3D:
 	var walk := Vector3.ZERO
 	var hotbar: Node = null
 	var planet: Node = null
+	var climb: FakeClimb = null
 
 	func _physics_process(_delta: float) -> void:
 		velocity = walk
@@ -43,6 +83,14 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
+## Las secciones que pide la línea de órdenes (-- --only=swim,climb), o todas.
+func _want(section: String) -> bool:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			return section in arg.trim_prefix("--only=").split(",")
+	return true
+
+
 func check(ok: bool, message: String) -> void:
 	if not ok:
 		failures += 1
@@ -57,36 +105,73 @@ func _run() -> void:
 	GameManager.current_state = GameManager.State.PLAYING
 	_build_world()
 	await _wait(0.3)
-	print("SECTION _check_formation t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_formation()
-	print("SECTION _check_orders t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_orders()
-	print("SECTION _check_builder t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_builder()
-	print("SECTION _check_guard t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_guard()
-	print("SECTION _check_cook t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_cook()
-	print("SECTION _check_field_work t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_field_work()
-	print("SECTION _check_field_delivery t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_field_delivery()
-	print("SECTION _check_tree_dodge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_tree_dodge()
-	print("SECTION _check_ledge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_ledge()
-	print("SECTION _check_thirst t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_thirst()
-	print("SECTION _check_supplies t=%.1f" % (Time.get_ticks_msec() / 1000.0))
-	await _check_supplies()
-	_check_meals()
-	_check_hunter_away()
-	_check_saved()
-	_check_talk()
-	_check_far_zone()
-	_check_task_cargo()
-	_check_task_cleanup()
+	if _want("formation"):
+		print("SECTION _check_formation t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_formation()
+	if _want("orders"):
+		print("SECTION _check_orders t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_orders()
+	if _want("builder"):
+		print("SECTION _check_builder t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_builder()
+	if _want("scaffold"):
+		print("SECTION _check_scaffold t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_scaffold()
+	if _want("guard"):
+		print("SECTION _check_guard t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_guard()
+	if _want("cook"):
+		print("SECTION _check_cook t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_cook()
+	if _want("field_work"):
+		print("SECTION _check_field_work t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_field_work()
+	if _want("field_delivery"):
+		print("SECTION _check_field_delivery t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_field_delivery()
+	if _want("tree_dodge"):
+		print("SECTION _check_tree_dodge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_tree_dodge()
+	if _want("ledge"):
+		print("SECTION _check_ledge t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_ledge()
+	if _want("thirst"):
+		print("SECTION _check_thirst t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_thirst()
+	if _want("supplies"):
+		print("SECTION _check_supplies t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_supplies()
+	if _want("gear"):
+		print("SECTION _check_gear t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_gear()
+	if _want("follow_wall"):
+		print("SECTION _check_follow_wall t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_follow_wall()
+	if _want("swim"):
+		print("SECTION _check_swim t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_swim()
+	if _want("climb"):
+		print("SECTION _check_climb t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_climb()
+	if _want("meals"):
+		_check_meals()
+	if _want("hunter_away"):
+		_check_hunter_away()
+	if _want("saved"):
+		_check_saved()
+	if _want("talk"):
+		_check_talk()
+	if _want("far_zone"):
+		_check_far_zone()
+	if _want("task_cargo"):
+		_check_task_cargo()
+	if _want("task_cleanup"):
+		_check_task_cleanup()
 	await _clear()
+	if _want("food_drop"):
+		await _check_food_drop()
+	if _want("zones"):
+		await _check_zones()
 	Engine.time_scale = 1.0
 	print("RESULT: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
@@ -131,12 +216,13 @@ func _build_world() -> void:
 	add_child(_companions)
 
 
-func _spawn(at: Vector3, mode := Companion.Mode.FOLLOW) -> TestCompanion:
+func _spawn(at: Vector3, mode := Companion.Mode.FOLLOW, outfit: Array[StringName] = []) -> TestCompanion:
 	_made += 1
 	var who := {"id": "test:%d" % _made, "name": "Colono%d" % _made, "sex": &"male" if _made % 2 == 0 else &"female",
-		"look": 100 + _made}
+		"look": 100 + _made, "outfit": outfit}
 	var c := TestCompanion.new()
-	c.setup(who, 0, "Prueba", null, Villager.build_model(who, []), _terrain, _player, Vector3(0.0, RADIUS, 500.0))
+	c.setup(who, 0, "Prueba", null, Villager.build_model(who, SettlementVillagers.pieces_of(who)), _terrain, _player,
+		Vector3(0.0, RADIUS, 500.0))
 	c.mode = mode
 	_companions._list.append(c)
 	_host.add_child(c)
@@ -370,6 +456,56 @@ func _check_builder() -> void:
 	check(not is_instance_valid(far) or far.is_complete(), "lejos del jugador también la acaba (%.0f s)" % (240.0 - left))
 	check(builder.global_position.distance_to(at) < 0.5, "sin moverse del sitio")
 	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	chest.queue_free()
+	GridManager.clear_all()
+	planet.queue_free()
+	await _clear()
+
+
+## Una obra alta: lo de arriba lo pone desde un andamio (SettlerScaffold) al que sube por la escalera, y
+## al acabar baja y lo quita.
+func _check_scaffold() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var planet := Node3D.new()
+	planet.name = "TestPlanet"
+	_host.add_child(planet)
+	var blocks := {}
+	for x in 2:
+		for y in 5:
+			blocks["%d,%d,0" % [x, y]] = {"block_id": 0, "material_id": "stone"}
+	var data := {"version": 1, "created": "2026-11-21T12:00:00", "dynamic": false, "bounds_min": [0, 0, 0],
+		"bounds_max": [2, 5, 1], "block_count": 10, "prop_count": 0,
+		"grids": [{"cell_size": 1.0, "blocks": blocks, "materials": {}, "props": []}]}
+	var site := BlueprintSite.create(data, planet, Transform3D(Basis.IDENTITY, Vector3(8.0, 0.0, 6.0)), "muro")
+	var chest := _chest(Vector3(4.0, 0.0, -4.0))
+	var cost := site.get_cost()
+	for id: StringName in cost:
+		chest.inventory.add_item(_item(id), int(cost[id]) + 5)
+	var builder := _spawn(Vector3(3.0, 0.05, 0.0), Companion.Mode.SETTLE)
+	builder.settle_here(_local(Vector3(3.0, 0.05, 0.0)))
+	builder.pack.add_item(_item(&"stone_hammer_01"), 1)
+	builder.work.assign(SettlerWork.Job.BUILD)
+	var left := 150.0
+	var planted := false
+	var aloft := 0.0
+	var high := 0.0
+	while left > 0.0 and is_instance_valid(site) and not site.is_complete():
+		await _wait(0.5)
+		left -= 0.5
+		var task := builder.work.task as SettlerBuild
+		if task != null and task._scaffold != null and is_instance_valid(task._scaffold):
+			planted = true
+			high = maxf(high, task._scaffold.height)
+			if task._on_scaffold():
+				aloft += 0.5
+	check(not is_instance_valid(site) or site.is_complete(), "levanta el muro de 5 m (%.0f s)" % (150.0 - left))
+	check(planted and high >= 1.0, "planta un andamio para lo alto (hasta %.1f m)" % high)
+	check(aloft > 2.0, "y martillea desde arriba (%.1f s en la plataforma)" % aloft)
+	await _wait(15.0)
+	var task := builder.work.task as SettlerBuild
+	check(task == null or task._scaffold == null, "al acabar lo quita")
+	check(not builder.is_climbing() and (builder.global_position - Vector3(0, 0, 0)).y < 0.6,
+		"y queda en el suelo (a %.2f m)" % builder.global_position.y)
 	chest.queue_free()
 	GridManager.clear_all()
 	planet.queue_free()
@@ -819,6 +955,61 @@ func _check_hunter_away() -> void:
 	chest.queue_free()
 
 
+## Sin cocinero en la base, lo que se come que traen el cazador y el pescador va al comedero; con
+## cocinero, al cofre (él lo asa). Y despiezan con el clip agachado (AnimSplice).
+func _check_food_drop() -> void:
+	var chest := _chest(Vector3(80.0, 0.0, 0.0))
+	var feeder := _feeder(Vector3(82.0, 0.0, 0.0))
+	var hunter := _spawn(Vector3(81.0, 0.05, 2.0), Companion.Mode.SETTLE)
+	hunter.settle_here(_local(Vector3(81.0, 0.05, 2.0)))
+	check(hunter.has_anim(AnimSplice.BUTCHER), "el colono tiene el clip de despiezar agachado")
+	hunter.pack.add_item(_item(&"stone_axe_01"), 1)
+	hunter.work.assign(SettlerWork.Job.HUNT)
+	hunter.work.away(SettlerHunt.AWAY_KILL + 1.0, 10.0)
+	var meat := _item(HuntingLoot.MEAT)
+	check(feeder.inventory.get_item_count(meat) == SettlerHunt.AWAY_MEAT and chest.inventory.get_item_count(meat) == 0,
+		"sin cocinero, la carne al comedero (%d en el comedero, %d en el cofre)" % [
+			feeder.inventory.get_item_count(meat), chest.inventory.get_item_count(meat)])
+	check(chest.inventory.get_item_count(_item(HuntingLoot.HIDE)) == SettlerHunt.AWAY_HIDE, "y la piel al cofre")
+	var cook := _spawn(Vector3(84.0, 0.05, 2.0), Companion.Mode.SETTLE)
+	cook.settle_here(_local(Vector3(84.0, 0.05, 2.0)))
+	cook.work.assign(SettlerWork.Job.COOK)
+	hunter.work.away(SettlerHunt.AWAY_KILL + 1.0, 10.0)
+	check(chest.inventory.get_item_count(meat) == SettlerHunt.AWAY_MEAT, "con cocinero, al cofre")
+	chest.queue_free()
+	feeder.queue_free()
+	await _clear()
+
+
+## Las zonas del trono (SettlerZones): los sin oficio de cerca la llenan hasta el cupo; bajarlo suelta
+## al que sobra; quitarla para a los suyos; y se guardan.
+func _check_zones() -> void:
+	var zones := _companions.zones
+	var settlers: Array[TestCompanion] = []
+	for i in 3:
+		var c := _spawn(Vector3(-30.0 - i * 2.0, 0.05, 10.0), Companion.Mode.SETTLE)
+		c.settle_here(_local(c.global_position))
+		settlers.append(c)
+	var zone := zones.add(SettlerWork.Job.FELL, 0, _local(Vector3(-40.0, 0.0, 20.0)), 10.0, 2)
+	var id := int(zone.id)
+	await _wait(SettlerZones.TICK + 0.5)
+	var inside := zones.members(id, _companions.get_companions())
+	check(inside.size() == 2, "dos de los tres sin oficio van a la zona de cupo 2 (%d)" % inside.size())
+	check(inside.all(func(c: Companion) -> bool: return c.work.job == SettlerWork.Job.FELL and c.work.zone.is_finite()),
+		"talando en ella")
+	zones.set_quota(id, 1)
+	await _wait(SettlerZones.TICK + 0.5)
+	check(zones.members(id, _companions.get_companions()).size() == 1, "con cupo 1, uno la deja")
+	var saved := zones.save_data()
+	var copy := SettlerZones.new()
+	copy.restore(saved)
+	check(copy.list.size() == 1 and int(copy.find(id).quota) == 1, "se guarda con su cupo")
+	zones.remove(id, _companions.get_companions())
+	check(zones.list.is_empty() and settlers.all(func(c: Companion) -> bool: return c.work.job == SettlerWork.Job.NONE),
+		"al quitarla, los suyos lo dejan")
+	await _clear()
+
+
 func _check_saved() -> void:
 	var c: TestCompanion = _companions._list[_companions._list.size() - 1]
 	var data := c.work.save_data()
@@ -963,3 +1154,222 @@ func _check_task_cleanup() -> void:
 	_companions._list.erase(c)
 	c.free()
 	check(task.get_ref() == null, "al desaparecer un colono se libera también su tarea")
+
+
+# --- Equipo, caminos y agua ------------------------------------------------------------------------
+
+## Se pone del morral la ropa, la armadura, el escudo y el arco; quitándoselos vuelve a lo suyo.
+func _check_gear() -> void:
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var outfit: Array[StringName] = [&"fur_mantle", &"fur_loincloth", &"fur_moccasins"]
+	var c := _spawn(Vector3(3.0, 0.05, 0.0), Companion.Mode.WAIT, outfit)
+	await _wait(0.2)
+	var worn := c.gear.worn()
+	check(worn.size() == 3 and (worn[ItemData.ArmorSlot.CHEST] as ItemData).id == &"fur_mantle",
+		"lleva puesta la ropa de su poblado (%s)" % [worn.values().map(func(d): return d.id)])
+	var before := c.health.armor_slash + c.health.armor_blunt + c.health.armor_pierce
+	var tunic := _item(&"hide_tunic")
+	c.pack.add_item(tunic, 1)
+	worn = c.gear.worn()
+	check((worn[ItemData.ArmorSlot.CHEST] as ItemData).id == (&"hide_tunic" if Armor.of(tunic).length() > Armor.of(_item(&"fur_mantle")).length() else &"fur_mantle"),
+		"se pone la pieza del morral que más protege en su hueco (%s)" % (worn[ItemData.ArmorSlot.CHEST] as ItemData).id)
+	var skeleton := c.get_node("%s/Armature/Skeleton3D" % c._model.name) as Skeleton3D
+	var tunics := skeleton.get_children().filter(func(n): return n.scene_file_path == tunic.scene_path).size()
+	var mantles := skeleton.get_children().filter(func(n): return n.scene_file_path == _item(&"fur_mantle").scene_path \
+		and not n.is_queued_for_deletion()).size()
+	if (worn[ItemData.ArmorSlot.CHEST] as ItemData).id == &"hide_tunic":
+		check(tunics == 1 and mantles == 0, "y se quita la de su poblado (túnicas %d, mantos %d)" % [tunics, mantles])
+		var after := c.health.armor_slash + c.health.armor_blunt + c.health.armor_pierce
+		check(after > before, "y le protege más (%.1f → %.1f)" % [before, after])
+	var helmet: ItemData
+	for id in [&"hide_hood", &"firstage_skin_hood", &"fur_hood", &"wolf_hood"]:
+		if _item(id) != null and _item(id).armor_slot == ItemData.ArmorSlot.HEAD:
+			helmet = _item(id)
+			break
+	if helmet != null:
+		c.pack.add_item(helmet, 1)
+		check(c.gear.worn().has(ItemData.ArmorSlot.HEAD), "se pone en la cabeza lo que le falta (%s)" % helmet.id)
+		c.pack.remove_item(helmet, 1)
+		check(not c.gear.worn().has(ItemData.ArmorSlot.HEAD), "y se lo quita al sacárselo del morral")
+	c.pack.remove_item(tunic, 1)
+	worn = c.gear.worn()
+	check((worn[ItemData.ArmorSlot.CHEST] as ItemData).id == &"fur_mantle", "sin la túnica vuelve a su manto")
+	check(is_equal_approx(c.health.armor_slash + c.health.armor_blunt + c.health.armor_pierce, before),
+		"y a lo que le protegía")
+	# Escudo y arco.
+	c.pack.add_item(_item(&"hide_shield"), 1)
+	check(c.gear.shield != null and c.gear.shield.id == &"hide_shield" and c.health.guard.item == c.gear.shield,
+		"lleva el escudo y para con él")
+	c.pack.add_item(_item(&"hunting_bow"), 1)
+	check(c.gear.bow != null and not c._can_shoot(), "con el arco y sin flechas no dispara")
+	c.pack.add_item(_item(&"arrow"), 5)
+	check(c._can_shoot() and c.gear.ammo_left(c.pack) == 5, "con flechas sí")
+	check(c._weapon == null or c._weapon.id != &"hunting_bow", "el arco no es su arma de mano")
+	c.pack.remove_item(_item(&"hide_shield"), 1)
+	check(c.gear.shield == null and c.health.guard.item == null, "sin escudo no para")
+	# Sin escudo: con un arma a dos manos que para, para con ella; con lo demás, esquiva.
+	c._weapon = _item(&"stone_maul")
+	check(c._guard_item() == c._weapon, "con la maza a dos manos se cubre con ella")
+	c._weapon = _item(&"stone_axe_01")
+	check(c._guard_item() == null, "con un hacha de una mano no tiene con qué parar")
+	c._dodge_dir = Vector3.BACK
+	c._dodge_t = 0.0
+	c.combat_pose()
+	var went := 0.0
+	var safe := false
+	for i in 60:
+		var step: Array = c._dodging(1.0 / 60.0)
+		went += float(step[1]) / 60.0
+		safe = safe or not c._hurtbox.is_enabled()
+		if c._dodge_t < 0.0:
+			break
+	check(c._dodge_t < 0.0 and absf(went - PlayerCombat.BACKSTEP_DISTANCE) < 0.4,
+		"el paso atrás recorre lo del jugador (%.2f m)" % went)
+	check(safe and c._hurtbox.is_enabled(), "sin que le den al principio, y luego otra vez sí")
+	await _clear()
+
+
+## Suelto, siguiendo al jugador al otro lado de una pared, la rodea por un camino (sin aparecer de golpe).
+func _check_follow_wall() -> void:
+	_companions.formation = SettlementCompanions.Formation.LOOSE
+	_player.global_position = Vector3(0.0, 0.05, -4.0)
+	# Una pared de 12 m de ancho y 3 de alto entre los dos.
+	var wall := StaticBody3D.new()
+	wall.collision_layer = PhysicsLayers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(12.0, 3.0, 0.4)
+	shape.shape = box
+	wall.add_child(shape)
+	_host.add_child(wall)
+	wall.global_position = Vector3(0.0, 1.5, 0.0)
+	var c := _spawn(Vector3(0.0, 0.05, 3.0))
+	c.follow()
+	var last := c.global_position
+	var jump := 0.0
+	for i in 40:
+		await _wait(0.5)
+		jump = maxf(jump, c.global_position.distance_to(last))
+		last = c.global_position
+		if c.global_position.distance_to(_player.global_position) < 4.0:
+			break
+	var d := c.global_position.distance_to(_player.global_position)
+	check(d < 4.5, "rodea la pared hasta el jugador (a %.1f m)" % d)
+	check(jump < 4.0, "andando, sin aparecer de golpe (mayor salto %.1f m en 0,5 s)" % jump)
+	wall.queue_free()
+	_companions.formation = SettlementCompanions.Formation.WEDGE
+	await _clear()
+
+
+## En agua honda nada con la cabeza fuera (quieto, los pies a SWIM_FLOAT_IDLE m; nadando, a
+## SWIM_FLOAT_MOVE) y sigue al jugador; donde hace pie vuelve a andar.
+func _check_swim() -> void:
+	_companions.formation = SettlementCompanions.Formation.LOOSE
+	var loader := FakeLoader.new()
+	_host.add_child(loader)
+	loader.global_position = _terrain.global_position
+	loader.global_pos = _terrain.global_position
+	# El suelo (y = 0) a RADIUS del centro: el mar 3,5 m por encima.
+	loader.planet.radius = RADIUS + 3.5
+	loader.planet.water_radius = 0.0
+	_player.planet = loader
+	_player.global_position = Vector3(0.0, 0.05, 0.0)
+	var c := _spawn(Vector3(0.0, 0.05, 1.0))
+	c.follow()
+	await _wait(3.0)
+	check(c.is_swimming(), "en agua de 3,5 m nada")
+	var feet := c.global_position.distance_to(_terrain.global_position)
+	check(absf(RADIUS + 3.5 - feet - Companion.SWIM_FLOAT_IDLE) < 0.3,
+		"quieto flota con los pies a %.2f m bajo la superficie, la cabeza fuera (%.2f)" % [Companion.SWIM_FLOAT_IDLE,
+		RADIUS + 3.5 - feet])
+	_player.global_position = Vector3(0.0, 0.05, -20.0)
+	var lowest := INF
+	for i in 12:
+		await _wait(0.5)
+		lowest = minf(lowest, c.global_position.distance_to(_terrain.global_position))
+	check(RADIUS + 3.5 - lowest < Companion.SWIM_FLOAT_IDLE + 0.3,
+		"nadando no se hunde (los pies, como mucho a %.2f m)" % (RADIUS + 3.5 - lowest))
+	check(c.is_swimming(), "y sigue nadando aunque lleve los pies más arriba de donde se pone a nadar")
+	var d := c.global_position.distance_to(_player.global_position)
+	check(d < 6.0, "nadando sigue al jugador (a %.1f m)" % d)
+	check(c._anim == Companion.ANIM_SWIM or c._anim == Companion.ANIM_SWIM_IDLE, "con la animación de nadar (%s)" % c._anim)
+	loader.planet.radius = RADIUS + 1.0
+	await _wait(1.5)
+	check(not c.is_swimming() and c.is_on_floor(), "donde hace pie vuelve a andar por el fondo")
+	_player.planet = null
+	loader.queue_free()
+	_companions.formation = SettlementCompanions.Formation.WEDGE
+	await _clear()
+
+
+## El jugador trepa una pared de 4 m y corona: el compañero va al pie, trepa por donde él y queda de pie
+## arriba (sin aparecer de golpe); el que viene detrás espera su turno.
+func _check_climb() -> void:
+	_companions.formation = SettlementCompanions.Formation.LOOSE
+	# Un bloque de 6 m de ancho y 4 de alto: su cara, en z = 0, mirando a +Z.
+	var wall := StaticBody3D.new()
+	wall.collision_layer = PhysicsLayers.WORLD
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(6.0, 4.0, 4.0)
+	shape.shape = box
+	wall.add_child(shape)
+	_host.add_child(wall)
+	wall.global_position = Vector3(0.0, 2.0, -2.0)
+	var climb := FakeClimb.new()
+	_player.climb = climb
+	_player.global_position = Vector3(0.0, 0.05, 1.0)
+	var a := _spawn(Vector3(-1.0, 0.05, 6.0))
+	var b := _spawn(Vector3(1.0, 0.05, 6.5))
+	a.follow()
+	b.follow()
+	await _wait(0.5)
+	# Trepa: de pie contra la pared hasta 2,4 m, y corona hasta 0,8 m dentro de lo alto.
+	climb.active = true
+	for i in 25:
+		_player.global_position = Vector3(0.0, 0.05 + 0.1 * i, 0.38)
+		await get_tree().physics_frame
+	await _wait(1.0)
+	var foot := Vector3(0.0, 0.05, 0.38)
+	check(a.global_position.distance_to(foot) < 2.0 and not a.is_climbing(),
+		"mientras trepa, el compañero va a su pie y espera (a %.1f m)" % a.global_position.distance_to(foot))
+	climb.frame = Transform3D(Basis(Vector3.LEFT, Vector3.UP, Vector3.FORWARD), Vector3(0.0, 4.0, -0.8))
+	climb.topping = true
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	climb.active = false
+	climb.topping = false
+	_player.global_position = Vector3(0.0, 4.05, -1.2)
+	await get_tree().physics_frame
+	var route_done: bool = not _companions.routes.routes.is_empty() and _companions.routes.routes[-1].done
+	check(route_done, "al coronar, la ruta queda hecha (%d puntos)" % (_companions.routes.routes[-1].points.size() if not _companions.routes.routes.is_empty() else 0))
+	var climbed := {a: false, b: false}
+	var started := {a: -1.0, b: -1.0}
+	var jump := 0.0
+	var last := {a: a.global_position, b: b.global_position}
+	var topping := {a: false, b: false}
+	for i in 60:
+		await _wait(0.25)
+		for c in [a, b]:
+			climbed[c] = climbed[c] or c.is_climbing()
+			if c.is_climbing() and started[c] < 0.0:
+				started[c] = _companions.routes.clock
+			# Al empezar a coronar el cuerpo salta al marco del clip (la cadera no): eso no cuenta.
+			if c._topping == topping[c]:
+				jump = maxf(jump, c.global_position.distance_to(last[c]))
+			topping[c] = c._topping
+			last[c] = c.global_position
+		if not a.is_climbing() and not b.is_climbing() and a.global_position.y > 3.5 and b.global_position.y > 3.5:
+			break
+	check(climbed[a] and climbed[b], "los dos trepan")
+	check(a.global_position.y > 3.5 and b.global_position.y > 3.5,
+		"y quedan arriba (a %.2f y %.2f m)" % [a.global_position.y, b.global_position.y])
+	check(a.is_on_floor() or b.is_on_floor() or (not a.is_climbing() and not b.is_climbing()), "de pie")
+	var gap := absf(float(started[b]) - float(started[a]))
+	check(gap >= ClimbRoutes.GAP - 0.3, "de uno en uno: el segundo empieza %.1f s después" % gap)
+	check(jump < 1.5, "sin aparecer de golpe (mayor salto %.2f m en 0,25 s)" % jump)
+	_player.climb = null
+	_companions.routes.routes.clear()
+	wall.queue_free()
+	_companions.formation = SettlementCompanions.Formation.WEDGE
+	await _clear()

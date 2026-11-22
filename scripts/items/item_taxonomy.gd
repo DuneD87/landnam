@@ -33,6 +33,7 @@ const GROUPS := {
 	&"hands": [ItemData.Category.ARMOR, "GROUP_HANDS"],
 	&"legs": [ItemData.Category.ARMOR, "GROUP_LEGS"],
 	&"feet": [ItemData.Category.ARMOR, "GROUP_FEET"],
+	&"cloak": [ItemData.Category.ARMOR, "GROUP_CLOAK"],
 	&"cooked": [ItemData.Category.CONSUMABLE, "GROUP_COOKED"],
 	&"raw": [ItemData.Category.CONSUMABLE, "GROUP_RAW"],
 	&"drink": [ItemData.Category.CONSUMABLE, "GROUP_DRINK"],
@@ -53,6 +54,7 @@ const ARMOR_GROUPS := {
 	ItemData.ArmorSlot.LEGS: &"legs",
 	ItemData.ArmorSlot.FEET: &"feet",
 	ItemData.ArmorSlot.BACK: &"backpack",
+	ItemData.ArmorSlot.CLOAK: &"cloak",
 }
 const DAMAGE_KINDS := Armor.KIND_NAMES
 

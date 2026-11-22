@@ -46,6 +46,7 @@ godot --headless --path . res://tests/items/test_backpacks.tscn
 godot --headless --path . res://tests/items/test_item_conservation.tscn
 godot --headless --path . res://tests/items/test_world_item_save.tscn
 godot --headless --path . res://tests/player/test_item_save_load.tscn
+godot --headless --path . res://tests/player/test_weapon_loadout.tscn
 godot --headless --path . res://tests/player/test_respawn.tscn
 godot --headless --path . res://tests/player/test_fishing.tscn
 godot --headless --path . res://tests/player/test_gamepad.tscn

@@ -95,7 +95,8 @@ func _check_bronze() -> void:
 	for id in [&"bronze_axe", &"bronze_pickaxe", &"bronze_hoe", &"bronze_sword", &"crescent_labrys",
 			&"dawn_greatsword", &"sunscale_coat", &"sunscale_breeches", &"sunscale_gauntlets", &"sunscale_boots",
 			&"hoplite_helm", &"hoplite_cuirass", &"hoplite_pteruges", &"hoplite_bracers", &"hoplite_greaves", &"hoplite_aspis",
-			&"lionheart_cuirass", &"lionguard_gauntlets", &"lionguard_kilt", &"lionheart_boots"]:
+			&"lionheart_cuirass", &"lionheart_gauntlets", &"lionheart_kilt", &"lionheart_boots",
+			&"bearpaw_hood", &"bearpaw_chest", &"bearpaw_gauntlet", &"bearpaw_leggings", &"bearpaw_boot", &"bearpaw_cloak"]:
 		var recipe := _recipe(id)
 		check(recipe != null and recipe.station == &"bronze_forge" and recipe.era == Eras.Era.BRONZE,
 			"%s, en la forja y de la Edad del bronce" % id)

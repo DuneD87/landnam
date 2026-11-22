@@ -13,7 +13,7 @@ class_name SettlementField extends RefCounted
 
 const FILE_MAGIC := "GVST"
 ## Va en la clave de la caché: hay que subirla también al cambiar cómo se traza (SettlementLayout).
-const FILE_VERSION := 5
+const FILE_VERSION := 18
 const TEMPLATE_DIR := "res://data/settlements/templates/"
 
 ## La imagen del claro (en la convención del nodo SdfSphereHeightmap, como TrailField). Guarda d, la
@@ -80,27 +80,30 @@ static func load_templates() -> Array[SettlementTemplate]:
 static func signature(templates: Array[SettlementTemplate]) -> String:
 	var parts := PackedStringArray()
 	for t in templates:
-		parts.append("%s:%.3f:%d:%d:%.2f:%.2f" % [t.id, t.weight, t.count_min, t.count_max, t.plaza_radius,
-			t.ring_depth])
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		parts.append("%s:%.3f:%d:%d:%.2f:%.2f:%s:%s:%d:%d:%d:%.1f:%.1f" % [t.id, t.weight, t.count_min, t.count_max,
+			t.plaza_radius, t.ring_depth, t.wall, t.layout, t.plaza_count_min, t.plaza_count_max, t.streets,
+			t.street_length, t.street_width])
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p != null:
 				var work := []
 				for w in p.workplaces:
 					work.append([w.kind, w.pose, w.indoor, w.size, w.stands, w.looks])
+				for prop in p.props:
+					work.append([prop.kind, prop.pose, prop.grounded, prop.item, prop.scale, prop.size, prop.animals])
 				parts.append("%s:%s:%s:%s:%s:%s" % [p.id, p.door, p.door_cell, p.foundation_material,
 					FileAccess.get_md5(p.blueprint_path), var_to_str(work)])
 	return "|".join(parts).sha256_text()
 
 
-## Traza los poblados con el suelo de [generator] (el del terreno, ya compilado) en las puntas y a los
-## lados de las sendas [trails] (TrailField). [sea_radius]: radio del mar (lo que queda por debajo no se
-## pisa). {"radius", "villages": [planos de SettlementLayout.plan, con "site" (su índice entre los
-## sitios: primero las puntas, luego los de al lado de la senda)], "stats"}. Lo caro (leer el suelo,
-## ~0,15 ms por punto) va repartido en hilos.
+## Traza los poblados con el suelo de [generator] (el del terreno, ya compilado y sin aplanar) en las
+## puntas y a los lados de las sendas [trails] (TrailField). [sea_radius]: radio del mar (lo que queda
+## por debajo no se pisa). {"radius", "villages": [planos de SettlementLayout.plan, con "site" (su
+## índice entre los sitios: primero las puntas, luego los de al lado de la senda)], "flats": el aplanado
+## de cada uno (SettlementFlatten.fit, con [rivers]), "stats"}. Lo caro (leer el suelo, ~0,15 ms por
+## punto) va repartido en hilos. Con el aplanado en el grafo hay que trazarlos otra vez (replan).
 static func build(generator: VoxelGenerator, trails: Dictionary, radius: float, sea_radius: float,
-		templates: Array[SettlementTemplate], cfg: Dictionary) -> Dictionary:
+		templates: Array[SettlementTemplate], cfg: Dictionary, rivers := {}) -> Dictionary:
 	cfg = settings(cfg)
 	var sites := SettlementSites.dead_ends(trails.strokes, radius)
 	var dead_ends := sites.size()
@@ -112,8 +115,7 @@ static func build(generator: VoxelGenerator, trails: Dictionary, radius: float, 
 	var total_weight := 0.0
 	for t in templates:
 		total_weight += t.weight
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p != null and not measures.has(p.id):
 				measures[p.id] = p.measure()
@@ -152,6 +154,8 @@ static func build(generator: VoxelGenerator, trails: Dictionary, radius: float, 
 	var plans: Array = []
 	plans.resize(picked.size())
 	var trail_distance := func(dir: Vector3) -> float: return TrailField.distance_at(trails, dir, "trees")
+	# La fina, la del campo que pinta el terreno: por donde van las calles de la villa.
+	var trail_axis := func(dir: Vector3) -> float: return TrailField.distance_at(trails, dir, "terrain")
 	task = WorkerThreadPool.add_group_task(func(k: int) -> void:
 		var site: int = usable[picked[k]]
 		var rng := RandomNumberGenerator.new()
@@ -165,13 +169,79 @@ static func build(generator: VoxelGenerator, trails: Dictionary, radius: float, 
 		var plan := {}
 		for template in order:
 			plan = SettlementLayout.plan(template, centers[site], centers[site].into, measures,
-				probe.radius_at, trail_distance, lcfg, rng)
+				probe.radius_at, trail_distance, lcfg, rng, trail_axis)
 			if not plan.is_empty():
 				plan.site = site
+				plan.flat = SettlementFlatten.fit(plan, probe.radius_at, rivers, radius, sea_radius)
 				break
 		lock.lock()
 		plans[k] = plan
 		lock.unlock(), picked.size())
+	WorkerThreadPool.wait_for_group_task_completion(task)
+	var villages: Array = []
+	var flats: Array = []
+	var buildings := 0
+	for plan: Dictionary in plans:
+		if not plan.is_empty():
+			if not (plan.flat as Dictionary).is_empty():
+				flats.append(plan.flat)
+			plan.erase("flat")
+			villages.append(plan)
+			buildings += (plan.buildings as Array).size()
+	return {"radius": radius, "villages": villages, "flats": flats, "stats": {"ends": dead_ends,
+		"roadside": sites.size() - dead_ends, "rolled": rolled.size(), "usable": usable.size(), "picked": picked.size(), "villages": villages.size(),
+		"buildings": buildings}}
+
+
+## Vuelve a trazar los poblados de [field] (de build) con el suelo de [generator], ya con el aplanado
+## en el grafo: en los mismos sitios y con la misma plantilla (o, si ya no cabe, las demás por orden),
+## para que las casas se asienten en el terreno aplanado. El aplanado ("flats") se queda como estaba: si
+## un poblado ya no cabe, su llano sigue ahí, como en cualquier otra carga.
+static func replan(field: Dictionary, generator: VoxelGenerator, trails: Dictionary, sea_radius: float,
+		templates: Array[SettlementTemplate], cfg: Dictionary) -> Dictionary:
+	cfg = settings(cfg)
+	var radius := float(field.radius)
+	var lcfg := {"radius": radius, "sea_radius": sea_radius, "max_slope": float(cfg.max_slope),
+		"max_step": float(cfg.max_step), "max_grade": float(cfg.max_grade)}
+	var measures := {}
+	for t in templates:
+		var prefabs: Array = t.all_prefabs()
+		for p: SettlementPrefab in prefabs:
+			if p != null and not measures.has(p.id):
+				measures[p.id] = p.measure()
+	var lower := sea_radius
+	var upper := radius + 4000.0
+	var old: Array = field.villages
+	var plans: Array = []
+	plans.resize(old.size())
+	var lock := Mutex.new()
+	var trail_distance := func(dir: Vector3) -> float: return TrailField.distance_at(trails, dir, "trees")
+	var trail_axis := func(dir: Vector3) -> float: return TrailField.distance_at(trails, dir, "terrain")
+	var task := WorkerThreadPool.add_group_task(func(k: int) -> void:
+		var before: Dictionary = old[k]
+		var probe := GroundProbe.new(generator, lower, upper)
+		var dir: Vector3 = before.center
+		var ground := probe.radius_at(dir)
+		var plan := {}
+		if not is_nan(ground):
+			var center := {"dir": dir, "ground": ground, "into": before.into}
+			var rng := RandomNumberGenerator.new()
+			rng.seed = hash([int(cfg.seed), int(before.site), "flat"])
+			var order: Array[SettlementTemplate] = []
+			for t in templates:
+				if t.id == StringName(before.template):
+					order.push_front(t)
+				else:
+					order.append(t)
+			for template in order:
+				plan = SettlementLayout.plan(template, center, before.into, measures, probe.radius_at,
+					trail_distance, lcfg, rng, trail_axis)
+				if not plan.is_empty():
+					plan.site = before.site
+					break
+		lock.lock()
+		plans[k] = plan
+		lock.unlock(), old.size())
 	WorkerThreadPool.wait_for_group_task_completion(task)
 	var villages: Array = []
 	var buildings := 0
@@ -179,9 +249,10 @@ static func build(generator: VoxelGenerator, trails: Dictionary, radius: float, 
 		if not plan.is_empty():
 			villages.append(plan)
 			buildings += (plan.buildings as Array).size()
-	return {"radius": radius, "villages": villages, "stats": {"ends": dead_ends,
-		"roadside": sites.size() - dead_ends, "rolled": rolled.size(), "usable": usable.size(), "picked": picked.size(), "villages": villages.size(),
-		"buildings": buildings}}
+	var stats: Dictionary = (field.stats as Dictionary).duplicate()
+	stats.villages = villages.size()
+	stats.buildings = buildings
+	return {"radius": radius, "villages": villages, "flats": field.get("flats", []), "stats": stats}
 
 
 static func _choose(templates: Array[SettlementTemplate], total: float, rng: RandomNumberGenerator) -> SettlementTemplate:
@@ -217,8 +288,7 @@ static func template(id: StringName) -> SettlementTemplate:
 ## El prefab de id [id] que usa alguna plantilla, o null.
 static func prefab(id: StringName) -> SettlementPrefab:
 	for t in load_templates():
-		var prefabs: Array = [t.center]
-		prefabs.append_array(t.buildings)
+		var prefabs: Array = t.all_prefabs()
 		for p: SettlementPrefab in prefabs:
 			if p != null and p.id == id:
 				return p
@@ -328,7 +398,8 @@ static func save_to(field: Dictionary, path: String, key: String) -> void:
 	f.store_string(FILE_MAGIC)
 	f.store_32(FILE_VERSION)
 	f.store_pascal_string(key)
-	f.store_var({"radius": field.radius, "villages": field.villages, "stats": field.get("stats", {})})
+	f.store_var({"radius": field.radius, "villages": field.villages, "flats": field.get("flats", []),
+		"stats": field.get("stats", {})})
 	f.close()
 
 

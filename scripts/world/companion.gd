@@ -2,13 +2,16 @@ class_name Companion extends CharacterBody3D
 
 ## Un aldeano que se ha ido con el jugador (SettlementCompanions): lleva el humano que tenía en su
 ## poblado y anda por el mundo con física, con la gravedad del planeta. Sigue al jugador (andando,
-## corriendo o a la carrera según lo lejos que se quede, saltando si algo le corta el paso), lo espera
-## donde se le diga o vuelve a casa. Si se queda muy atrás o atascado, aparece detrás del jugador. Se le
-## habla como a un aldeano (VillagerChat).
+## corriendo o a la carrera según lo lejos que se quede, saltando si algo le corta el paso y rodeando
+## paredes y casas por un camino, steer), nada si el agua lo cubre, trepa por donde ha trepado el
+## jugador (ClimbRoutes), lo espera donde se le diga o vuelve a casa. Si ni así sale de donde está, o se queda muy atrás, aparece detrás del jugador. Se le habla como
+## a un aldeano (VillagerChat).
 ##
-## Lleva cosas en su morral (pack), que el jugador le da y le quita en la charla. Pelea: va a por lo que
-## ataca al jugador o a él y por lo que ha herido el jugador, con la mejor arma que lleve (o la
-## herramienta de su oficio, o los puños), y las fieras se le revuelven (Perception lo sigue viendo). Sin
+## Lleva cosas en su morral (pack), que el jugador le da y le quita en la charla, y se pone lo que haya
+## de ropa, armadura, escudo y arco (CompanionGear). Pelea: va a por lo que ataca al jugador o a él y por
+## lo que ha herido el jugador, con la mejor arma que lleve (o la herramienta de su oficio, o los puños),
+## de lejos con el arco si tiene flechas, y alza el escudo cuando le van a golpear; las fieras se le
+## revuelven (Perception lo sigue viendo). Sin
 ## vida cae malherido y se levanta al rato; fuera de pelea se recupera poco a poco y come lo asado que
 ## lleve si le hace falta.
 ##
@@ -211,6 +214,82 @@ const RowingPoseScript = preload("res://scripts/world/rowing_pose.gd")
 const HIPS := &"mixamorig_Hips"
 ## Al cargar: lo que espera a que aparezca su bancada (los barcos se recrean al cargar).
 const PENDING_BENCH_TIME := 5.0
+## Tras algo que se mueve (el jugador, una fiera; steer con moving): no se acerca aunque ande bien, así
+## que busca camino cuando lleva CHASE_STUCK s sin avanzar lo que quiere o ve una pared delante, y no
+## más de una vez cada REPATH s.
+const CHASE_STUCK := 0.5
+## Nadar: se pone a nadar con los pies a más de SWIM_DEPTH m bajo la superficie (como el jugador,
+## PlayerController.swimming_offset) y deja de nadar cuando hace pie: con el fondo a menos de SWIM_LEAVE
+## m bajo la superficie (o fuera del agua). Flota con la cabeza fuera: con los pies a SWIM_FLOAT_MOVE m
+## nadando (la cabeza de swimming va a 0,9 m de los pies, tumbada) y a SWIM_FLOAT_IDLE quieto (la de
+## swimming_idle, a 1,55 m, de pie). Nada a SWIM_SPEED m/s y, si se queda atrás o va a pelear, a
+## SWIM_FAST. En el agua no golpea ni dispara.
+const SWIM_DEPTH := 1.45
+const SWIM_LEAVE := 1.25
+const SWIM_FLOAT_MOVE := 0.8
+const SWIM_FLOAT_IDLE := 1.4
+const SWIM_SPEED := 2.5
+const SWIM_FAST := 3.2
+const ANIM_SWIM := &"swimming"
+const ANIM_SWIM_IDLE := &"swimming_idle"
+## Arco (CompanionGear.bow, con flechas en el morral): dispara a lo que está a más de BOW_MIN m y a
+## menos de BOW_RANGE (más lejos, se acerca); si se le echa encima a menos de BOW_CLOSE mientras tensa,
+## lo deja y pelea con la mano. Tensa con bow_draw (a BOW_DRAW_SPEED), aguanta BOW_HOLD s, suelta con
+## bow_recoil y respira BOW_PAUSE s. Apunta adelantándose a la fiera y a la caída de la flecha, con
+## BOW_SPREAD grados de error.
+const BOW_MIN := 6.0
+const BOW_CLOSE := 3.0
+const BOW_RANGE := 35.0
+const BOW_DRAW_SPEED := 1.0
+const BOW_HOLD := Vector2(0.15, 0.5)
+const BOW_PAUSE := Vector2(0.5, 1.2)
+const BOW_SPREAD := 1.5
+const ANIM_BOW_DRAW := &"combat/bow_draw"
+const ANIM_BOW_RECOIL := &"combat/bow_recoil"
+## Escudo (CompanionGear.shield): cuando la fiera con la que pelea va a por él y empieza un golpe a menos
+## de su alcance más GUARD_RANGE m, lo alza tras GUARD_REACT s (una vez de cada GUARD_MISS no se da
+## cuenta) y lo baja GUARD_DROP s después de que acabe. Con el escudo alzado no golpea.
+const GUARD_RANGE := 2.5
+const GUARD_REACT := Vector2(0.08, 0.3)
+const GUARD_MISS := 0.2
+const GUARD_DROP := 0.35
+const GUARD_RAISE_SPEED := 1.4
+const GUARD_HIT_SPEED := 1.3
+const ANIM_SHIELD_RAISE := &"combat/shield_block"
+## Con un arma a dos manos que para (ItemData.guard_reduction: el espadón, el hacha grande, la maza),
+## sin escudo, se cubre con ella igual: la alza con la guardia del espadón.
+const ANIM_WEAPON_GUARD := &"combat/greatsword_block_idle"
+## Sin con qué parar (una mano sin escudo, una herramienta, los puños), esquiva: al ver venir el golpe
+## (como al alzar el escudo: tras GUARD_REACT s, y una vez de cada DODGE_MISS no se da cuenta) da un paso
+## atrás, como el del jugador (BodyMotion.BACKSTEP en su CombatPose, PlayerCombat.BACKSTEP_*), hacia
+## atrás o en diagonal (hasta DODGE_SIDE grados), sin dejar de mirarla y sin que le den en sus primeras
+## décimas. Gasta DODGE_COST de aguante (sin él, no esquiva) y no vuelve a esquivar hasta DODGE_COOL s.
+const DODGE_MISS := 0.3
+const DODGE_SIDE := 40.0
+const DODGE_COST := 10.0
+const DODGE_COOL := 1.0
+const ANIM_SHIELD_HOLD := &"combat/shield_block_idle"
+const ANIM_SHIELD_HIT := &"combat/shield_block_hit"
+## Trepar detrás del jugador (ClimbRoutes): busca ruta cada ROUTE_SCAN s; llega a su pie a menos de
+## ROUTE_FOOT m (si en ROUTE_GIVE_UP s no llega, la deja) y espera allí su turno. Trepa por los puntos de
+## la ruta a CLIMB_SPEED m/s, sin colisión, con climb_up o climb_down al ritmo que casa sus manos con
+## la pared (ClimbController.UP_CLIP_SPEED), y corona con climb_top (a TOP_SPEED) hasta donde acabó de pie
+## el jugador. climb_top acaba de pie en su origen y empieza colgado: su cadera, medida en el esqueleto,
+## por TOP_HIPS (instante, cadera en su marco); el cuerpo corona desde donde su cadera casa con la suya
+## (CLIMB_HIPS m sobre los pies, trepando) y llega de pie a TOP_SETTLE s.
+const ROUTE_SCAN := 0.5
+const ROUTE_FOOT := 0.9
+const ROUTE_GIVE_UP := 30.0
+const CLIMB_SPEED := 0.9
+const CLIMB_HIPS := 1.1
+const TOP_SPEED := 1.0
+const TOP_SETTLE := 3.2
+const TOP_HIPS: Array[Vector4] = [Vector4(0.0, 0.10, -0.68, -1.46), Vector4(0.8, -0.11, -0.26, -1.42),
+	Vector4(1.6, 0.01, 0.36, -1.30), Vector4(2.4, -0.07, 0.98, -0.79), Vector4(3.2, -0.01, 1.0, -0.04),
+	Vector4(4.0, 0.0, 0.99, 0.0)]
+const ANIM_CLIMB_UP := &"combat/climb_up"
+const ANIM_CLIMB_DOWN := &"combat/climb_down"
+const ANIM_CLIMB_TOP := &"combat/climb_top"
 
 ## SettlementPopulation.residents: "id", "name", "sex", "job"...
 var resident: Dictionary
@@ -353,6 +432,57 @@ var _hold_for: FallingTree
 var _goto := Vector3.INF
 var _goto_left := 0.0
 
+# --- Equipo, agua y caminos tras algo que se mueve ---
+## Lo que lleva puesto del morral: ropa, armadura, escudo y arco.
+var gear: CompanionGear
+## Si va por un encargo (SettlementQuests, QuestDirector): el perdido al que se lleva a casa o el que se
+## escolta al poblado vecino. Es el "id" de quien lo pidió (el encargo es suyo), o "". No ocupa sitio en el
+## grupo, no se le manda trabajar ni quedarse en la base: solo seguir o esperar.
+var ward := ""
+## Brazos por código sobre su animación, como los del jugador (CombatPose, combat_pose()): el arco
+## (BowAnimRig: el arco en el puño, la cuerda en los dedos y la flecha, sobre bow_draw y bow_recoil) y la
+## caña del pescador (FishingPose, que lleva SettlerFish). Se crea la primera vez que hace falta.
+var pose: CombatPose
+var _aim := 0.0
+## Nadando; la superficie del agua aquí (radio desde el centro del planeta) y ese centro.
+var _swimming := false
+var _water_r := 0.0
+var _water_center := Vector3.ZERO
+## Con el arco fuera; tensándolo, lo que le queda para soltar (s; −1 si no tensa).
+var _bow_out := false
+var _draw_left := -1.0
+## Escudo: alzado; lo que le falta para alzarlo (s; −1 si no va a alzarlo); lo que le queda alzado
+## sin peligro; y si ya ha decidido qué hacer con el golpe que viene.
+var _guard_up := false
+var _guard_wait := -1.0
+var _guard_calm := 0.0
+var _guard_seen := false
+## Esquivando: el tiempo que lleva (s, −1 si no), hacia dónde (mundo), lo que le falta para hacerlo tras
+## verlo venir (−1 si nada) y para poder volver a esquivar.
+var _dodge_t := -1.0
+var _dodge_dir := Vector3.ZERO
+var _dodge_wait := -1.0
+var _dodge_cool := 0.0
+## Lo que falta para poder buscar otro camino tras algo que se mueve (s).
+var _search_cool := 0.0
+
+# --- Trepar detrás del jugador ---
+## La ruta por la que va a subir (ClimbRoutes) o {}; lo que le queda para llegar a su pie y para volver
+## a buscar.
+var _route := {}
+var _route_left := 0.0
+var _route_scan := 0.0
+## Trepando (sin colisión): por qué punto de la ruta va; coronando, el instante de climb_top, el marco
+## del clip al empezar (mundo) y dónde acaba de pie.
+var _climbing := false
+var _climb_i := 0
+var _topping := false
+var _top_t := 0.0
+var _top_t0 := 0.0
+var _top_from := Vector3.ZERO
+var _top_basis := Basis.IDENTITY
+var _top_stand := Vector3.ZERO
+
 
 ## [who]: su vecino (SettlementPopulation.residents) del poblado [v] ([v_name]); [model]: su humano
 ## vestido (Villager.build_model o el del aldeano); [home]: el centro del poblado en el marco del
@@ -388,6 +518,8 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	# Los golpes, el respingo y la caída, los del jugador.
 	if not _anim_player.has_animation_library(&"combat") and ResourceLoader.exists(PlayerCombat.COMBAT_LIBRARY):
 		_anim_player.add_animation_library(&"combat", load(PlayerCombat.COMBAT_LIBRARY))
+	# Trabajos agachados (despiezar), empalmados de los del jugador.
+	AnimSplice.attach(_anim_player, _model.get_node("Armature/Skeleton3D") as Skeleton3D)
 	_tool = _model.get_node_or_null("Armature/Skeleton3D/ToolHand/Grip/Tool") as Node3D
 	(_model.get_node("Armature/Skeleton3D") as Skeleton3D).skeleton_updated.connect(_on_skeleton_updated)
 	_sleep_routine = SleepRoutine.new(_anim_player, hash([who.get("look", 0), "sleep"]),
@@ -395,22 +527,23 @@ func setup(who: Dictionary, v: int, v_name: String, trust: SettlementRelations, 
 	if _tool != null:
 		_tool.visible = false
 	_rng.seed = hash([who.get("look", 0), "companion"])
+	gear = CompanionGear.new(self, _model, who.get("outfit", []))
+	gear.guard.blocked.connect(_on_guard_blocked)
+	gear.guard.broken.connect(_on_guard_broken)
 	health = HealthComponent.new()
 	health.name = "HealthComponent"
 	health.max_health = MAX_HEALTH
-	var armor := _outfit_armor()
-	health.armor_slash = armor.x
-	health.armor_blunt = armor.y
-	health.armor_pierce = armor.z
+	health.guard = gear.guard
 	health.hit_received.connect(_on_hit)
 	health.died.connect(_on_down)
 	add_child(health)
+	_apply_armor()
 	_hurtbox = Hurtbox.attach(self, self, capsule, shape.transform, &"body")
 	_hurtbox.health = health
 	pack = Inventory.new(PACK_SLOTS)
 	pack.name = "Pack"
 	add_child(pack)
-	pack.inventory_changed.connect(refresh_weapon)
+	pack.inventory_changed.connect(_on_pack_changed)
 	inventory = pack
 	meals = SettlerMeals.new(self)
 	work = SettlerWork.new(self)
@@ -436,6 +569,7 @@ func _exit_tree() -> void:
 
 ## Se queda donde está hasta que se le diga que siga.
 func wait_here() -> void:
+	_drop_route()
 	stand_up()
 	_leave_base()
 	_goto = Vector3.INF
@@ -566,6 +700,7 @@ func settle_here(at := Vector3.INF) -> void:
 ## Se vuelve a su poblado: echa a andar hacia allí y se va del todo al perderse de vista
 ## (SettlementCompanions lo quita al salir del árbol).
 func go_home() -> void:
+	_drop_route()
 	stand_up()
 	_leave_base()
 	_goto = Vector3.INF
@@ -575,7 +710,8 @@ func go_home() -> void:
 
 ## Se le puede hablar si no se va, no pelea, no está malherido y no duerme.
 func can_chat() -> bool:
-	return not dead and mode != Mode.LEAVE and _target == null and _down_left <= 0.0 and _chore != Chore.SLEEP
+	return not dead and mode != Mode.LEAVE and _target == null and _down_left <= 0.0 and _chore != Chore.SLEEP \
+		and not _climbing
 
 
 ## Al cargar: la vida que tenía (si cayó, la de levantarse).
@@ -589,6 +725,36 @@ func restore_health(value: float) -> void:
 ## Dónde se le mira al buscarlo con la vista (Perception): el pecho.
 func get_lock_point() -> Vector3:
 	return global_position + global_basis.y * Villager.BODY_HEIGHT * 0.65
+
+
+## Le cambia el morral: el arma, y se pone lo que lleve de ropa, armadura, escudo y arco (CompanionGear).
+func _on_pack_changed() -> void:
+	refresh_weapon()
+	if gear.refresh(pack):
+		_apply_armor()
+	if gear.shield == null:
+		_lower_guard()
+	if gear.bow == null or gear.ammo_left(pack) <= 0:
+		_cancel_draw()
+		_bow_out = false
+	_show_gear()
+
+
+## Lo que le protege lo que lleva puesto (sumado, en ARMOR_SHARE: no la lleva por partes como el jugador).
+func _apply_armor() -> void:
+	var armor := gear.armor() * ARMOR_SHARE
+	health.armor_slash = armor.x
+	health.armor_blunt = armor.y
+	health.armor_pierce = armor.z
+
+
+## El escudo y el arco, a la vista cuando toca: el escudo salvo durmiendo, sentado, nadando, con el arco
+## fuera o con un arma a dos manos; el arco, solo fuera.
+func _show_gear() -> void:
+	var resting := _chore == Chore.SLEEP or _seated or dead
+	var two_hands := _weapon != null and _weapon.two_handed and _armed_left > 0.0
+	gear.show(gear.shield != null and not resting and not _swimming and not _bow_out and not two_hands,
+		_bow_out and not resting)
 
 
 ## Con qué pelea: lo mejor que lleve para golpear o, si no, la herramienta de su oficio (o nada: los
@@ -605,7 +771,7 @@ func refresh_weapon() -> void:
 	_weapon = best
 	_tool = Villager.hold(_model, best.scene_path if best != null else "")
 	if _tool != null:
-		_tool.visible = _armed_left > 0.0
+		_tool.visible = _armed_left > 0.0 and not _bow_out
 
 
 ## El jugador le habla: se para y lo mira hasta end_chat.
@@ -642,6 +808,222 @@ func facing() -> Vector3:
 	return _forward
 
 
+## Dónde guardarlo (mundo): trepando, donde acabará de pie; si no, donde está.
+func save_position() -> Vector3:
+	var spot := work.task.ground_spot() if work != null and work.task != null else Vector3.INF
+	if spot.is_finite():
+		return spot
+	if _climbing and _route.has("stand") and (_route.stand as Vector3).is_finite():
+		return _terrain.global_transform * (_route.stand as Vector3)
+	return global_position
+
+
+## Si va trepando detrás del jugador.
+func is_climbing() -> bool:
+	return _climbing
+
+
+# --- Trepar detrás del jugador (ClimbRoutes) -------------------------------------------------------
+
+## Un paso hacia el pie de la ruta por la que ha trepado el jugador, y allí espera su turno y empieza a
+## trepar: [hacia dónde, a qué velocidad], o [] si no hay ruta (sigue al jugador como siempre).
+func _to_route(party: SettlementCompanions, delta: float) -> Array:
+	if _target != null or _swimming:
+		return []
+	if _route.is_empty():
+		_route_scan -= delta
+		if _route_scan > 0.0:
+			return []
+		_route_scan = ROUTE_SCAN
+		_route = party.routes.find_for(self, _terrain, _player)
+		if _route.is_empty():
+			return []
+		_route_left = ROUTE_GIVE_UP
+	if not party.routes.has(_route):
+		_route = {}
+		return []
+	var points: PackedVector3Array = _route.points
+	var foot := _terrain.global_transform * points[0]
+	var to := (foot - global_position).slide(up_direction)
+	if to.length() > ROUTE_FOOT:
+		_route_left -= delta
+		if _route_left <= 0.0:
+			# No llega a su pie: la deja un rato.
+			_route = {}
+			_route_scan = ROUTE_GIVE_UP
+			return []
+		var heading := steer(foot, ROUTE_FOOT * 0.7, delta)
+		return [heading if heading != Vector3.ZERO else _tangent(to), JOG_SPEED if to.length() > JOG_FROM else WALK_SPEED]
+	# Al pie: de cara a la pared, espera a que el jugador corone y a que suba el de delante.
+	_face(-(_terrain.global_transform.basis * (_route.normals as PackedVector3Array)[0]), delta)
+	var now := party.routes.clock
+	if _route.done and now >= float(_route.next):
+		_route.next = now + ClimbRoutes.GAP
+		_start_climb()
+	return [Vector3.ZERO, 0.0]
+
+
+## Sube (o baja) por una escalera: por [points] (mundo, sus pies), de cara a ella ([normal]: de ella hacia
+## él), y acaba de pie en [stand]. Con [top], corona arriba como en una pared (climb_top); sin él, baja y
+## acaba al pie. Lo usa el constructor con su andamio (SettlerScaffold).
+func climb_ladder(points: PackedVector3Array, normal: Vector3, stand: Vector3, top: bool) -> void:
+	var to_local := _terrain.global_transform.affine_inverse()
+	var local := PackedVector3Array()
+	var normals := PackedVector3Array()
+	for point in points:
+		local.append(to_local * point)
+		normals.append((to_local.basis * normal).normalized())
+	_route = {"points": local, "normals": normals, "stand": to_local * stand,
+		"facing": (to_local.basis * -normal).normalized(), "top": top, "ladder": true}
+	_start_climb()
+
+
+## Se agarra: sin colisión ni nada en las manos, sube por la ruta.
+func _start_climb() -> void:
+	_climbing = true
+	_topping = false
+	_climb_i = 0
+	_shape.disabled = true
+	velocity = Vector3.ZERO
+	_target = null
+	_ordered = false
+	_chatting = false
+	_lower_guard()
+	_cancel_draw()
+	_bow_out = false
+	_attack_left = 0.0
+	_hit_at = -1.0
+	_flinch_left = 0.0
+	_armed_left = 0.0
+	if _tool != null:
+		_tool.visible = false
+	_anim = &""
+
+
+## Un paso trepando: hacia el siguiente punto de la ruta y, al acabarlos, a coronar.
+func _climb_step(up: Vector3, delta: float) -> void:
+	if not _route.has("points"):
+		_end_climb(false)
+		return
+	if _topping:
+		_top_step(up, delta)
+		return
+	var points: PackedVector3Array = _route.points
+	var normals: PackedVector3Array = _route.normals
+	if _climb_i >= points.size():
+		if not bool(_route.get("top", true)):
+			# Bajando por una escalera (climb_ladder): de pie donde acaban los peldaños.
+			_top_stand = _terrain.global_transform * (_route.stand as Vector3)
+			_end_climb(true)
+			return
+		_begin_top(up)
+		return
+	var target := _terrain.global_transform * points[_climb_i]
+	var to := target - global_position
+	var step := CLIMB_SPEED * delta
+	if to.length() <= step:
+		global_position = target
+		_climb_i += 1
+	else:
+		global_position += to.normalized() * step
+	var normal := _terrain.global_transform.basis * normals[mini(_climb_i, normals.size() - 1)]
+	var facing := _tangent(-normal)
+	if facing != Vector3.ZERO:
+		_forward = facing
+	_pose(up)
+	var down := to.dot(up) < -0.3 * to.length()
+	_play(ANIM_CLIMB_DOWN if down else ANIM_CLIMB_UP, 0.25)
+	_anim_player.speed_scale = CLIMB_SPEED / (ClimbController.DOWN_CLIP_SPEED if down else ClimbController.UP_CLIP_SPEED)
+
+
+## Empieza a coronar: el clip desde el instante en que su cadera queda tan por debajo del borde como la
+## suya (una pared baja empieza más tarde), con su marco corrido para que las caderas casen.
+func _begin_top(up: Vector3) -> void:
+	var stand: Vector3 = _terrain.global_transform * (_route.stand as Vector3)
+	var f := _tangent(_terrain.global_transform.basis * (_route.facing as Vector3))
+	if f == Vector3.ZERO:
+		f = _forward
+	var stand_up_dir := (stand - _terrain.global_position).normalized()
+	_top_basis = Basis(stand_up_dir.cross(f).normalized(), stand_up_dir, f)
+	_top_stand = stand
+	var rise := (stand - global_position).dot(up)
+	# La cadera del clip a la altura (en su marco) a la que está la suya: CLIMB_HIPS sobre los pies.
+	var want := CLIMB_HIPS - rise
+	_top_t0 = 0.0
+	for i in range(TOP_HIPS.size() - 1):
+		var a := TOP_HIPS[i]
+		var b := TOP_HIPS[i + 1]
+		if want <= a.z:
+			break
+		if want <= b.z:
+			_top_t0 = lerpf(a.x, b.x, (want - a.z) / maxf(b.z - a.z, 0.001))
+			break
+		_top_t0 = b.x
+	_top_t0 = minf(_top_t0, TOP_SETTLE * 0.75)
+	_top_t = _top_t0
+	_top_from = global_position + up * CLIMB_HIPS - _top_basis * _top_hips(_top_t0)
+	_topping = true
+	_forward = f
+	# El cuerpo salta al marco del clip (la cadera se queda donde estaba): sin interpolar ese salto.
+	global_position = _top_from
+	global_basis = _top_basis
+	reset_physics_interpolation()
+	_play(ANIM_CLIMB_TOP, 0.2, true)
+	_anim_player.seek(_top_t0, true)
+	_anim_player.speed_scale = TOP_SPEED
+
+
+## Coronando: su marco va de donde empezó a donde acaba de pie, y al acabar el clip queda allí.
+func _top_step(_up: Vector3, delta: float) -> void:
+	_top_t += delta * TOP_SPEED
+	var k := smoothstep(_top_t0, _top_t0 + (TOP_SETTLE - _top_t0) * 0.8, _top_t)
+	global_position = _top_from.lerp(_top_stand, k)
+	global_basis = _top_basis
+	_forward = _top_basis.z
+	if _top_t >= TOP_SETTLE:
+		_end_climb(true)
+
+
+## La cadera de climb_top en su marco en el instante [t] (TOP_HIPS).
+func _top_hips(t: float) -> Vector3:
+	for i in range(TOP_HIPS.size() - 1):
+		var a := TOP_HIPS[i]
+		var b := TOP_HIPS[i + 1]
+		if t <= b.x:
+			var k := clampf((t - a.x) / maxf(b.x - a.x, 0.001), 0.0, 1.0)
+			return Vector3(a.y, a.z, a.w).lerp(Vector3(b.y, b.z, b.w), k)
+	var last := TOP_HIPS[TOP_HIPS.size() - 1]
+	return Vector3(last.y, last.z, last.w)
+
+
+## Deja de trepar: de pie donde acabó el jugador ([arrived]) o, si no (malherido, muerto), donde esté,
+## y vuelve a chocar (cae si está en el aire).
+func _end_climb(arrived: bool) -> void:
+	if not _climbing:
+		_route = {}
+		return
+	_climbing = false
+	_topping = false
+	_shape.disabled = _chore == Chore.SLEEP or _seated
+	if arrived:
+		var up := (_top_stand - _terrain.global_position).normalized()
+		global_position = _top_stand + up * 0.05
+	velocity = Vector3.ZERO
+	_route = {}
+	_route_scan = ROUTE_SCAN
+	_path_dest = Vector3.INF
+	_stuck = 0.0
+	_ground = true
+	_anim = &""
+	_play(Villager.ANIM_IDLE, 0.3)
+
+
+## Olvida la ruta a la que iba (salvo que ya trepe: eso lo acaba).
+func _drop_route() -> void:
+	if not _climbing:
+		_route = {}
+
+
 func _physics_process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player) or _terrain == null \
 			or GameManager.current_state != GameManager.State.PLAYING:
@@ -651,6 +1033,14 @@ func _physics_process(delta: float) -> void:
 	var to_player := _player.global_position - global_position
 	var distance := (to_player - up * to_player.dot(up)).length()
 	_since_hit += delta
+	if distance <= FREEZE and not _seated and not _climbing:
+		_update_swim()
+	gear.guard.update(delta)
+	_show_gear()
+	# Una esquiva a medias que se queda sin pelea (o malherido, muerto, trepando) se acaba: vuelve a
+	# poder recibir golpes.
+	if _dodge_t >= 0.0 and (dead or _down_left > 0.0 or _climbing or not _alive(_target)):
+		_end_dodge()
 	if dead:
 		_gone_left -= delta
 		_move(Vector3.ZERO, 0.0, up, delta)
@@ -660,6 +1050,10 @@ func _physics_process(delta: float) -> void:
 		return
 	if _down_left > 0.0:
 		_lie(up, delta)
+		return
+	# Trepando detrás del jugador lo lleva la ruta: ni pelea ni se para.
+	if _climbing:
+		_climb_step(up, delta)
 		return
 	# Los árboles que caen: si se da cuenta y está (o se va a meter) en su camino, se aparta o se para.
 	_watch_falls()
@@ -691,10 +1085,16 @@ func _physics_process(delta: float) -> void:
 		if _scan_left <= 0.0:
 			_scan_left = SCAN_INTERVAL
 			_scan(distance)
+	_update_guard(delta)
+	_update_aim(delta)
+	if _target == null and _draw_left >= 0.0:
+		_cancel_draw()
 	if _armed_left > 0.0 and _target == null:
 		_armed_left -= delta
-		if _armed_left <= 0.0 and _tool != null:
-			_tool.visible = false
+		if _armed_left <= 0.0:
+			_bow_out = false
+			if _tool != null:
+				_tool.visible = false
 	# Siguiendo, primero intenta aparecer junto al jugador (al que, por ejemplo, ha reaparecido lejos).
 	if mode == Mode.FOLLOW and not _chatting and _target == null and distance > TELEPORT and _teleport():
 		return
@@ -786,6 +1186,9 @@ func _physics_process(delta: float) -> void:
 		_pose(up)
 		_animate()
 		return
+	# Nadando va a su ritmo (al de quien anda o al de quien corre).
+	if _swimming and speed > 0.0:
+		speed = SWIM_FAST if speed > JOG_SPEED else SWIM_SPEED
 	# Al borde de un precipicio o de una cueva se para y busca otro camino.
 	if guard and speed > 0.0 and _ledge_ahead(heading, _ledge_drop):
 		heading = Vector3.ZERO
@@ -793,7 +1196,7 @@ func _physics_process(delta: float) -> void:
 		_blocked_by_ledge()
 	_moving = speed > 0.0
 	_move(heading, speed, up, delta)
-	if _moving:
+	if _moving and _dodge_t < 0.0:
 		_face(heading, delta)
 		_unstick(heading, speed, distance, delta)
 	elif _target != null:
@@ -813,13 +1216,21 @@ func _physics_process(delta: float) -> void:
 ## como siempre. Se aparta de los otros del grupo.
 func _follow(to_player: Vector3, distance: float, up: Vector3, delta: float) -> Array:
 	var party := _party()
+	# Si el jugador ha trepado (o trepa), al pie de su ruta a subir detrás.
+	if party != null and _retreat_left <= 0.0:
+		var climb := _to_route(party, delta)
+		if not climb.is_empty():
+			return climb
 	var slot := party.slot_of(self) if party != null and _retreat_left <= 0.0 else Vector3.INF
 	var heading := Vector3.ZERO
 	var speed := 0.0
 	if not slot.is_finite():
 		var stop := STOP + (party.loose_margin(self) if party != null else 0.0)
 		if distance > stop + (START - STOP) or (_moving and distance > stop):
-			heading = _tangent(to_player)
+			# En línea recta y, si una pared o una casa se lo impide, por un camino (rodea, busca la puerta).
+			heading = steer(_player.global_position, stop * 0.8, delta, true)
+			if heading == Vector3.ZERO:
+				heading = _tangent(to_player)
 			if _retreat_left > 0.0:
 				speed = remap(clampf(distance, stop, SPRINT_FROM), stop, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)
 			elif distance < JOG_FROM:
@@ -842,7 +1253,7 @@ func _follow(to_player: Vector3, distance: float, up: Vector3, delta: float) -> 
 		var body := _player as CharacterBody3D
 		var pace := body.get_real_velocity().slide(up).length() if body != null else 0.0
 		if d > SLOT_START or (_moving and (d > SLOT_STOP or pace > 0.3)):
-			heading = steer(slot, SLOT_STOP * 0.8, delta)
+			heading = steer(slot, SLOT_STOP * 0.8, delta, true)
 			var catch_up := WALK_SPEED
 			if d > SLOT_RUN:
 				catch_up = remap(minf(d, SLOT_SPRINT), SLOT_RUN, SLOT_SPRINT, RUN_SPEED, SPRINT_SPEED)
@@ -898,7 +1309,24 @@ func _travel_home(delta: float) -> bool:
 func _move(heading: Vector3, speed: float, up: Vector3, delta: float) -> void:
 	var vertical := up * velocity.dot(up)
 	var flat := velocity - vertical
-	flat = flat.move_toward(heading * speed, ACCEL * delta)
+	if _swimming:
+		# Nadando: como mucho a SWIM_FAST, y flota con la cabeza fuera (los pies a SWIM_FLOAT_MOVE o
+		# SWIM_FLOAT_IDLE m bajo la superficie: un muelle sobre la velocidad vertical); para salir a una
+		# orilla alta, un impulso (_unstick).
+		flat = flat.move_toward(heading * minf(speed, SWIM_FAST), ACCEL * 0.5 * delta)
+		var depth := _water_r - global_position.distance_to(_water_center)
+		var float_at := SWIM_FLOAT_MOVE if speed > 0.0 and heading != Vector3.ZERO else SWIM_FLOAT_IDLE
+		var rise := clampf((depth - float_at) * 2.0, -2.0, 2.0)
+		if _jump:
+			rise = JUMP_SPEED * 0.8
+		vertical = up * move_toward(velocity.dot(up), rise, 12.0 * delta)
+		_jump = false
+		_ground = true
+		velocity = flat + vertical
+		move_and_slide()
+		return
+	# Esquivando, el paso va a su velocidad desde el primer instante.
+	flat = heading * speed if _dodge_t >= 0.0 else flat.move_toward(heading * speed, ACCEL * delta)
 	if _jump and is_on_floor():
 		vertical = up * JUMP_SPEED
 	elif is_on_floor():
@@ -927,20 +1355,26 @@ func _unstick(heading: Vector3, speed: float, distance: float, delta: float) -> 
 		return
 	_stuck += delta
 	_jump_left -= delta
-	if is_on_floor() and _jump_left <= 0.0 and _stuck > 0.25:
+	if _swimming and _jump_left <= 0.0 and _stuck > 0.5:
+		# Contra la orilla: un impulso para salir del agua.
+		_jump_left = JUMP_EVERY * 2.0
+		_jump = true
+	elif is_on_floor() and _jump_left <= 0.0 and _stuck > 0.25:
 		_jump_left = JUMP_EVERY
 		if _wall_ahead(heading):
 			_steer_left = minf(_steer_left, 0.0)
 		else:
 			_jump = true
-	if mode == Mode.FOLLOW and _target == null and _stuck > STUCK_TELEPORT and distance > STUCK_FAR and _teleport():
+	# Aparece junto al jugador si ni por un camino sale de ahí (o lleva mucho atascado).
+	if mode == Mode.FOLLOW and _target == null and _stuck > STUCK_TELEPORT and distance > STUCK_FAR \
+			and (_path_tries >= PATH_TRIES or _stuck > STUCK_TELEPORT * 2.0) and _teleport():
 		_stuck = 0.0
 
 
 ## Si andando hacia [heading] pisaría donde el suelo queda a más de [drop] m por debajo de sus pies (o
 ## no lo hay): mira hasta donde le da para frenar (ACCEL), en LEDGE_SAMPLES puntos. En el aire no mira.
 func _ledge_ahead(heading: Vector3, drop: float) -> bool:
-	if heading == Vector3.ZERO or not is_on_floor():
+	if heading == Vector3.ZERO or not is_on_floor() or _swimming:
 		return false
 	var up := up_direction
 	var pace := velocity.slide(up).length()
@@ -1033,11 +1467,18 @@ func _pose(up: Vector3) -> void:
 ## Andar o correr a la velocidad a la que va; quieto, de pie o (esperando un rato) sentado. El golpe, el
 ## respingo y la caída los pone quien los empieza.
 func _animate() -> void:
-	if _chatting or _attack_left > 0.0 or _flinch_left > 0.0:
+	if _chatting or _attack_left > 0.0 or _flinch_left > 0.0 or _guard_up or _climbing:
 		return
 	var up := up_direction
 	var real := get_real_velocity()
 	var speed := (real - up * real.dot(up)).length()
+	if _swimming:
+		if _moving and speed > 0.15:
+			_play(ANIM_SWIM)
+			_anim_player.speed_scale = clampf(speed / SWIM_SPEED, 0.6, 1.5)
+		else:
+			_play(ANIM_SWIM_IDLE)
+		return
 	if _moving and speed > 0.15:
 		var gait := 2 if speed > GAITS.y else (1 if speed > GAITS.x else 0)
 		if gait < _gait and speed > GAITS[gait] - GAIT_MARGIN:
@@ -1157,12 +1598,45 @@ func _fight(up: Vector3, delta: float) -> Array:
 	var flat := to - up * to.dot(up)
 	var distance := flat.length()
 	var toward := _tangent(to)
-	if _attack_left > 0.0:
+	# Tensando el arco: suelta a su tiempo, salvo que se le eche encima (entonces, a la mano).
+	if _draw_left >= 0.0:
+		if distance < BOW_CLOSE:
+			_cancel_draw()
+		else:
+			_face(toward, delta)
+			_draw_left -= delta
+			if _draw_left < 0.0:
+				_loose(up)
+			return [Vector3.ZERO, 0.0]
+	if _dodge_t >= 0.0:
+		_face(toward, delta)
+		return _dodging(delta)
+	if _attack_left > 0.0 or _guard_up:
 		_face(toward, delta)
 		return [Vector3.ZERO, 0.0]
+	# Nadando no golpea: va hacia ella.
+	if _swimming:
+		return [toward, SWIM_FAST]
+	if distance > BOW_MIN and _can_shoot():
+		# Muy lejos o sin verla, se acerca; si no, quieto, la encara y tensa.
+		if distance > BOW_RANGE or not _clear_shot():
+			var near := steer(_target.global_position, BOW_RANGE * 0.6, delta, true)
+			return [near if near != Vector3.ZERO else toward, RUN_SPEED]
+		_face(toward, delta)
+		_pause_left -= delta
+		if _pause_left <= 0.0 and toward != Vector3.ZERO and _forward.angle_to(toward) < deg_to_rad(20.0):
+			_draw()
+		return [Vector3.ZERO, 0.0]
+	if _bow_out:
+		# Se le ha echado encima (o no le quedan flechas): guarda el arco y saca lo de la mano.
+		_bow_out = false
+		_show_weapon()
 	var reach := _reach_to(_target)
 	if distance > reach:
-		return [toward, remap(clampf(distance, reach, SPRINT_FROM), reach, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)]
+		# En línea recta y, si algo se lo impide, por un camino (steer).
+		var heading := steer(_target.global_position, reach * 0.8, delta, true)
+		return [heading if heading != Vector3.ZERO else toward,
+			remap(clampf(distance, reach, SPRINT_FROM), reach, SPRINT_FROM, RUN_SPEED, SPRINT_SPEED)]
 	_face(toward, delta)
 	_pause_left -= delta
 	if _pause_left <= 0.0 and toward != Vector3.ZERO and _forward.angle_to(toward) < deg_to_rad(40.0):
@@ -1217,7 +1691,350 @@ func _land_hit(up: Vector3) -> void:
 func _show_weapon() -> void:
 	_armed_left = ARMED_TIME
 	if _tool != null:
-		_tool.visible = true
+		_tool.visible = not _bow_out
+
+
+# --- Arco -----------------------------------------------------------------------------------------
+
+## Si puede disparar: lleva arco y le quedan flechas.
+func _can_shoot() -> bool:
+	return gear.bow != null and gear.ammo_left(pack) > 0
+
+
+## Si desde el pecho ve la fiera (nada del mundo entre medias).
+func _clear_shot() -> bool:
+	var from := global_position + up_direction * 1.4
+	var query := PhysicsRayQueryParameters3D.create(from, _target.get_lock_point(), PhysicsLayers.WORLD,
+		[get_rid()])
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
+## Saca el arco (guarda lo de la mano) y empieza a tensar: saca la flecha, la encaja y tensa.
+func _draw() -> void:
+	_bow_out = true
+	_armed_left = ARMED_TIME
+	if _tool != null:
+		_tool.visible = false
+	_lower_guard()
+	_play(ANIM_BOW_DRAW, 0.15, true)
+	_anim_player.speed_scale = BOW_DRAW_SPEED
+	var length := _anim_player.get_animation(ANIM_BOW_DRAW).length / BOW_DRAW_SPEED \
+		if _anim_player.has_animation(ANIM_BOW_DRAW) else 1.0
+	_draw_left = length + _rng.randf_range(BOW_HOLD.x, BOW_HOLD.y)
+	# Mientras tensa, el movimiento no le cambia la animación (_animate).
+	_attack_left = _draw_left + 0.05
+	_hit_at = -1.0
+
+
+## Deja de tensar (sin soltar la flecha).
+func _cancel_draw() -> void:
+	if _draw_left < 0.0:
+		return
+	_draw_left = -1.0
+	_attack_left = 0.0
+	_anim = &""
+
+
+## Suelta la flecha hacia la fiera: adelantándose a lo que corre y a lo que cae la flecha, con algo de
+## error. Gasta una flecha del morral.
+func _loose(up: Vector3) -> void:
+	_draw_left = -1.0
+	var bow := gear.bow
+	var ammo := gear.ammo()
+	if bow == null or ammo == null or pack.get_item_count(ammo) <= 0 or not _alive(_target):
+		_attack_left = 0.0
+		return
+	var from := gear.bow_hand() + _forward * 0.3
+	var aim := _target.get_lock_point()
+	var speed := maxf(float(bow.projectile_speed), 10.0)
+	var flight := from.distance_to(aim) / speed
+	aim += _target.velocity * flight
+	flight = from.distance_to(aim) / speed
+	aim += up * 0.5 * gravity * flight * flight
+	var dir := (aim - from).normalized()
+	var side := dir.cross(up).normalized()
+	dir = dir.rotated(up, deg_to_rad(_rng.randf_range(-BOW_SPREAD, BOW_SPREAD)))
+	if side != Vector3.ZERO:
+		dir = dir.rotated(side, deg_to_rad(_rng.randf_range(-BOW_SPREAD, BOW_SPREAD) * 0.6))
+	var projectile := CombatProjectile.new()
+	projectile.kind = CombatProjectile.Kind.ARROW
+	projectile.shooter = self
+	projectile.item_data = ammo
+	projectile.planet_node = _player.get("planet")
+	projectile.damage = (float(bow.damage) + float(ammo.damage)) * DAMAGE_SCALE
+	projectile.poise = bow.poise_damage * DAMAGE_SCALE
+	projectile.damage_kind = bow.damage_kind
+	projectile.penetration = maxf(bow.armor_penetration, ammo.armor_penetration)
+	projectile.set_exclude([get_rid(), _hurtbox.get_rid()])
+	get_tree().current_scene.add_child(projectile)
+	projectile.launch(from, dir, speed)
+	CombatFx.play(&"bow_release", from)
+	pack.remove_item(ammo, 1)
+	_play(ANIM_BOW_RECOIL, 0.05, true)
+	_attack_left = _anim_player.get_animation(ANIM_BOW_RECOIL).length \
+		if _anim_player.has_animation(ANIM_BOW_RECOIL) else 0.5
+	_pause_left = _rng.randf_range(BOW_PAUSE.x, BOW_PAUSE.y)
+	_armed_left = ARMED_TIME
+
+
+## La pose de brazos (CombatPose) colgada de su esqueleto; la crea si aún no la tiene.
+func combat_pose() -> CombatPose:
+	if pose == null:
+		pose = CombatPose.new()
+		pose.name = "CombatPose"
+		pose.frame_node = _model
+		pose.aim_style = &"bow"
+		# Con las animaciones del arquero (bow_draw, bow_recoil): el cuerpo lo pone el clip.
+		pose.aim_arms_ik = false
+		pose.after_pose = _after_pose
+		(_model.get_node("Armature/Skeleton3D") as Skeleton3D).add_child(pose)
+	return pose
+
+
+## Con el arco tensándose o soltando: la pose del arco entra (y sale al guardarlo) y sigue el clip que
+## suena, con el tronco hacia la fiera.
+func _update_aim(delta: float) -> void:
+	var clip := &""
+	if _bow_out and (_anim == ANIM_BOW_DRAW or _anim == ANIM_BOW_RECOIL) and _anim_player.is_playing():
+		clip = &"bow_draw" if _anim == ANIM_BOW_DRAW else &"bow_recoil"
+	_aim = move_toward(_aim, 1.0 if clip != &"" else 0.0, delta * 6.0)
+	if pose == null and _aim <= 0.0:
+		return
+	var p := combat_pose()
+	p.aim_weight = smoothstep(0.0, 1.0, _aim)
+	p.bow_rig.clip = clip
+	p.bow_rig.time = _anim_player.current_animation_position if clip != &"" else 0.0
+	if _alive(_target):
+		p.aim_dir = (_target.get_lock_point() - gear.bow_hand()).normalized()
+	else:
+		p.aim_dir = _forward
+
+
+func _after_pose(p: CombatPose) -> void:
+	gear.place_bow(p, p.aim_weight)
+
+
+# --- Escudo ---------------------------------------------------------------------------------------
+
+## Alza el escudo cuando la fiera va a por él y empieza un golpe (tras reaccionar, y no siempre), y lo
+## baja al rato de acabar. Sin escudo, con el arco, nadando o sin pelea, abajo.
+func _update_guard(delta: float) -> void:
+	_dodge_cool -= delta
+	var fighting := _target != null and not _bow_out and _draw_left < 0.0 and not _swimming and _down_left <= 0.0 \
+		and not _seated
+	var item := _guard_item()
+	if not fighting or item == null:
+		_lower_guard()
+		if fighting and _dodge_t < 0.0:
+			_watch_dodge(delta)
+		else:
+			_guard_seen = false
+			_dodge_wait = -1.0
+		return
+	if _threatened():
+		_guard_calm = GUARD_DROP
+		if not _guard_up and _guard_wait < 0.0 and not _guard_seen and _attack_left <= 0.0:
+			_guard_seen = true
+			if _rng.randf() >= GUARD_MISS:
+				_guard_wait = _rng.randf_range(GUARD_REACT.x, GUARD_REACT.y)
+	else:
+		_guard_seen = false
+		if _guard_up:
+			_guard_calm -= delta
+			if _guard_calm <= 0.0:
+				_lower_guard()
+	if _guard_wait >= 0.0:
+		_guard_wait -= delta
+		if _guard_wait < 0.0 and _attack_left <= 0.0 and _flinch_left <= 0.0:
+			_raise_guard()
+	# Alzarlo y encajar un golpe acaban en la pose de sostenerlo (el arma a dos manos va siempre en ella).
+	if _guard_up and gear.guard.item == gear.shield and _anim != ANIM_SHIELD_HOLD and not _anim_player.is_playing():
+		_play(ANIM_SHIELD_HOLD, 0.1)
+
+
+## Con qué para ahora: el arma si es a dos manos y para golpes; si no, el escudo; o null.
+func _guard_item() -> ItemData:
+	if _weapon != null and _weapon.two_handed:
+		return _weapon if _weapon.guard_reduction > 0.0 else null
+	return gear.shield
+
+
+## Sin con qué parar: si la fiera va a por él y empieza un golpe, tras reaccionar (y no siempre) esquiva.
+func _watch_dodge(delta: float) -> void:
+	if _threatened():
+		if _dodge_wait < 0.0 and not _guard_seen and _attack_left <= 0.0 and _dodge_cool <= 0.0:
+			_guard_seen = true
+			if _rng.randf() >= DODGE_MISS:
+				_dodge_wait = _rng.randf_range(GUARD_REACT.x, GUARD_REACT.y)
+	else:
+		_guard_seen = false
+	if _dodge_wait >= 0.0:
+		_dodge_wait -= delta
+		if _dodge_wait < 0.0 and _attack_left <= 0.0 and _flinch_left <= 0.0:
+			_start_dodge()
+
+
+## Paso atrás (o en diagonal) lejos de la fiera, con la pose del jugador.
+func _start_dodge() -> void:
+	if not _alive(_target) or not gear.stamina.spend(DODGE_COST):
+		return
+	var away := -_tangent(_target.global_position - global_position)
+	if away == Vector3.ZERO:
+		away = -_forward
+	_dodge_dir = away.rotated(up_direction, deg_to_rad(_rng.randf_range(-DODGE_SIDE, DODGE_SIDE))).normalized()
+	_dodge_t = 0.0
+	_attack_left = PlayerCombat.BACKSTEP_TIME
+	_hit_at = -1.0
+	_play(Villager.ANIM_IDLE, 0.08)
+	var p := combat_pose()
+	p.motion = BodyMotion.BACKSTEP
+	p.motion_travel = BodyMotion.backstep_travel
+	p.motion_push = (_model.global_basis.inverse() * _dodge_dir).normalized()
+	p.motion_distance = PlayerCombat.BACKSTEP_DISTANCE
+	p.motion_power = 1.0
+	p.motion_left_first = not p.motion_left_first
+	p.motion_x = 0.0
+	CombatFx.play(&"dodge", global_position)
+
+
+## Un paso de la esquiva: la velocidad del paso atrás del jugador (se apaga al final y llega a su
+## distancia), sin que le den en sus primeras décimas. [hacia dónde, a qué velocidad].
+func _dodging(delta: float) -> Array:
+	_dodge_t += delta
+	var x := clampf(_dodge_t / PlayerCombat.BACKSTEP_TIME, 0.0, 1.0)
+	var frames := PlayerCombat.BACKSTEP_IFRAMES
+	_hurtbox.set_enabled(not (_dodge_t >= frames.x and _dodge_t <= frames.y))
+	if pose != null:
+		pose.motion_x = x
+	if x >= 1.0:
+		_end_dodge()
+		return [Vector3.ZERO, 0.0]
+	var speed := PlayerCombat.BACKSTEP_DISTANCE / PlayerCombat.BACKSTEP_TIME * 1.3333 * (1.0 - x * x * x)
+	return [_dodge_dir, speed]
+
+
+func _end_dodge() -> void:
+	if _dodge_t < 0.0:
+		return
+	_dodge_t = -1.0
+	_dodge_cool = DODGE_COOL
+	_hurtbox.set_enabled(true)
+	if pose != null:
+		pose.motion_x = -1.0
+
+
+## Si la fiera con la que pelea va a por él y está empezando (o dando) un golpe a su alcance.
+func _threatened() -> bool:
+	if not _alive(_target) or _target.ai_controller == null or _target.ai_controller.target != self:
+		return false
+	var situation := _target.get_combat_situation()
+	if situation != &"windup" and situation != &"active":
+		return false
+	return _target.global_position.distance_to(global_position) <= _reach_to(_target) + GUARD_RANGE
+
+
+func _raise_guard() -> void:
+	var item := _guard_item()
+	if item == null:
+		return
+	_guard_up = true
+	_guard_wait = -1.0
+	gear.guard.item = item
+	gear.guard.raise()
+	if item == gear.shield:
+		_play(ANIM_SHIELD_RAISE, 0.1, true)
+		_anim_player.speed_scale = GUARD_RAISE_SPEED
+	else:
+		_play(ANIM_WEAPON_GUARD, 0.12, true)
+
+
+func _lower_guard() -> void:
+	_guard_wait = -1.0
+	if not _guard_up:
+		return
+	_guard_up = false
+	gear.guard.lower()
+	gear.guard.item = gear.shield
+	_anim = &""
+
+
+## Ha parado un golpe con el escudo: suena, salta alguna chispa si es metal y lo encaja.
+func _on_guard_blocked(info: DamageInfo, _cost: float) -> void:
+	var item := gear.guard.item
+	if item == null:
+		return
+	CombatFx.play(item.guard_sound, info.point, {"pitch": _rng.randf_range(0.94, 1.06)})
+	if item.guard_sound != &"block_wood":
+		CombatFx.sparks(self, info.point, -info.direction, 0.6)
+	if _guard_up and item == gear.shield:
+		_play(ANIM_SHIELD_HIT, 0.05, true)
+		_anim_player.speed_scale = GUARD_HIT_SPEED
+	elif _guard_up:
+		# Con el arma: encaja el golpe volviendo a la guardia.
+		_play(ANIM_WEAPON_GUARD, 0.05, true)
+
+
+## Sin aguante para pararlo: el escudo cede (lo que pasa del golpe lo hace tambalearse, _on_hit).
+func _on_guard_broken(info: DamageInfo) -> void:
+	CombatFx.play(&"guard_break", info.point)
+	_lower_guard()
+
+
+# --- Agua -----------------------------------------------------------------------------------------
+
+## Si está en el agua hasta nadar (como el jugador: el mar, los lagos y los ríos están a la altura del
+## mar, con las olas que tiene aquí; no en un compartimento seco de un barco). Nadando, hasta que hace pie.
+func _update_swim() -> void:
+	var loader: Node3D = _player.get("planet")
+	var core: Variant = loader.get("planet") if loader != null else null
+	if core == null or not core.has_water:
+		_set_swimming(false)
+		return
+	var center := loader.global_position
+	var sea: float = core.radius - core.water_radius
+	var r := global_position.distance_to(center)
+	var sampler := _player.get("water_sampler") as WaterHeightSampler
+	var reach := sea + (sampler.max_wave_height() if sampler != null else 0.0)
+	if r > reach:
+		_set_swimming(false)
+		return
+	var surface := sea
+	if sampler != null:
+		surface += sampler.get_height_at(global_position, float(_player.get("current_water_time")),
+			loader.get("global_pos"))
+	_water_r = surface
+	_water_center = center
+	var depth := surface - r
+	var swim := depth >= SWIM_DEPTH
+	if _swimming and not swim:
+		# Flotando lleva los pies más arriba que SWIM_DEPTH: sigue nadando mientras no haga pie (el fondo
+		# a menos de SWIM_LEAVE m bajo la superficie) y no haya salido del agua.
+		var down := (global_position - center) / r
+		var bottom := center + down * (surface - SWIM_LEAVE)
+		var query := PhysicsRayQueryParameters3D.create(global_position + down * 0.2, bottom,
+			PhysicsLayers.WORLD, [get_rid()])
+		swim = depth > -0.3 and get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+	_set_swimming(swim and not GridManager.is_point_in_dry_interior(global_position))
+
+
+func _set_swimming(on: bool) -> void:
+	if on == _swimming:
+		return
+	_swimming = on
+	floor_snap_length = 0.0 if on else 0.4
+	_anim = &""
+	if on:
+		_lower_guard()
+		_cancel_draw()
+		_bow_out = false
+		_attack_left = 0.0
+		_hit_at = -1.0
+		work.interrupt()
+
+
+## Si va nadando.
+func is_swimming() -> bool:
+	return _swimming
 
 
 ## Le han dado: un respingo (si no está a mitad de golpe), deja de hablar y se revuelve contra quien
@@ -1225,6 +2042,9 @@ func _show_weapon() -> void:
 func _on_hit(info: DamageInfo, applied: float) -> void:
 	_since_hit = 0.0
 	_chatting = false
+	# Trepando aguanta: no se suelta ni se revuelve.
+	if _climbing:
+		return
 	# Sentado en su bancada aguanta: no se levanta a pelear (lo levanta una orden o caer malherido).
 	if _seated:
 		return
@@ -1233,7 +2053,11 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 		_target = info.source as NPCController
 		_show_weapon()
 		_to_arms()
-	if applied > 0.0 and _attack_left <= 0.0 and health.health > 0.0:
+	# Lo parado con el escudo lo encaja (_on_guard_blocked); tensando el arco, un golpe le hace soltarlo.
+	if applied > 0.0 and _draw_left >= 0.0:
+		_cancel_draw()
+	if applied > 0.0 and _attack_left <= 0.0 and health.health > 0.0 and info.guarded != Guard.Result.BLOCKED:
+		_lower_guard()
 		_flinch_left = FLINCH_TIME
 		_play(ANIM_HIT, 0.05, true)
 
@@ -1241,9 +2065,13 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 ## Sin vida: cae y se queda en el suelo DOWN_TIME s (las fieras lo dejan: su vida está a cero).
 func _on_down() -> void:
 	stand_up()
+	_end_climb(false)
 	_down_left = DOWN_TIME
 	_target = null
 	_ordered = false
+	_lower_guard()
+	_cancel_draw()
+	_bow_out = false
 	_attack_left = 0.0
 	_hit_at = -1.0
 	_flinch_left = 0.0
@@ -1441,6 +2269,7 @@ func _lie_down() -> void:
 ## Acostado: se apoya en el petate (o en el suelo) con la pose que se ve (Villager.bed_fit). Cambiando de
 ## pose, a cada una; dormido y quieto, de vez en cuando.
 func _on_skeleton_updated() -> void:
+	gear.place()
 	if _chore != Chore.SLEEP:
 		return
 	if not _sleep_routine.settling():
@@ -1487,18 +2316,27 @@ func _leave_base() -> void:
 # --- Trabajo (SettlerWork) -----------------------------------------------------------------------
 
 ## Hacia dónde andar para llegar a menos de [reach] m (en el plano) de [dest] (mundo): en línea recta y,
-## si así no se acerca, por un camino (GroundPath). Lo usan su vida en la base y su trabajo.
-func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
+## si así no se acerca, por un camino (GroundPath). Lo usan su vida en la base, su trabajo, seguir al
+## jugador y la pelea. Con [moving], [dest] se mueve (el jugador, una fiera): no se mide si se acerca
+## (yendo detrás no se acerca aunque ande bien) sino si anda lo que quiere (_stuck, de _unstick) o tiene
+## una pared delante; y si se mueve, sigue con el camino que llevaba (lo saca de detrás de la pared) y
+## luego va derecho. Nadando, siempre derecho.
+func steer(dest: Vector3, reach: float, delta: float, moving := false) -> Vector3:
 	var to_local := _terrain.global_transform.affine_inverse()
 	var from_local := _terrain.global_transform
 	var dest_local := to_local * dest
-	if not _path_dest.is_finite() or _path_dest.distance_to(dest_local) > 1.0:
-		_path = PackedVector3Array()
+	var slack := maxf(2.0, (dest - global_position).length() * 0.3) if moving else 1.0
+	if not _path_dest.is_finite() or _path_dest.distance_to(dest_local) > slack:
+		if not moving or not _path_dest.is_finite():
+			_path = PackedVector3Array()
 		_path_dest = dest_local
 		_path_tries = 0
 		_steer_best = INF
 		_steer_left = REPATH
 	_close_doors()
+	if _swimming:
+		_path = PackedVector3Array()
+		return _tangent(dest - global_position)
 	var up := up_direction
 	# El punto al que va: el siguiente del camino o, sin camino, el destino.
 	var aim := dest
@@ -1514,7 +2352,18 @@ func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
 		_path = PackedVector3Array()
 		_path_index = 0
 	var distance := (aim - global_position).slide(up).length()
-	if distance < _steer_best - PROGRESS:
+	_search_cool -= delta
+	if moving and _path.is_empty():
+		# Tras algo que se mueve: busca si no anda lo que quiere o ve una pared, y no muy seguido.
+		_steer_best = INF
+		var blocked := _stuck > CHASE_STUCK
+		if not blocked:
+			_look_left -= delta
+			if _look_left <= 0.0:
+				_look_left = LOOK_EVERY
+				blocked = _blocked_ahead(aim, distance, up)
+		_steer_left = 0.0 if blocked and _search_cool <= 0.0 else REPATH
+	elif distance < _steer_best - PROGRESS:
 		_steer_best = distance
 		_steer_left = REPATH
 	else:
@@ -1523,7 +2372,7 @@ func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
 			_path_tries = 0
 	# Con una pared o una ventana delante no espera a atascarse contra ella (solo la primera búsqueda:
 	# las demás quedan para cuando de verdad no avance).
-	if _path.is_empty() and _path_tries == 0 and _steer_left > 0.0:
+	if not moving and _path.is_empty() and _path_tries == 0 and _steer_left > 0.0:
 		_look_left -= delta
 		if _look_left <= 0.0:
 			_look_left = LOOK_EVERY
@@ -1533,6 +2382,7 @@ func steer(dest: Vector3, reach: float, delta: float) -> Vector3:
 		_path_tries += 1
 		_steer_left = REPATH * 2.0
 		_steer_best = INF
+		_search_cool = REPATH
 		var found := GroundPath.find(self, global_position, dest, up, reach)
 		_path = PackedVector3Array()
 		for point in found:
@@ -1606,6 +2456,7 @@ func _close_doors() -> void:
 
 ## Pone [data] en la mano, a la vista.
 func hold_work_tool(data: ItemData) -> void:
+	_bow_out = false
 	if data != _weapon or _tool == null:
 		_weapon = data
 		_tool = Villager.hold(_model, data.scene_path)
@@ -1618,6 +2469,11 @@ func hold_work_tool(data: ItemData) -> void:
 func play_work(anim: StringName, speed: float) -> void:
 	_play(anim, 0.12, true)
 	_anim_player.speed_scale = speed
+
+
+## Si tiene el clip [anim] (p. ej. los empalmados de AnimSplice).
+func has_anim(anim: StringName) -> bool:
+	return _anim_player.has_animation(anim)
 
 
 ## Ocupado [time] s en un golpe: el movimiento no le cambia la animación.
@@ -1732,6 +2588,8 @@ func _start_flee(up: Vector3) -> void:
 	_wake()
 	_chore = Chore.STAND
 	work.interrupt()
+	_lower_guard()
+	_cancel_draw()
 	_attack_left = 0.0
 	_hit_at = -1.0
 	_flinch_left = 0.0
@@ -1759,8 +2617,12 @@ func crush() -> void:
 	if dead:
 		return
 	dead = true
+	_end_climb(false)
 	work.stop()
 	_wake()
+	_lower_guard()
+	_cancel_draw()
+	_bow_out = false
 	_target = null
 	_chatting = false
 	_attack_left = 0.0
@@ -1859,15 +2721,6 @@ static func _strikes_with(data: ItemData) -> bool:
 		return data.weapon_type != ItemData.WeaponType.CANNON
 	return data.category == ItemData.Category.TOOL and data.tool_type != ItemData.ToolType.TORCH \
 		and data.tool_type != ItemData.ToolType.FISHING_ROD
-
-
-## Lo que protege su ropa (SettlementPopulation: "outfit"), en ARMOR_SHARE: x tajo, y contundente, z
-## perforante.
-func _outfit_armor() -> Vector3:
-	var total := Vector3.ZERO
-	for id in resident.get("outfit", []):
-		total += Armor.of(ItemCatalog.get_item(StringName(id)))
-	return total * ARMOR_SHARE
 
 
 ## [v] sobre el plano tangente aquí, unitario, o cero.
@@ -2026,6 +2879,9 @@ func _sit(walked: bool) -> void:
 	_seated = true
 	bench.seated = true
 	_target = null
+	_lower_guard()
+	_cancel_draw()
+	_bow_out = false
 	_moving = false
 	_shape.disabled = true
 	velocity = Vector3.ZERO

@@ -7,10 +7,11 @@
 [ext_resource type="VoxelGraphFunction" uid="uid://br4cxjhdkjvxe" path="res://data/graph_functions/river_carve.tres" id="5_river"]
 [ext_resource type="VoxelGraphFunction" uid="uid://ccrh7wqeqy6wt" path="res://data/graph_functions/coastal_reefs.tres" id="6_reef"]
 [ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/trail_carve.tres" id="7_trail"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/settlement_flatten.tres" id="8_flat"]
 
 [resource]
 graph_data = {
-"connections": [[81, 0, 101, 4], [120, 0, 82, 3], [120, 0, 85, 3], [81, 0, 100, 3], [100, 0, 120, 3], [120, 1, 121, 0], [120, 2, 122, 0], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [90, 0, 91, 0], [120, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0], [85, 0, 83, 0], [85, 1, 84, 0], [85, 2, 86, 0], [85, 3, 87, 0], [85, 4, 88, 0], [85, 5, 89, 0], [85, 6, 92, 0]],
+"connections": [[81, 0, 101, 4], [130, 0, 82, 3], [130, 1, 131, 0], [131, 0, 82, 4], [130, 0, 85, 3], [81, 0, 100, 3], [100, 0, 120, 3], [120, 0, 130, 3], [120, 1, 121, 0], [120, 2, 122, 0], [82, 0, 101, 3], [101, 0, 4, 0], [82, 0, 90, 3], [90, 0, 91, 0], [130, 0, 110, 0], [110, 0, 111, 0], [111, 0, 112, 0], [112, 0, 113, 0], [113, 0, 114, 0], [85, 0, 83, 0], [85, 1, 84, 0], [85, 2, 86, 0], [85, 3, 87, 0], [85, 4, 88, 0], [85, 5, 89, 0], [85, 6, 92, 0]],
 "nodes": {
 "83": {
 "auto_connect": false,
@@ -106,6 +107,7 @@ graph_data = {
 "82": {
 "_function": ExtResource("1_420af"),
 "auto_connect": true,
+"cave_roof": 0.0,
 "earth_field": 0.0,
 "gui_position": Vector2(2820, 1380),
 "type": "Function",
@@ -181,6 +183,23 @@ graph_data = {
 "x": 0.0,
 "y": 0.0,
 "z": 0.0
+},
+"130": {
+"_function": ExtResource("8_flat"),
+"auto_connect": true,
+"earth_field": 0.0,
+"gui_position": Vector2(2960, 1250),
+"type": "Function",
+"x": 0.0,
+"y": 0.0,
+"z": 0.0
+},
+"131": {
+"auto_connect": false,
+"b": 8.0,
+"gui_position": Vector2(2960, 1400),
+"name": &"settlement_cave_roof",
+"type": "Multiply"
 },
 "121": {
 "auto_connect": false,

@@ -54,6 +54,8 @@ var units := 100.0
 class Grid:
 	var positions: PackedVector3Array
 	var normals: PackedVector3Array
+	## The skeleton bone each point follows most (the body's skin), if known.
+	var bones: PackedInt32Array
 	var origin: Vector3
 	var cell := 1.0
 	var size: Vector3i
@@ -149,9 +151,11 @@ static func body_surface(meshes: Array, skeleton: Skeleton3D, globals: Array[Tra
 		units_per_metre: float) -> Grid:
 	var points := PackedVector3Array()
 	var point_normals := PackedVector3Array()
+	var point_bones := PackedInt32Array()
 	for entry in meshes:
 		var mesh: ArrayMesh = entry[0]
 		var binds := BodyMeasurements.bind_transforms(entry[1], skeleton, globals)
+		var bind_bones := BodyMeasurements.bind_bones(entry[1], skeleton)
 		for s in mesh.get_surface_count():
 			var arrays := mesh.surface_get_arrays(s)
 			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -162,21 +166,33 @@ static func body_surface(meshes: Array, skeleton: Skeleton3D, globals: Array[Tra
 			for i in vertices.size():
 				var p := Vector3.ZERO
 				var n := Vector3.ZERO
+				var strongest := -1
+				var most := 0.0
 				for k in range(i * per, i * per + per):
 					var w := weights[k]
 					if w > 0.0:
 						var t: Transform3D = binds[bones[k]]
 						p += t * vertices[i] * w
 						n += t.basis * normals[i] * w
+						if w > most:
+							most = w
+							strongest = bind_bones[bones[k]]
 				points.append(p)
 				point_normals.append(n.normalized())
-	return Grid.new(points, point_normals, REACH * units_per_metre)
+				point_bones.append(strongest)
+	var grid := Grid.new(points, point_normals, REACH * units_per_metre)
+	grid.bones = point_bones
+	return grid
 
 
 ## Fits the surfaces of source() of a mesh skinned with `skin`, in place,
 ## and adds each one's points at rest on the body (skeleton space) as `points`.
 ## `bind_bones` is the skeleton bone of each bind (BodyMeasurements.bind_bones()).
-func fit(surfaces: Array[Dictionary], skin_binds: Array[Transform3D], bind_bones: PackedInt32Array) -> void:
+## `bare`: the skin of the bones it holds (1 per skeleton bone) does not push
+## it out (a cloak hangs over the arms as they hang, not as they are spread
+## at rest).
+func fit(surfaces: Array[Dictionary], skin_binds: Array[Transform3D], bind_bones: PackedInt32Array,
+		bare := PackedByteArray()) -> void:
 	var reference_binds: Array[Transform3D] = []
 	var body_binds: Array[Transform3D] = []
 	# A bone the skeleton got after this was set up (it has no rest here) counts as none.
@@ -205,14 +221,15 @@ func fit(surfaces: Array[Dictionary], skin_binds: Array[Transform3D], bind_bones
 			ancestor = parents[ancestor]
 		carried[bone] = ancestor if ancestor >= 0 and measured[ancestor] else bone
 	for data in surfaces:
-		data.points = _fit_surface(data.arrays, reference_binds, body_binds, bind_bones, to_bones, measured, carried)
+		data.points = _fit_surface(data.arrays, reference_binds, body_binds, bind_bones, to_bones, measured, carried,
+				bare)
 
 
 ## Fits one surface's arrays in place; returns its points at rest on the
 ## body, in skeleton space.
 func _fit_surface(arrays: Array, reference_binds: Array[Transform3D], body_binds: Array[Transform3D],
 		bind_bones: PackedInt32Array, to_bones: Array[Transform3D], measured: PackedByteArray,
-		carried: PackedInt32Array) -> PackedVector3Array:
+		carried: PackedInt32Array, bare: PackedByteArray) -> PackedVector3Array:
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 	var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT] if arrays[Mesh.ARRAY_TANGENT] != null else PackedFloat32Array()
@@ -328,7 +345,7 @@ func _fit_surface(arrays: Array, reference_binds: Array[Transform3D], body_binds
 		# A push can land a point on another part of the body (between the
 		# thighs); a second pass sees where it ended up.
 		for clearance_pass in CLEARANCE_PASSES:
-			_clear_body(targets)
+			_clear_body(targets, bare)
 
 	# Back into the armour's bind space, through the body's skinning.
 	for i in count:
@@ -352,8 +369,9 @@ func _fit_surface(arrays: Array, reference_binds: Array[Transform3D], body_binds
 ## space, not along the mesh: every point takes the pushes needed within
 ## SPREAD of it, fading with distance. Armour is often loose pieces and
 ## layers that touch or overlap; they all move together, so no seam opens
-## and no layer goes through another.
-func _clear_body(points: PackedVector3Array) -> void:
+## and no layer goes through another. Skin of the `bare` bones (fit()) is
+## left out.
+func _clear_body(points: PackedVector3Array, bare: PackedByteArray) -> void:
 	var clearance := CLEARANCE * units
 	var count := points.size()
 	var needed := PackedVector3Array()
@@ -362,6 +380,10 @@ func _clear_body(points: PackedVector3Array) -> void:
 		var nearest := surface.nearest(points[i])
 		if nearest < 0:
 			continue
+		if not bare.is_empty() and not surface.bones.is_empty():
+			var bone := surface.bones[nearest]
+			if bone >= 0 and bone < bare.size() and bare[bone]:
+				continue
 		var normal := surface.normals[nearest]
 		var depth := clearance - (points[i] - surface.positions[nearest]).dot(normal)
 		if depth > 0.0:

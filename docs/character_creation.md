@@ -687,6 +687,37 @@ capucha de oso, 31 000); el pesado, unos 147 000 y
 conjuntos ocupan 72 MB, y los mapas, compartidos, 17 MB en PNG (en VRAM van
 comprimidos).
 
+### Mochilas de Meshy
+
+Una mochila no se viste: es rígida y `BackEquipment` la cuelga de `Spine2`, en
+el espacio de la de pieles (metros, Y arriba, +Z hacia la espalda, la cara que
+apoya a `INNER_FACE` del origen y la boca a `TOP`).
+`tools/character/blender/fit_meshy_backpack.py` (con
+`tools/character/blender/backpacks.json`: modelo, `decimate`, `height`) la
+reduce, la gira, la escala y le quita las correas de Meshy, que cuelgan como de
+un clavo:
+
+- lo que sobresale de su espalda (`STRAP_OFF`);
+- lo que sigue unido a eso y es largo y estrecho, como una cinta, no como una
+  lámina (`narrow()`);
+- los restos por encima de la boca o por debajo del fondo (`STRAP_MARGIN`);
+- los trozos sueltos que quedan (`LOOSE`).
+
+`tools/items/bake_meshy_backpack.gd` hace los mapas, la malla
+(`models/equipable/back/`) y la escena (`scenes/items/equipment/`). Le pone
+correas que rodean el hombro, con el cuero de las de Meshy (`strap_uv`) y por
+`STRAP`: desde el fondo, por el costado, por delante del pecho y por encima del
+hombro. Sobre una coraza quedan por debajo de ella, como las de la mochila de
+pieles.
+
+```sh
+blender -b --factory-startup --python tools/character/blender/fit_meshy_backpack.py -- \
+    tools/character/blender/backpacks.json ~/Descargas build/items/backpacks [id ...]
+godot --headless --path . --script res://tools/items/bake_meshy_backpack.gd -- $PWD/build/items/backpacks [id ...]
+godot --headless --path . --import    # la primera vez, los mapas; y otra pasada del baker
+godot --path . --script res://tools/ui/bake_item_icons.gd -- --background --only=skin_backpack,bearpaw_backpack
+```
+
 ### Faldas que se mueven
 
 `SkirtBones` son los huesos de una falda: 8 cadenas de 4 alrededor de la
@@ -782,10 +813,96 @@ godot --headless --path . --script res://tools/character/bake_meshy_armor.gd -- 
 godot --headless --path . --script res://tests/character/test_armor_deformation.gd
 ```
 
+Por defecto cada prenda toma los pesos de la piel que tiene debajo. Con
+`"weights": "heat"` en su entrada los calcula Blender como *Parent > With
+Automatic Weights* (calor de huesos) desde los huesos de su hueco: mejor para
+guantes con dedos y botas, porque cada dedo sigue a sus falanges y no a la
+mano escaneada. No sirve para una coraza gruesa (su pared interior le tapa los
+huesos a la cara de fuera) ni para una falda (cada mitad seguiría a un muslo):
+la coraza usa `"weights": "bones"`, por distancia a los huesos del tronco,
+con las clavículas y el cuello más «lejos» para que el peto siga a `Spine2`.
+El conjunto Corazón de León (`lion_armor.json`, `--bronze`) se repesa igual
+que arriba, con `lionheart_cuirass lionheart_gauntlets lionheart_boots`; el
+guante con `finger_rig` solo admite `--reweight` en modo `heat`.
+
+El conjunto Garra de Oso (`bearpaw_armor.json`, `--bronze`, descargas de
+Meshy en `~/Descargas/bearpaw_*`) trajo más opciones al ajuste:
+
+- `"slot": "head"`: capucha o yelmo. Lo de arriba se centra en la cabeza,
+  con la coronilla `top` por encima del cráneo; lo que cuelga (un manto)
+  cae sobre los hombros. Ocupa el hueco de cabeza y esconde el pelo.
+- `"slot": "cloak"`: capa, colocada como una coraza (cuello en el cuello,
+  `length` para alargarla). Se hace para los brazos colgando
+  (`CloakBones.ARM_HANG`, 14° hacia fuera), no abiertos como en la pose de
+  reposo: el ajuste la aparta de un cuerpo con los brazos así
+  (`Body.arms_down()`), le abre una raja por donde pasa cada brazo
+  (`arm_slits()`) y su Skin (`..._cloak_skin.tres`) ata los brazos en esa
+  postura (`CloakBones.arm_hang()`, que `bake_meshy_armor.gd` reescribe en cada
+  horneado); de pie queda tal cual se hizo. El cuello y los hombros siguen a
+  la columna y las clavículas, la caída sobre el hombro sigue al brazo y,
+  desde los hombros hacia abajo, cuelga cada vez más de los huesos de la capa
+  (`CloakBones`: siete cadenas en un anillo abierto por delante, que
+  `CloakSwing` mece con gravedad, inercia, aire al correr y choques con
+  tronco, piernas, brazos, nalgas y omóplatos; las del tronco con
+  `TORSO_MARGIN` de más, por la coraza que va debajo). Cada cadena tiene
+  `JOINTS` (8) huesos: solo chocan sus articulaciones, y más juntas la tela
+  entre dos no se cuela en el cuerpo. Lo que cae sobre las nalgas no sigue a
+  la cadera, que en idle gira y la doblaba: lo aparta una cápsula atravesada
+  (`CloakSwing.ACROSS`). Las cadenas de los extremos no chocan con los
+  brazos, que salen por las rajas delante de ellas: empujadas hacia fuera
+  harían vuelo alrededor de las manos. Meshy la esculpe acampanada:
+  `"hang_width"` la deja recta desde la cintura (`narrow_hang()`), a esa
+  distancia más allá de las caderas, con los hombros tan anchos como venían.
+  `bake_meshy_armor.gd` rehace los binds de su Skin en cada horneado (cambiar
+  `CloakBones` exige volver a volcar `body.json` y reajustarla). `ArmorFit` no la aparta de
+  la piel de los brazos (`fit()`, `bare`), que en reposo la atraviesan. La
+  mochila va encima: con capa se aparta `BackEquipment.OVER_CLOAK` de la
+  espalda.
+- `"outer_only"`: Meshy modela las piezas macizas con pared interior; al
+  apartarlas del cuerpo las dos paredes se cruzan y salen pliegues (en el
+  esternón, en la columna). Esto quita la interior (las caras que miran a
+  la piel). No sirve si la pieza tiene capas solapadas que también miran a
+  la piel (las grebas: se agujerean).
+- `"relax": false`: sin relajar las aristas tras el empuje; para una placa
+  rígida apenas empujada (relajar los bordes que deja la pared quitada
+  levanta solapas).
+- `"canon"`: para un guante con `finger_rig` cuyo modelo no tiene los dedos
+  hacia -X, el pulgar hacia +Z y la palma hacia -Y: cada eje de los puntos
+  de referencia como eje del modelo con signo (un giro, sin espejo).
+- `"pauldron_scale"`: encoge hacia el hombro lo que sobresale de él (unas
+  hombreras más pequeñas sin tocar el torso); la regla que las pone en el
+  brazo las mide como eran. `"ease": [null, x]` mete solo pecho y espalda: los
+  costados bajo la axila incluyen el borde de las hombreras.
+- `"tights"`: `[r, g, b]` de unas mallas bajo unas grebas. No son malla: la
+  propia piel se pinta de ese color entre el bajo y la cintura de la pieza
+  (`human_skin.gdshader`, con la máscara de alturas
+  `textures/character/human/skin/tights_mask.png` que hace
+  `tools/character/bake_tights_mask.gd`), así que se ven por los huecos y
+  nunca atraviesan las placas. `bake_meshy_armor.gd` guarda en la malla
+  (`"tights"`) el color, el bajo y la cintura, por debajo de lo más bajo de
+  esta alrededor del cuerpo.
+- Capa: `"follow": [ids]` le da, donde va encima de esas prendas (y aún no
+  cuelga), sus pesos: se mueve con la coraza en vez de separarse de ella y
+  dejarla asomar.
+- Guante con `finger_rig`: de dorso a palma se ajusta al grosor de la mano
+  del escaneo (`depth_map()`: la mano por un lado, cada dedo entero por otro),
+  sin cambiar el ancho de los dedos, que juntos se fundirían. Un guante cerrado
+  (`covers_hands`) esconde la piel de la mano, así que `ArmorFit` no lo aparta
+  de ella (lo arrugaría). Los puntos de referencia, en las proporciones de esa
+  mano: de nudillo a punta, un 71 % de la palma.
+- En guantes con `"weights": "heat"`, el calor solo dice de qué dedo es
+  cada punto (`own_digit()`); qué falange lo lleva sale de por dónde del dedo
+  está (`phalanges()`, con transición en cada nudillo), porque entre las
+  placas el calor llega al hueso de la punta desde la raíz del dedo.
+  `"heat_smoothing"`: rondas de suavizado por las aristas, antes de repartir
+  las falanges.
+
 La prueba mide las aristas de las prendas ajustadas al cuerpo en quieto y
 en dos momentos de carrera, con la física de la falda desactivada para aislar
 el rigging: al menos el 99 % debe estirarse menos del doble y ninguna arista
-de al menos 2 mm puede llegar a 4,5 veces su largo de reposo. Comprueba
+de al menos 2 mm puede llegar a 4,5 veces su largo de reposo (el de la
+pieza tal como se hizo: con los binds del jugador, la capa con los brazos
+colgando). Comprueba
 también que el ajuste conserva las ocho influencias y sus pesos normalizados.
 
 Para verla puesta sin abrir ventana: `dump_dressed.gd` viste el modelo como el

@@ -146,7 +146,11 @@ func _butchering(delta: float) -> Array:
 			_phase = Phase.SEEK
 			return still()
 		_butcher_left = BUTCHER_TIME / w.pace()
-		c.play_work(Villager.ANIM_DIG, 1.0)
+		# Agachado y a tajos, como el jugador (AnimSplice.BUTCHER), con el cuchillo en la mano si lo lleva.
+		var knife := _knife()
+		if knife != null and knife.scene_path != "":
+			c.hold_work_tool(knife)
+		c.play_work(AnimSplice.BUTCHER if c.has_anim(AnimSplice.BUTCHER) else Villager.ANIM_DIG, Butchering.ANIM_SPEED)
 		c.set_busy(_butcher_left)
 	c._face(_body.global_position - c.global_position, delta)
 	_butcher_left -= delta
@@ -157,9 +161,7 @@ func _butchering(delta: float) -> Array:
 
 ## Despiezada: lo que da pasa a su morral (lo que no quepa se queda en el animal).
 func _strip() -> void:
-	var knife := best_in_pack(func(data: ItemData) -> float:
-		var skins := data.get_trait(SkinningTrait) as SkinningTrait
-		return skins.yield_mult if skins != null else 0.0)
+	var knife := _knife()
 	var skinning := knife.get_trait(SkinningTrait) as SkinningTrait if knife != null else null
 	HuntingLoot.fill(_body, skinning.yield_mult if skinning != null else 1.0)
 	_body.butchered = true
@@ -186,7 +188,10 @@ func _depositing(delta: float) -> Array:
 	if w.field and w.plan_delivery():
 		return still()
 	var from := chests(SettlerWork.JOB_IDS[SettlerWork.Job.HUNT], true)
-	var chest := chest_with_room(from, data)
+	# Sin cocinero, la carne al comedero (food_drop) y lo demás al cofre: primero lo que se come.
+	var chest := _food_stop()
+	if chest == null:
+		chest = chest_with_room(from, data)
 	if chest == null and w.field:
 		# En campo, sin cofre cerca: se lo queda en el morral.
 		_haul.clear()
@@ -214,6 +219,25 @@ func _depositing(delta: float) -> Array:
 	return still()
 
 
+## El mejor cuchillo de despellejar del morral, o null.
+func _knife() -> ItemData:
+	return best_in_pack(func(data: ItemData) -> float:
+		var skins := data.get_trait(SkinningTrait) as SkinningTrait
+		return skins.yield_mult if skins != null else 0.0)
+
+
+## El comedero al que llevar lo que se come de lo que trae (SettlerTask.food_drop), o null.
+func _food_stop() -> Storage:
+	for id: StringName in _haul:
+		var item := ItemCatalog.get_item(id)
+		if item == null or carried(item) <= 0:
+			continue
+		var feeder := food_drop(item)
+		if feeder != null:
+			return feeder
+	return null
+
+
 func away(delta: float, _hour: float) -> void:
 	if c._weapon == null:
 		w.block("SETTLER_NEED_WEAPON")
@@ -228,7 +252,8 @@ func away(delta: float, _hour: float) -> void:
 	if _owed < 1.0:
 		return
 	_owed -= 1.0
-	w.gathered += AWAY_MEAT - chest.inventory.add_item(meat, AWAY_MEAT)
+	var feeder := food_drop(meat)
+	w.gathered += AWAY_MEAT - (feeder if feeder != null else chest).inventory.add_item(meat, AWAY_MEAT)
 	var hide := ItemCatalog.get_item(HuntingLoot.HIDE)
 	if hide != null:
 		w.gathered += AWAY_HIDE - chest.inventory.add_item(hide, AWAY_HIDE)

@@ -103,6 +103,11 @@ var _cursor_ring: MeshInstance3D
 var _zones: MeshInstance3D
 var _ring_material: StandardMaterial3D
 var _labels := {}
+## Las zonas (SettlerZones): la elegida (id, o -1) y el cartel de cada una (id -> Label3D).
+var _zone_sel := -1
+var _zone_labels := {}
+var _zone_box: VBoxContainer
+var _zone_title: Label
 var _selected := {}
 var _settlers: Array[Companion] = []
 var _refresh_left := 0.0
@@ -125,6 +130,7 @@ var _supply_rows := {}
 var _hint: Label
 var _keys: Label
 var _orders: Array[Button] = []
+var _order_list: Array[Dictionary] = []
 var _stop_button: Button
 var _follow_button: Button
 ## Cuántos hay de cada oficio: "job:shift" (o "idle") -> su botón.
@@ -398,6 +404,11 @@ func _close_view() -> void:
 		if is_instance_valid(label):
 			(label as Node).queue_free()
 	_labels.clear()
+	for label in _zone_labels.values():
+		if is_instance_valid(label):
+			(label as Node).queue_free()
+	_zone_labels.clear()
+	_zone_sel = -1
 	for node in [_camera, _zones, _cursor_ring, _markers]:
 		if is_instance_valid(node):
 			(node as Node).queue_free()
@@ -543,10 +554,23 @@ func _draw_zones() -> void:
 	mesh.clear_surfaces()
 	var drawn := {}
 	var started := false
+	var zones := _zones_obj()
+	if zones != null:
+		for zone in zones.list:
+			var center := _zone_world(zone)
+			if center.distance_to(_throne.global_position) > Throne.MANAGE_RADIUS + float(zone.radius):
+				continue
+			if not started:
+				mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _ring_material)
+				started = true
+			var color := SettlerOrders.color_of(int(zone.job) as SettlerWork.Job)
+			color.a = 1.0 if int(zone.id) == _zone_sel else ZONE_ALPHA
+			_ring(mesh, center, float(zone.radius), color, true, RING_SEGMENTS,
+				maxf(_size * RING_WIDTH, 0.15) * (2.2 if int(zone.id) == _zone_sel else 1.0))
 	for c in _settlers:
 		var work := c.work
-		# El cocinero no tiene zona.
-		if not work.active() or work.job == SettlerWork.Job.COOK:
+		# El cocinero no tiene zona; los de una zona del trono ya están dibujados con ella.
+		if not work.active() or work.job == SettlerWork.Job.COOK or work.zone_id >= 0:
 			continue
 		var center: Vector3 = c._terrain.global_transform * (work.zone if work.zone.is_finite() else c.base)
 		var key := "%d:%.0f:%.0f:%.0f" % [work.job, center.x, center.y, center.z]
@@ -618,6 +642,83 @@ func _update_labels() -> void:
 		label.text = name if _size > NAME_ONLY else "%s\n%s" % [name, job]
 		label.modulate = SELECTED_COLOR if _selected.has(c) else LABEL_COLOR
 		label.outline_modulate = Color(0.45, 0.3, 0.05) if c == _hovered() else Color.BLACK
+	_update_zone_labels()
+
+
+## El cartel de cada zona del trono, en su centro: el oficio y cuántos trabajan en ella de su cupo.
+func _update_zone_labels() -> void:
+	var zones := _zones_obj()
+	var seen := {}
+	if zones != null:
+		for zone in zones.list:
+			var id := int(zone.id)
+			var center := _zone_world(zone)
+			if center.distance_to(_throne.global_position) > Throne.MANAGE_RADIUS + float(zone.radius):
+				continue
+			seen[id] = true
+			var label: Label3D = _zone_labels.get(id)
+			if label == null:
+				label = Label3D.new()
+				label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+				label.no_depth_test = true
+				label.fixed_size = true
+				label.pixel_size = LABEL_PIXEL
+				label.font_size = 30
+				label.outline_size = 10
+				label.render_priority = 10
+				label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+				_throne.add_child(label)
+				_zone_labels[id] = label
+			label.global_position = center + (center - _terrain().global_position).normalized() * 1.0
+			var job := int(zone.job) as SettlerWork.Job
+			label.text = tr("THRONE_ZONE_LABEL") % [tr(SettlerOrders.name_of(job, int(zone.shift))),
+				zones.members(id, _settlers).size(), int(zone.quota)]
+			var color := SettlerOrders.color_of(job).lightened(0.35)
+			label.modulate = SELECTED_COLOR if id == _zone_sel else color
+	for id in _zone_labels.keys():
+		if not seen.has(id):
+			if is_instance_valid(_zone_labels[id]):
+				(_zone_labels[id] as Node).queue_free()
+			_zone_labels.erase(id)
+	if _zone_sel >= 0 and not seen.has(_zone_sel):
+		_zone_sel = -1
+
+
+func _zones_obj() -> SettlerZones:
+	var companions := get_tree().get_first_node_in_group(SettlementCompanions.GROUP) as SettlementCompanions
+	return companions.zones if companions != null else null
+
+
+## El centro de [zone] (SettlerZones), en el mundo.
+func _zone_world(zone: Dictionary) -> Vector3:
+	var terrain := _terrain()
+	return terrain.global_transform * (zone.at as Vector3) if terrain != null else zone.at as Vector3
+
+
+## Sube o baja el cupo de la zona elegida.
+func _on_zone_quota(step: int) -> void:
+	var zones := _zones_obj()
+	if zones == null or _zone_sel < 0:
+		return
+	var zone := zones.find(_zone_sel)
+	if not zone.is_empty():
+		zones.set_quota(_zone_sel, int(zone.quota) + step)
+		zones.tick(SettlerZones.TICK, _all_companions())
+	_refresh()
+
+
+## Quita la zona elegida: los suyos lo dejan.
+func _on_zone_remove() -> void:
+	var zones := _zones_obj()
+	if zones != null and _zone_sel >= 0:
+		zones.remove(_zone_sel, _all_companions())
+	_zone_sel = -1
+	_refresh()
+
+
+func _all_companions() -> Array[Companion]:
+	var companions := get_tree().get_first_node_in_group(SettlementCompanions.GROUP) as SettlementCompanions
+	return companions.get_companions() if companions != null else []
 
 
 # --- Entrada --------------------------------------------------------------------------------------
@@ -677,7 +778,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_pick(click.position)
 		MOUSE_BUTTON_RIGHT:
 			# Alrededor de su base; limpiar y la guardia piden zona: se cancela.
-			if _placing != SettlerWork.Job.NONE and _zone_of(_placing, _placing_shift) != SettlerOrders.Zone.REQUIRED:
+			if _placing != SettlerWork.Job.NONE and _zone_of(_placing, _placing_shift) != SettlerOrders.Zone.REQUIRED \
+					and not _selected.is_empty():
 				_assign(_placing, Vector3.INF, -1.0)
 			_placing = SettlerWork.Job.NONE
 			_refresh()
@@ -738,6 +840,17 @@ func _place_cards() -> void:
 
 ## Elige (o deja) al colono cuyo nombre está bajo [at] (pantalla).
 func _pick(at: Vector2) -> void:
+	# El cartel de una zona: la elige (o la deja).
+	var zone_best := -1
+	var zone_d := PICK_PIXELS
+	for id in _zone_labels:
+		var label: Label3D = _zone_labels[id]
+		if label == null or _camera.is_position_behind(label.global_position):
+			continue
+		var d := _camera.unproject_position(label.global_position).distance_to(at)
+		if d < zone_d:
+			zone_best = id
+			zone_d = d
 	var best: Companion
 	var best_d := PICK_PIXELS
 	for c in _settlers:
@@ -748,6 +861,10 @@ func _pick(at: Vector2) -> void:
 		if d < best_d:
 			best = c
 			best_d = d
+	if zone_best >= 0 and (best == null or zone_d < best_d):
+		_zone_sel = -1 if _zone_sel == zone_best else zone_best
+		_refresh()
+		return
 	if best == null:
 		return
 	if _selected.has(best):
@@ -758,19 +875,36 @@ func _pick(at: Vector2) -> void:
 
 
 ## Manda [job] a los elegidos: en la zona de [at] (mundo; INF, alrededor de su base) de [radius] m.
+## Con zona ([at] finito) queda como zona del trono (SettlerZones) con un cupo de tantos como elegidos
+## (al menos uno), que llenan los sin oficio si no se elige a nadie.
 func _assign(job: SettlerWork.Job, at: Vector3, radius: float) -> void:
+	var shift := _placing_shift if job == SettlerWork.Job.GUARD else 0
+	var chosen: Array[Companion] = []
 	for c in _selected.keys():
-		if not is_instance_valid(c) or (c as Companion).dead:
-			continue
-		var companion := c as Companion
+		if is_instance_valid(c) and not (c as Companion).dead:
+			chosen.append(c as Companion)
+	var zones := _zones_obj()
+	if at.is_finite() and zones != null and _terrain() != null:
+		var local := _terrain().global_transform.affine_inverse() * at
+		var zone := zones.add(job, shift, local, radius, maxi(chosen.size(), 1))
+		if not zone.is_empty():
+			for c in chosen:
+				zones.join(int(zone.id), c)
+			zones.tick(SettlerZones.TICK, _all_companions())
+			_zone_sel = int(zone.id)
+			_placing = SettlerWork.Job.NONE
+			_refresh()
+			return
+	for companion in chosen:
 		var local := companion._terrain.global_transform.affine_inverse() * at if at.is_finite() else Vector3.INF
-		companion.work.assign(job, local, radius, _placing_shift if job == SettlerWork.Job.GUARD else 0)
+		companion.work.assign(job, local, radius, shift)
 	_placing = SettlerWork.Job.NONE
 	_refresh()
 
 
 func _on_order(job: SettlerWork.Job, shift := 0) -> void:
-	if _selected.is_empty():
+	# Sin nadie elegido solo se marcan zonas (con cupo, que llenan los que no tienen oficio).
+	if _selected.is_empty() and (job == SettlerWork.Job.NONE or _zone_of(job, shift) == SettlerOrders.Zone.NONE):
 		return
 	if job == SettlerWork.Job.NONE:
 		for c in _selected.keys():
@@ -887,12 +1021,16 @@ func _refresh() -> void:
 		button.text = str(counts.get(key, 0))
 	_summary.visible = not _settlers.is_empty()
 	_empty.visible = _settlers.is_empty()
-	for button in _orders:
-		button.disabled = _selected.is_empty()
+	for i in _orders.size():
+		var order: Dictionary = _order_list[i]
+		_orders[i].disabled = _selected.is_empty() and _zone_of(order.job, order.shift) == SettlerOrders.Zone.NONE
+	_update_zone_box()
 	_stop_button.disabled = _selected.is_empty()
 	_follow_button.disabled = _selected.is_empty()
 	if _placing == SettlerWork.Job.GUARD:
 		_hint.text = tr("THRONE_HINT_GUARD") % [roundi(_zone_radius), roundi(SettlerGuard.POST_RADIUS)]
+	elif _placing != SettlerWork.Job.NONE and _selected.is_empty():
+		_hint.text = tr("THRONE_HINT_ZONE_FREE") % roundi(_zone_radius)
 	elif _placing != SettlerWork.Job.NONE:
 		var required := _zone_of(_placing, _placing_shift) == SettlerOrders.Zone.REQUIRED
 		_hint.text = tr("THRONE_HINT_CLEAR" if required else "THRONE_HINT_ZONE") % roundi(_zone_radius)
@@ -902,6 +1040,18 @@ func _refresh() -> void:
 		_hint.text = tr("THRONE_HINT_ORDER") % _selected.size()
 	_update_supplies()
 	_draw_zones()
+
+
+## La zona elegida en el panel: su oficio, cuántos trabajan de su cupo y los botones.
+func _update_zone_box() -> void:
+	var zones := _zones_obj()
+	var zone := zones.find(_zone_sel) if zones != null and _zone_sel >= 0 else {}
+	_zone_box.visible = not zone.is_empty()
+	if zone.is_empty():
+		return
+	var job := int(zone.job) as SettlerWork.Job
+	_zone_title.text = tr("THRONE_ZONE_TITLE") % [tr(SettlerOrders.name_of(job, int(zone.shift))),
+		zones.members(_zone_sel, _settlers).size(), int(zone.quota)]
 
 
 ## El panel de la base: camas por colono y para cuántos días hay comida y agua (BaseSupplies), cada una
@@ -1074,12 +1224,38 @@ func _build_ui() -> void:
 		for order in SettlerOrders.in_category(category):
 			_orders.append(_icon_button(flow, order.order, order.glyph, order.color,
 				_on_order.bind(order.job, order.shift)))
+			_order_list.append(order)
 	var general := HFlowContainer.new()
 	_box.add_child(general)
 	_stop_button = _icon_button(general, "SETTLER_ORDER_STOP", &"stop", GameTheme.BONE,
 		_on_order.bind(SettlerWork.Job.NONE))
 	_follow_button = _icon_button(general, "THRONE_ORDER_FOLLOW", &"follow", GameTheme.BONE, _on_follow)
 	_follow_button.tooltip_text = "THRONE_ORDER_FOLLOW_TIP"
+	# La zona elegida (pinchando su cartel): su cupo y quitarla.
+	_zone_box = VBoxContainer.new()
+	_box.add_child(_zone_box)
+	_zone_box.add_child(HSeparator.new())
+	_zone_title = Label.new()
+	_zone_title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_zone_title.theme_type_variation = &"SectionLabel"
+	_zone_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_zone_box.add_child(_zone_title)
+	var zone_row := HBoxContainer.new()
+	_zone_box.add_child(zone_row)
+	for pair in [["−", -1], ["+", 1]]:
+		var button := Button.new()
+		button.text = pair[0]
+		button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size.x = 36
+		button.pressed.connect(_on_zone_quota.bind(pair[1]))
+		zone_row.add_child(button)
+	var remove := Button.new()
+	remove.text = "THRONE_ZONE_REMOVE"
+	remove.focus_mode = Control.FOCUS_NONE
+	remove.pressed.connect(_on_zone_remove)
+	zone_row.add_child(remove)
+	_zone_box.visible = false
 	_hint = Label.new()
 	_hint.theme_type_variation = &"HintLabel"
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

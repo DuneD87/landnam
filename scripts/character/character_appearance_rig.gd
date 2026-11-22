@@ -67,6 +67,11 @@ const HEAD_SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows"
 ## Slots too small or too buried (inside the mouth, the sockets, under the clothes) for their shadow
 ## to show: they cast none, which saves one draw each per shadow cascade and per fire light.
 const SHADOWLESS_SLOTS: Array[StringName] = [&"eyes", &"teeth", &"tongue", &"eyebrows", &"eyelashes", &"genitals"]
+## Heights (player skin space, metres) the tights mask
+## (tools/character/bake_tights_mask.gd) spans, 0 to just under 1: 1 is
+## skin that is never in tights.
+const TIGHTS_HEIGHTS := Vector2(-1.0, 0.95)
+const TIGHTS_TOP := 0.96
 ## How much FirstPersonBody's skin scales the head's binds: next to nothing,
 ## but not zero, so their normals still normalise.
 const FOLDED_HEAD_SCALE := 0.001
@@ -105,6 +110,10 @@ var _fitted := {}
 var _fitting := {}
 ## Fits whose body changed while they ran, still to be waited for.
 var _stale_tasks: Array[int] = []
+## Task -> the ArmorFit it runs on, until it is done: a Callable does not
+## keep its RefCounted alive, and the context is dropped (_fit_context = null)
+## when bones are added, while fits on it are still running.
+var _task_contexts := {}
 ## Dressed pieces that cover the hair -> true.
 var _covering := {}
 ## The hair must be tucked again; each change bumps the version, so a tuck
@@ -122,6 +131,8 @@ var _fp_body: MeshInstance3D
 var _skirt_swing: SkirtSwing
 ## Swings a pelt's forelegs; made when the first pelt is put on.
 var _pelt_swing: PeltSwing
+## Swings a cloak's bones; made when the first cloak is put on.
+var _cloak_swing: CloakSwing
 ## Swings the hair's bones; made for the first style with loose hair.
 var _hair_swing: HairSwing
 ## Whether the hair's swing was fitted to a body yet.
@@ -329,11 +340,15 @@ func dress(item: Node, covers_hair := false) -> void:
 			_fit_context = null
 		if PeltBones.uses(instance.skin) and PeltBones.add_to(_skeleton):
 			_fit_context = null
+		if CloakBones.uses(instance.skin) and CloakBones.add_to(_skeleton):
+			_fit_context = null
 	_update_skirt_swing()
 	_update_pelt_swing()
+	_update_cloak_swing()
 	_update_hair_swing(false)
 	_fit(item)
 	_update_hand_cover()
+	_update_tights()
 
 
 ## Forgets a piece taken off, and lets the hair out if it covered it.
@@ -345,8 +360,10 @@ func undress(item: Node) -> void:
 			_shadow_only(instance, false)
 	_update_skirt_swing()
 	_update_pelt_swing()
+	_update_cloak_swing()
 	_update_hair_swing(false)
 	_update_hand_cover()
+	_update_tights()
 
 
 ## Whether some piece worn has binds for added bones (`uses`:
@@ -384,6 +401,29 @@ func _update_pelt_swing() -> void:
 		_skeleton.add_child(_pelt_swing)
 	if _pelt_swing != null:
 		_pelt_swing.active = swinging
+
+
+## Swings a cloak's bones while some piece worn hangs from them.
+func _update_cloak_swing() -> void:
+	var swinging := _wearing(CloakBones.uses)
+	if swinging and _cloak_swing == null:
+		_cloak_swing = CloakSwing.new()
+		_cloak_swing.name = "CloakSwing"
+		# After BodyProportions, which moves the spine it hangs from.
+		_skeleton.add_child(_cloak_swing)
+	if _cloak_swing != null:
+		_cloak_swing.active = swinging
+		if swinging:
+			_cloak_swing.fit_legs(measurements())
+
+
+## Whether a piece for `slot` (ItemData.ArmorSlot) is worn.
+func wears(slot: ItemData.ArmorSlot) -> bool:
+	for item in _dressed:
+		if is_instance_valid(item) and "item_data" in item and item.item_data != null \
+				and item.item_data.armor_slot == slot:
+			return true
+	return false
 
 
 ## Swings the hair's bones while the style has loose hair and nothing
@@ -588,6 +628,7 @@ func _refit_dressed() -> void:
 	_fit_context = null
 	_update_skirt_swing()
 	_update_pelt_swing()
+	_update_cloak_swing()
 	# Sin filter: una prenda liberada no entra en un parámetro tipado.
 	for i in range(_dressed.size() - 1, -1, -1):
 		if not is_instance_valid(_dressed[i]) or not _skeleton.is_ancestor_of(_dressed[i]):
@@ -598,6 +639,7 @@ func _refit_dressed() -> void:
 	for item in _dressed:
 		_fit(item)
 	_update_hand_cover()
+	_update_tights()
 
 
 func _hair_changed() -> void:
@@ -629,12 +671,35 @@ func _fit(item: Node) -> void:
 		for b in instance.skin.get_bind_count():
 			binds.append(instance.skin.get_bind_pose(b))
 		var bones := BodyMeasurements.bind_bones(instance.skin, _skeleton)
-		var task := WorkerThreadPool.add_task(_context().fit.bind(surfaces, binds, bones), false,
+		var context := _context()
+		var bare := _bare_bones(item, instance)
+		var task := WorkerThreadPool.add_task(context.fit.bind(surfaces, binds, bones, bare), false,
 				"Armour fit")
+		_task_contexts[task] = context
 		if running.has("task"):
 			_stale_tasks.append(running.task)
 		_fitting[source] = {task = task, version = _body_version, surfaces = surfaces}
 		set_process(true)
+
+
+## The bones whose skin a piece is not pushed off (ArmorFit.fit()'s `bare`):
+## a cloak's arms, which move under it, and a closed glove's hand, whose
+## skin it hides (_update_hand_cover()); empty for the rest.
+func _bare_bones(item: Node, instance: MeshInstance3D) -> PackedByteArray:
+	var parts: Array[String] = []
+	if CloakBones.uses(instance.skin):
+		parts = ["Arm", "Hand"]
+	elif "item_data" in item and item.item_data != null and item.item_data.covers_hands:
+		parts = ["Hand"]
+	var bare := PackedByteArray()
+	if parts.is_empty():
+		return bare
+	bare.resize(_skeleton.get_bone_count())
+	for bone in _skeleton.get_bone_count():
+		var name := String(_skeleton.get_bone_name(bone))
+		if parts.any(func(part: String) -> bool: return name.contains(part)):
+			bare[bone] = 1
+	return bare
 
 
 ## Picks up the fits that are done and hands their meshes to the armour,
@@ -644,12 +709,14 @@ func _process(_delta: float) -> void:
 			if not WorkerThreadPool.is_task_completed(task):
 				return true
 			WorkerThreadPool.wait_for_task_completion(task)
+			_task_contexts.erase(task)
 			return false)
 	for source: ArrayMesh in _fitting.keys():
 		var running: Dictionary = _fitting[source]
 		if not WorkerThreadPool.is_task_completed(running.task):
 			continue
 		WorkerThreadPool.wait_for_task_completion(running.task)
+		_task_contexts.erase(running.task)
 		_fitting.erase(source)
 		if running.version != _body_version:
 			continue
@@ -768,6 +835,37 @@ func _reveal() -> void:
 				instance.visible = true
 				instance.remove_meta(&"armor_hidden")
 	_update_hand_cover()
+
+
+## A height on the skin (player skin space, metres) in the tights mask's units.
+static func tights_value(height: float) -> float:
+	return clampf(inverse_lerp(TIGHTS_HEIGHTS.x, TIGHTS_HEIGHTS.y, height), 0.0, 1.0) * TIGHTS_TOP
+
+
+## A leg piece with tights (its mesh's "tights" meta: colour, hem and waist,
+## from tools/character/bake_meshy_armor.gd) dresses the skin in them
+## between those heights, and the genitals in their colour.
+func _update_tights() -> void:
+	var tights := {}
+	for item in _dressed:
+		if not is_instance_valid(item) or not _skeleton.is_ancestor_of(item):
+			continue
+		for instance in _armour_meshes(item):
+			var source: Mesh = instance.get_meta(&"armor_source", instance.mesh)
+			if source != null and source.has_meta(&"tights"):
+				tights = source.get_meta(&"tights")
+	_skin_material.set_shader_parameter(&"use_tights", not tights.is_empty())
+	var genitals: MeshInstance3D = _slots[&"genitals"].instance
+	if tights.is_empty():
+		genitals.material_overlay = null
+		return
+	_skin_material.set_shader_parameter(&"tights_range",
+			Vector2(tights_value(tights.hem), tights_value(tights.waist)))
+	_skin_material.set_shader_parameter(&"tights_color", tights.color)
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = tights.color
+	cloth.roughness = 0.9
+	genitals.material_overlay = cloth
 
 
 ## Closed gloves replace the skin inside their fingers once the mesh is shown.

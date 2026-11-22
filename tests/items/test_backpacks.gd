@@ -43,6 +43,7 @@ func _run() -> void:
 	large.traits = [expansion]
 	stone = ItemCatalog.get_item(&"stone_01")
 	single = ItemCatalog.get_item(&"iron_sword")
+	_test_catalog()
 	_test_repack()
 	_test_equipment()
 	await _test_cursor()
@@ -50,6 +51,32 @@ func _run() -> void:
 	await get_tree().process_frame
 	print("BACKPACKS: %d checks, %d failures" % [checks, failures])
 	get_tree().quit(1 if failures else 0)
+
+
+## Las mochilas de Meshy: la de piel da cuatro huecos más que la de pieles y la Garra de Oso, el doble;
+## las dos con escena con malla, icono y receta.
+func _test_catalog() -> void:
+	var base := _extra_slots(pack)
+	var sizes := {&"skin_backpack": base + 4, &"bearpaw_backpack": base * 2}
+	for id: StringName in sizes:
+		var item := ItemCatalog.get_item(id)
+		check(item != null and _extra_slots(item) == sizes[id] and item.armor_slot == ItemData.ArmorSlot.BACK,
+			"%s añade %d huecos en la espalda" % [id, sizes[id]])
+		if item == null:
+			continue
+		var visual := (load(item.scene_path) as PackedScene).instantiate()
+		var mesh := visual.get_node_or_null("Mesh") as MeshInstance3D
+		check(mesh != null and mesh.mesh != null and mesh.mesh.get_aabb().size.y > 0.4, "%s tiene su modelo" % id)
+		visual.free()
+		var recipes := Recipes.all().filter(func(r: RecipeData) -> bool: return r.result == id)
+		check(item.icon != null and recipes.size() == 1, "%s tiene icono y receta" % id)
+
+
+static func _extra_slots(item: ItemData) -> int:
+	for t in item.traits:
+		if t is InventoryExpansionTrait:
+			return t.extra_slots
+	return 0
 
 
 func _test_repack() -> void:

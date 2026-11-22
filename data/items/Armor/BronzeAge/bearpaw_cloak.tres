@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ItemData" format=3]
+
+[ext_resource type="Texture2D" path="res://textures/icons/items/armor/bronze_age/bearpaw_cloak.png" id="1_icon"]
+[ext_resource type="Script" path="res://scripts/items/item_data.gd" id="2_item"]
+[ext_resource type="Script" path="res://scripts/items/item_trait.gd" id="3_trait"]
+[ext_resource type="Script" path="res://scripts/items/traits/insulation_trait.gd" id="4_warm"]
+
+[sub_resource type="Resource" id="Resource_warm"]
+script = ExtResource("4_warm")
+warmth = 6.0
+
+[resource]
+script = ExtResource("2_item")
+id = &"bearpaw_cloak"
+display_name = "ITEM_BEARPAW_CLOAK"
+description = "ITEM_BEARPAW_CLOAK_DESC"
+icon = ExtResource("1_icon")
+category = 4
+scene_path = "res://scenes/items/armor/bronze_age/bearpaw_cloak_equipable.tscn"
+stackable = false
+max_stack = 1
+armor_slot = 10
+armor_slash = 3.0
+armor_blunt = 2.0
+armor_pierce = 2.0
+coverage = 2
+traits = Array[ExtResource("3_trait")]([SubResource("Resource_warm")])

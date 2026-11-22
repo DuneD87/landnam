@@ -63,6 +63,8 @@ var _river_field: Dictionary = {}
 var _trail_field: Dictionary = {}
 ## Poblados (SettlementField) con la imagen de su claro ("clear"), o {} sin ellos.
 var _settlement_field: Dictionary = {}
+## Las imágenes del aplanado de los poblados (SettlementFlatten.images), para los grafos de vegetación.
+var _flatten_images: Dictionary = {}
 
 var planet_item_scenes: Dictionary
 ## library_id -> PackedScene plantilla de los items interactivos (los que se talan) sin instanciar
@@ -1242,16 +1244,19 @@ func setup_voxel_generator() -> void:
 	if _setup_trails(graph_generator):
 		needs_compile = true
 
+	# Los poblados de la caché aplanan su terreno en el grafo antes de compilar. Sin caché se trazan
+	# después, sobre el suelo ya definitivo con los ríos y las sendas (_trace_settlements).
+	var settlements := _load_settlements(graph_generator)
+	if settlements == 1:
+		needs_compile = true
+
 	if needs_compile:
-		var compile_result = graph_generator.compile()
-		if compile_result is Dictionary and not compile_result.get("success", true):
-			push_error("Planet: VoxelGraph compile falló: %s (nodo %s)" % [
-				compile_result.get("message", ""), compile_result.get("node_id", -1)])
+		_compile(graph_generator)
+
+	if settlements == 0:
+		_trace_settlements(graph_generator)
 
 	voxel_terrain.generator = graph_generator
-
-	# Los poblados se asientan sobre el suelo ya definitivo, con los ríos y las sendas.
-	_setup_settlements(graph_generator)
 
 	if not definition.ore_settings.is_empty():
 		_publish_ore_drop_table()
@@ -1400,39 +1405,82 @@ func _setup_trail_far_images(field: Dictionary) -> void:
 		Vector4(float(group.rb), float(group.dmax), float(group.g0), float(group.g1)))
 
 
-## Traza (o recupera del caché) los poblados de las puntas de las sendas con el suelo de [generator],
-## ya compilado, y prepara la imagen del claro de los árboles. Sin sendas no hay poblados.
-func _setup_settlements(generator: VoxelGeneratorGraph) -> void:
+func _compile(graph_generator: VoxelGeneratorGraph) -> void:
+	var compile_result = graph_generator.compile()
+	if compile_result is Dictionary and not compile_result.get("success", true):
+		push_error("Planet: VoxelGraph compile falló: %s (nodo %s)" % [
+			compile_result.get("message", ""), compile_result.get("node_id", -1)])
+
+
+## Los poblados de la caché, con su aplanado metido en el grafo de [generator] (aún sin compilar).
+## -1 si este planeta no tiene, 0 si no están en la caché (hay que trazarlos: _trace_settlements) y 1
+## si se cargaron (y el grafo cambió).
+func _load_settlements(generator: VoxelGeneratorGraph) -> int:
 	var cfg := SettlementField.settings(definition.settlement_settings)
 	if definition.settlement_settings.is_empty() or not bool(cfg.enabled) or _trail_field.is_empty():
-		return
-	var templates := SettlementField.load_templates()
-	if templates.is_empty():
-		return
-	var height_range := float(definition.trail_settings.get("height_range",
-		definition.river_settings.get("height_range", 2000.0)))
-	var key := "|".join(PackedStringArray([
-		"v%d" % SettlementField.FILE_VERSION,
-		_trail_cache_key(height_range),
-		JSON.stringify(definition.settlement_settings),
-		SettlementField.signature(templates),
-	])).sha256_text()
-	var path := "user://maps/%s_settlements.bin" % (entity_id if entity_id != "" else "planet")
-	var field := SettlementField.load_from(path, key)
+		return -1
+	if SettlementField.load_templates().is_empty():
+		return -1
+	var field := SettlementField.load_from(_settlements_path(), _settlements_key())
 	if field.is_empty():
-		var started := Time.get_ticks_msec()
-		var sea_radius := radius - water_radius if has_water else radius - 4096.0
-		field = SettlementField.build(generator, _trail_field, radius, sea_radius, templates, cfg)
-		SettlementField.save_to(field, path, key)
-		var stats: Dictionary = field.stats
-		print("[settlements] %d poblados con %d construcciones (de %d puntas sueltas y %d sitios junto a la senda: %d sorteados, %d con llano, %d separados) en %.1f s" % [
-			int(stats.villages), int(stats.buildings), int(stats.ends), int(stats.roadside), int(stats.rolled),
-			int(stats.usable), int(stats.picked),
-			(Time.get_ticks_msec() - started) / 1000.0])
+		return 0
+	_use_settlements(field, cfg)
+	_apply_flatten(generator, field)
+	return 1
+
+
+## Traza los poblados de las puntas de las sendas con el suelo de [generator] (ya compilado), aplana su
+## terreno en el grafo (recompilándolo) y los vuelve a trazar sobre él para que las casas se asienten
+## en el suelo aplanado; los guarda en la caché.
+func _trace_settlements(generator: VoxelGeneratorGraph) -> void:
+	var cfg := SettlementField.settings(definition.settlement_settings)
+	var templates := SettlementField.load_templates()
+	var started := Time.get_ticks_msec()
+	var sea_radius := radius - water_radius if has_water else radius - 4096.0
+	var field := SettlementField.build(generator, _trail_field, radius, sea_radius, templates, cfg, _river_field)
+	var flat := _apply_flatten(generator, field)
+	if flat:
+		_compile(generator)
+		field = SettlementField.replan(field, generator, _trail_field, sea_radius, templates, cfg)
+	SettlementField.save_to(field, _settlements_path(), _settlements_key())
+	var stats: Dictionary = field.stats
+	print("[settlements] %d poblados con %d construcciones (de %d puntas sueltas y %d sitios junto a la senda: %d sorteados, %d con llano, %d separados), %d aplanados, en %.1f s" % [
+		int(stats.villages), int(stats.buildings), int(stats.ends), int(stats.roadside), int(stats.rolled),
+		int(stats.usable), int(stats.picked), (field.get("flats", []) as Array).size(),
+		(Time.get_ticks_msec() - started) / 1000.0])
+	_use_settlements(field, cfg)
+
+
+func _use_settlements(field: Dictionary, cfg: Dictionary) -> void:
 	if (field.villages as Array).is_empty():
 		return
 	field.clear = SettlementField.clearance_image(field, float(cfg.clear_margin))
 	_settlement_field = field
+
+
+## Mete en el grafo de [generator] el aplanado de los poblados de [field] (SettlementFlatten). true si
+## el grafo lo lleva y algún poblado aplana (hay que compilar).
+func _apply_flatten(generator: VoxelGeneratorGraph, field: Dictionary) -> bool:
+	var imgs := SettlementFlatten.images(field)
+	if imgs.is_empty():
+		return false
+	_flatten_images = imgs
+	return SettlementFlatten.apply(generator, imgs, radius)
+
+
+func _settlements_path() -> String:
+	return "user://maps/%s_settlements.bin" % (entity_id if entity_id != "" else "planet")
+
+
+func _settlements_key() -> String:
+	var height_range := float(definition.trail_settings.get("height_range",
+		definition.river_settings.get("height_range", 2000.0)))
+	return "|".join(PackedStringArray([
+		"v%d" % SettlementField.FILE_VERSION,
+		_trail_cache_key(height_range),
+		JSON.stringify(definition.settlement_settings),
+		SettlementField.signature(SettlementField.load_templates()),
+	])).sha256_text()
 
 
 ## Como _river_cache_key: la huella del generador y la configuración de los ríos y de las sendas
@@ -1542,22 +1590,30 @@ static func _graph_op(graph: VoxelGraphFunction, type: int, a: int, b = null, a_
 ## Una copia por generador, aunque el grafo sea el mismo: compartida, asignarla a un generador nuevo
 ## espera a los hilos que ya generan instancias con ella, y en el arranque (con el terreno cargando
 ## alrededor del spawn) eso multiplicaba por tres el coste total.
+##
+## Y con el aplanado de los poblados, si lo lleva (la vegetación de cuevas mide su profundidad contra la
+## superficie: sin él, donde el aplanado rebaja el suelo, lo leía como cueva y salían setas fuera).
 func _load_vegetation_graph(path: String) -> VoxelGraphFunction:
 	var graph: VoxelGraphFunction = load(path)
-	if graph == null or (_river_field.is_empty() and PlanetRelief.last_data.is_empty()):
+	if graph == null:
 		return graph
-	var copy: VoxelGraphFunction = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
-	var patched := false
-	if not _river_field.is_empty() and RiverGenerator.apply(copy, _vegetation_river_field()):
-		patched = true
+	var copy: VoxelGraphFunction = null
+	if not _river_field.is_empty():
+		copy = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		if not RiverGenerator.apply(copy, _vegetation_river_field()):
+			copy = null
 	# Los grafos v2 reconstruyen el terreno con el relieve horneado: sin sus imágenes quedaría una
 	# esfera lisa y la compuerta de superficie descartaría plantas donde no toca.
-	if not PlanetRelief.last_data.is_empty():
-		var fns := PlanetRelief._functions_of(copy)
-		if PlanetRelief._owner(fns, PlanetRelief.RELIEF_NODE) != null:
-			PlanetRelief.apply(fns, PlanetRelief.last_data, radius)
-			patched = true
-	return copy if patched else graph
+	if not PlanetRelief.last_data.is_empty() \
+			and PlanetRelief._owner(PlanetRelief._functions_of(graph), PlanetRelief.RELIEF_NODE) != null:
+		if copy == null:
+			copy = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		PlanetRelief.apply(PlanetRelief._functions_of(copy), PlanetRelief.last_data, radius)
+	if not _flatten_images.is_empty() and SettlementFlatten.present(graph):
+		if copy == null:
+			copy = graph.duplicate_deep(Resource.DEEP_DUPLICATE_ALL)
+		SettlementFlatten.apply(copy, _flatten_images, radius)
+	return copy if copy != null else graph
 
 
 ## El campo de ríos con la imagen de distancias reducida, para los grafos de vegetación. El módulo
