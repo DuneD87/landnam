@@ -1132,8 +1132,8 @@ func _setup_reef_shader_parameters() -> void:
 		shader_material.set_shader_parameter("reef_ao_texture", ao)
 	# Por defecto la franja cubre el arrecife entero: desde el borde hondo hasta un poco por encima
 	# de la cresta, para que la punta emergida no vuelva a ser arena justo al salir del agua.
-	var depth_max: float = maxf(float(definition.reef_settings.get("depth_max", 45.0)), 1.0)
-	var crest: float = float(definition.reef_settings.get("crest_height", 14.0))
+	var depth_max: float = maxf(float(definition.reef_settings.get("depth_max", 28.0)), 1.0)
+	var crest: float = SeaRocks.crest_height(definition.reef_settings)
 	shader_material.set_shader_parameter("reef_band_low",
 		float(definition.reef_settings.get("band_low", -depth_max)))
 	shader_material.set_shader_parameter("reef_band_high",
@@ -1676,7 +1676,8 @@ const _REEF_SHELL_BELOW := 25.0
 const _REEF_SHELL_ABOVE := 17.5
 
 
-## Ajusta los arrecifes al nivel del mar y deriva la envolvente radial de su altura y profundidad.
+## Ajusta los islotes rocosos de la costa al nivel del mar, hornea su mapa y deriva la envolvente
+## radial de su altura y profundidad.
 ## Devuelve true si el grafo necesita recompilarse.
 func _apply_reef_params(functions: Array) -> bool:
 	if _find_owner(functions, "reef_sea_offset") == null:
@@ -1694,27 +1695,18 @@ func _apply_reef_params(functions: Array) -> bool:
 		_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
 		return true
 
-	var depth_max: float = maxf(float(definition.reef_settings.get("depth_max", 45.0)), 1.0)
-	var depth_soft: float = clampf(float(definition.reef_settings.get("depth_softness", 17.0)), 0.1, depth_max)
-	var shore_margin: float = float(definition.reef_settings.get("shore_margin", 1.0))
-	var shore_soft: float = maxf(float(definition.reef_settings.get("shore_softness", 4.0)), 0.1)
-	var crest: float = float(definition.reef_settings.get("crest_height", 24.0))
-	var threshold: float = float(definition.reef_settings.get("rock_threshold", 0.0))
-	# Una cobertura saturada aplana las crestas; rock_softness regula esa saturación.
-	var rock_soft: float = maxf(float(definition.reef_settings.get("rock_softness", 1.0)), 0.01)
-	# Una potencia mayor estrecha las crestas y reduce su cobertura.
-	var sharpness: int = maxi(int(definition.reef_settings.get("sharpness", 1)), 1)
-
-	_set_smoothstep(functions, "reef_deep_gate", -depth_max, -(depth_max - depth_soft))
-	_set_smoothstep(functions, "reef_land_gate", shore_margin, shore_margin - shore_soft)
-	_set_smoothstep(functions, "reef_coverage", threshold, threshold + rock_soft)
-	_set_graph_value(functions, "reef_sharpness", "power", sharpness)
-	_set_graph_value(functions, "reef_crest", "b", crest)
+	# Islotes rocosos (SeaRocks): se colocan sobre el relieve horneado del terreno v2. Sin él no hay
+	# dónde mirar la profundidad y el mapa se queda neutro.
+	var cfg := definition.reef_settings
+	var relief: Image = null
+	if _find_owner(functions, PlanetRelief.RELIEF_NODE) != null:
+		relief = PlanetRelief.last_data.get("relief")
+	SeaRocks.setup(functions, relief, radius, -water_radius, cfg,
+		entity_id if entity_id != "" else "planet")
+	var depth_max: float = maxf(float(cfg.get("depth_max", 28.0)), 1.0)
+	var top: float = SeaRocks.crest_height(cfg)
 	_set_graph_value(functions, "reef_shell_lo", "threshold", -(depth_max + _REEF_SHELL_BELOW))
-	_set_graph_value(functions, "reef_shell_hi", "threshold", crest + _REEF_SHELL_ABOVE)
-
-	if definition.reef_settings.has("head_size"):
-		_set_noise_period(functions, "reef_noise", maxf(float(definition.reef_settings.head_size), 1.0))
+	_set_graph_value(functions, "reef_shell_hi", "threshold", top + _REEF_SHELL_ABOVE)
 	return true
 
 
@@ -1728,16 +1720,6 @@ func _disable_reefs(generator: VoxelGeneratorGraph) -> void:
 		return
 	_set_graph_value(functions, "reef_shell_lo", "threshold", 1.0e9)
 	_set_graph_value(functions, "reef_shell_hi", "threshold", -1.0e9)
-
-
-## Modifica el recurso de ruido de la copia del generador, sin alterar el recurso de disco.
-func _set_noise_period(functions: Array, node_name: String, period: float) -> void:
-	var fn := _find_owner(functions, node_name)
-	if fn == null:
-		return
-	var noise = fn.get_node_param(fn.find_node_by_name(node_name), 0)
-	if noise != null:
-		noise.period = period
 
 
 ## Localiza un nodo por nombre en cualquier (sub)función y le fija ese ajuste, sea un input por
