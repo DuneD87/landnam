@@ -1,8 +1,8 @@
 # Aldeanos
 
 Los [poblados](settlements.md) tienen gente cuando el jugador se acerca: aldeanos nórdicos vestidos de
-pieles que duermen en sus casas, trabajan en la leñera, el huerto o el banco con las herramientas del
-jugador y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
+pieles que duermen en sus casas, trabajan en la leñera, el huerto, el banco o la fragua con las
+herramientas del jugador, atienden la tienda y los puestos del mercadillo, y pasan el resto del día en la plaza, con su hoguera al atardecer. Te miran, te saludan, se
 apartan, huyen a casa si ataca una fiera y se meten en ella cuando llueve. Se puede hablar con ellos,
 hacerles regalos, comerciar y hacerles encargos, y cada poblado recuerda la confianza que le tiene al
 jugador. Con bastante, alguno se va con el jugador: lo sigue, le lleva cosas y pelea a su lado, y se
@@ -16,7 +16,7 @@ guardan; la confianza, los encargos, el compañero y los colonos sí.
 | `SettlementVillagers` (`scripts/world/settlement_villagers.gd`) | Cuándo un poblado tiene gente; los viste en un hilo y los saca |
 | `Villager` (`scripts/world/villager.gd`) | El aldeano: su rutina, cómo anda y sus animaciones |
 | `SettlementPrefab.beds` | Los lechos de cada casa, que pone `SettlementManager` como decorado |
-| `SettlementWorkplace`, `SettlementDecor` | Los sitios de trabajo de cada casa (leñera, huerto, banco) y lo que se ve de ellos |
+| `SettlementWorkplace`, `SettlementDecor` | Los sitios de trabajo de cada casa (leñera, huerto, banco, fragua, mostrador) y lo que se ve de ellos |
 | `SettlementFire` (`scripts/world/settlement_fire.gd`) | La hoguera de la plaza, encendida al atardecer y cuando nieva |
 | `SettlementRelations` (`scripts/world/settlement_relations.gd`) | La confianza de cada poblado en el jugador, a quién conoce y lo regalado hace poco |
 | `VillagerTalk` (`scripts/world/villager_talk.gd`) | Qué dice un aldeano y cuánto le gusta un regalo |
@@ -55,6 +55,9 @@ al azar entre los vecinos, uno por puesto, y los que quedan sin puesto no tienen
 | Leñera: pila de troncos y tajo | detrás de la choza y de la casa larga | leñador | hacha de piedra o de bronce | el golpe de arriba abajo del jugador, con respiros |
 | Huerto: surcos de matas sobre montones de tierra | detrás de la casa (2 puestos) | granjero | azada de piedra o de bronce | cavar (Mixamo) |
 | Banco de trabajo | dentro de la casa larga y del granero | artesano | martillo de piedra | el mismo golpe, más rápido |
+| Fragua y yunque | en la herrería | herrero | martillo de piedra | el golpe rápido del banco, sobre el yunque |
+| Mostrador de la tienda | tras el mostrador abierto a la calle | tendero | ninguna | de pie, y a ratos pregona (la de hablar) |
+| Puesto del mercadillo (comida, pieles, cacharros) | tras el mostrador del puesto | vendedor de comida, peletero, buhonero | ninguna | igual que el tendero |
 
 Talar y picar son solo gesto: no producen nada. La herramienta cuelga del hueso del dedo corazón con
 el marco de agarre del jugador (`CombatPose.RIGHT_GRIP`). La mano no se cierra sobre el mango, así que
@@ -251,6 +254,11 @@ siguiente.
 | Leñera | Madera y ramas siempre; a veces fibra, antorchas o un hacha de piedra |
 | Huerto | Fibra y milenrama siempre; a veces emplastos y bebedizos, o una azada |
 | Banco | Herramientas y armas de piedra y sílex, arco, flechas, escudo, odre, escala; muy rara vez algo de bronce |
+| Herrería | Bronce: lingotes, hacha, pico, azada, espada, seax, lanza; mineral de cobre y estaño, carbón, anzuelos |
+| Tienda | De todo para el camino: odres, escalas, antorchas, petate, morrales, caña y cebo, flechas, arco, escudo, emplastos, tablillas, vidrio, comida |
+| Puesto de comida | Carne y pescado, asados y crudos, siempre; milenrama y bebedizos a veces |
+| Peletero | Pieles y tendones siempre; mantos, mocasines, manoplas, casacas, botas y capuchas de piel, cuernas, plumas |
+| Buhonero | Fibra, sílex, huesos, antorchas, flechas; cuchillos, dagas, porras, honda, anzuelos, odres |
 | Sin oficio | La despensa: carne asada y cruda, pescado, pieles, huesos, tendones, plumas; a veces una cuerna o unas manoplas o mocasines |
 
 **Los precios** salen de lo que vale cada cosa (`ItemValue`, en leños) según la confianza del poblado:

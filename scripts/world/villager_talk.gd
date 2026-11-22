@@ -9,6 +9,7 @@ class_name VillagerTalk extends RefCounted
 const POOLS := {
 	&"MEET": 4, &"WARY": 5, &"CAUTIOUS": 5, &"FRIENDLY": 5, &"FRIENDS": 5, &"KIN": 4,
 	&"WOODPILE": 3, &"GARDEN": 3, &"BENCH": 3,
+	&"FORGE": 3, &"SHOP": 3, &"STALL_FOOD": 3, &"STALL_HIDES": 3, &"STALL_WARES": 3,
 	&"MORNING": 3, &"LUNCH": 2, &"EVENING": 3,
 	&"SNOW": 2, &"STORM": 2, &"FOG": 2, &"WIND": 2,
 	&"DANGER": 3, &"NEIGHBOUR": 2, &"PELT": 2, &"BRONZE": 2,
@@ -289,7 +290,7 @@ static func gift_line(gain: float, taste: float, worth: float, rng: RandomNumber
 	return _pick(&"GIFT_LOVE" if taste >= LOVE else &"GIFT_LIKE", rng, last)
 
 
-## Lo que le gusta a quien tiene el oficio [job] ("woodpile", "garden", "bench" o "") recibir [data]: 0 no
+## Lo que le gusta a quien tiene el oficio [job] ("woodpile", "garden", "bench", "forge"... o "") recibir [data]: 0 no
 ## le sirve, 1 normal, más si le viene bien.
 static func taste(job: StringName, data: ItemData) -> float:
 	if data == null:
@@ -300,7 +301,7 @@ static func taste(job: StringName, data: ItemData) -> float:
 			return 1.5 if group == &"cooked" else (1.3 if group == &"remedy" else 1.0)
 		ItemData.Category.TOOL:
 			var wanted := {&"woodpile": ItemData.ToolType.AXE, &"garden": ItemData.ToolType.HOE,
-				&"bench": ItemData.ToolType.HAMMER}
+				&"bench": ItemData.ToolType.HAMMER, &"forge": ItemData.ToolType.HAMMER}
 			return 1.8 if wanted.get(job, -1) == data.tool_type else 1.0
 		ItemData.Category.ARMOR:
 			return 1.2
@@ -312,7 +313,7 @@ static func taste(job: StringName, data: ItemData) -> float:
 		&"hunt":
 			return 1.2
 		&"metal":
-			return 2.0 if job == &"bench" else 1.0
+			return 2.0 if job in [&"bench", &"forge"] else 1.0
 		&"wood":
 			return 0.5 if job == &"woodpile" else 0.8
 	return 1.0

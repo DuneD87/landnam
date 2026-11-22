@@ -2210,3 +2210,91 @@ VBEAST_10,Hollow-Eye,Ojo Hueco,aldeanos
 CON_VILLAGE_QUEST_KINDS,Errand kinds: %s,Tipos de encargo: %s,
 CON_VILLAGE_QUEST_NOBODY,Nobody in the nearest village can ask for that now (go closer).,Nadie del poblado más cercano puede pedir eso ahora (acércate).,
 CON_VILLAGE_QUEST_FORCED,%s now asks: %s (talk to them: E),%s ahora pide: %s (háblale: E),
+BUILD_MAT_PLASTER,Plaster,Enlucido,
+BUILD_MAT_PLANKS,Planks,Tablas,
+BUILD_MAT_SHINGLES,Shingles,Tejuelas,
+BUILD_MAT_TURF,Turf,Tepe,
+BUILD_MAT_ASHLAR,Ashlar,Sillería,
+BUILD_MAT_CLOTH,Cloth,Lona,
+BLOCK_POST_DESC,"Timber post in the middle of the cell; laid down, a beam","Madero de pie en el centro de la celda; tumbado, una viga",
+BLOCK_BEAM_DESC,"Timber along one edge of a cell face: on the outside of a wall it makes half-timbering","Madero por el canto de una cara de la celda: por fuera de un muro hace el entramado",
+BLOCK_BRACE_DESC,"Diagonal timber against one face of the cell, for half-timbering","Madero en diagonal pegado a una cara de la celda, para el entramado",
+BLOCK_SLAB_DESC,"Half-height block: counters, benches, steps or half walls","Medio bloque de alto: mostradores, bancos, peldaños o medios muros",
+ITEM_BLOCK_POST,Post,Poste,
+ITEM_BLOCK_BEAM,Facade beam,Listón de fachada,
+ITEM_BLOCK_BRACE,Brace,Riostra,
+ITEM_BLOCK_SLAB,Slab,Losa,
+ITEM_BLOCK_SLAB_STONE,Stone slab,Losa de piedra,
+ITEM_BLOCK_POST_STONE,Stone post,Poste de piedra,
+ITEM_BLOCK_POST_WOOD,Wooden post,Poste de madera,
+ITEM_BLOCK_BEAM_WOOD,Wooden facade beam,Listón de fachada de madera,
+ITEM_BLOCK_BRACE_WOOD,Wooden brace,Riostra de madera,
+ITEM_BLOCK_SLAB_WOOD,Wooden slab,Losa de madera,
+ITEM_BLOCK_CUBE_PLASTER,Plaster cube,Cubo de enlucido,
+ITEM_BLOCK_SLOPE_PLASTER,Plaster slope,Rampa de enlucido,
+ITEM_BLOCK_CORNER_PLASTER,Plaster corner,Esquina de enlucido,
+ITEM_BLOCK_INV_CORNER_PLASTER,Plaster inverted corner,Esquina invertida de enlucido,
+ITEM_BLOCK_PANE_PLASTER,Plaster pane,Panel de enlucido,
+ITEM_BLOCK_PANE_TRIANGLE_PLASTER,Plaster triangular panel,Panel triangular de enlucido,
+ITEM_BLOCK_SLAB_PLASTER,Plaster slab,Losa de enlucido,
+ITEM_BLOCK_CUBE_PLANKS,Plank cube,Cubo de tablas,
+ITEM_BLOCK_SLOPE_PLANKS,Plank slope,Rampa de tablas,
+ITEM_BLOCK_CORNER_PLANKS,Plank corner,Esquina de tablas,
+ITEM_BLOCK_INV_CORNER_PLANKS,Plank inverted corner,Esquina invertida de tablas,
+ITEM_BLOCK_PANE_PLANKS,Plank pane,Panel de tablas,
+ITEM_BLOCK_PANE_SLOPE_PLANKS,Plank sloped pane,Panel inclinado de tablas,
+ITEM_BLOCK_PANE_TRIANGLE_PLANKS,Plank triangular panel,Panel triangular de tablas,
+ITEM_BLOCK_SLAB_PLANKS,Plank slab,Losa de tablas,
+ITEM_BLOCK_THATCH_SLOPE_SHINGLES,Shingle roof slope,Faldón de tejuelas,
+ITEM_BLOCK_THATCH_RIDGE_SHINGLES,Shingle roof ridge,Cumbrera de tejuelas,
+ITEM_BLOCK_CUBE_TURF,Turf cube,Cubo de tepe,
+ITEM_BLOCK_SLOPE_TURF,Turf slope,Rampa de tepe,
+ITEM_BLOCK_CORNER_TURF,Turf corner,Esquina de tepe,
+ITEM_BLOCK_INV_CORNER_TURF,Turf inverted corner,Esquina invertida de tepe,
+ITEM_BLOCK_THATCH_SLOPE_TURF,Turf roof slope,Faldón de tepe,
+ITEM_BLOCK_THATCH_RIDGE_TURF,Turf roof ridge,Cumbrera de tepe,
+ITEM_BLOCK_CUBE_ASHLAR,Ashlar cube,Cubo de sillería,
+ITEM_BLOCK_SLOPE_ASHLAR,Ashlar slope,Rampa de sillería,
+ITEM_BLOCK_CORNER_ASHLAR,Ashlar corner,Esquina de sillería,
+ITEM_BLOCK_INV_CORNER_ASHLAR,Ashlar inverted corner,Esquina invertida de sillería,
+ITEM_BLOCK_PANE_ASHLAR,Ashlar pane,Panel de sillería,
+ITEM_BLOCK_PANE_SLOPE_ASHLAR,Ashlar sloped pane,Panel inclinado de sillería,
+ITEM_BLOCK_SLAB_ASHLAR,Ashlar slab,Losa de sillería,
+ITEM_BLOCK_POST_ASHLAR,Ashlar post,Poste de sillería,
+ITEM_BLOCK_PANE_CLOTH,Cloth pane,Panel de lona,
+ITEM_BLOCK_PANE_SLOPE_CLOTH,Cloth sloped pane,Panel inclinado de lona,
+ITEM_BLOCK_PANE_TRIANGLE_CLOTH,Cloth triangular panel,Panel triangular de lona,
+BLOCK_BEAM_L_DESC,"Two facade beams in an L, for the joints of half-timbering","Dos listones de fachada en escuadra, para los cruces del entramado",
+ITEM_BLOCK_BEAM_L,Corner beam,Escuadra de fachada,
+ITEM_BLOCK_BEAM_L_WOOD,Wooden corner beam,Escuadra de fachada de madera,
+ITEM_BLOCK_POST_PLANKS,Plank post,Poste de tablas,
+ITEM_BLOCK_BEAM_PLANKS,Plank facade beam,Listón de fachada de tablas,
+ITEM_BLOCK_BEAM_L_PLANKS,Plank corner beam,Escuadra de fachada de tablas,
+ITEM_BLOCK_BRACE_PLANKS,Plank brace,Riostra de tablas,
+ITEM_BLOCK_SLOPE_SHINGLES,Shingle slope,Rampa de tejuelas,
+ITEM_BLOCK_CORNER_SHINGLES,Shingle corner,Esquina de tejuelas,
+VILLAGER_JOB_FORGE_M,Smith,Herrero,aldeanos
+VILLAGER_JOB_FORGE_F,Smith,Herrera,aldeanos
+VILLAGER_JOB_SHOP_M,Trader,Tendero,aldeanos
+VILLAGER_JOB_SHOP_F,Trader,Tendera,aldeanos
+VILLAGER_JOB_STALL_FOOD_M,Food seller,Vendedor de comida,aldeanos
+VILLAGER_JOB_STALL_FOOD_F,Food seller,Vendedora de comida,aldeanos
+VILLAGER_JOB_STALL_HIDES_M,Furrier,Peletero,aldeanos
+VILLAGER_JOB_STALL_HIDES_F,Furrier,Peletera,aldeanos
+VILLAGER_JOB_STALL_WARES_M,Peddler,Buhonero,aldeanos
+VILLAGER_JOB_STALL_WARES_F,Peddler,Buhonera,aldeanos
+VTALK_FORGE_1,"Copper and tin, nine parts to one. Get it wrong and the blade snaps.","Cobre y estaño, nueve partes por una. Si te equivocas, la hoja se parte.",aldeanos
+VTALK_FORGE_2,The fire has to roar before the metal will listen.,El fuego tiene que rugir antes de que el metal te haga caso.,aldeanos
+VTALK_FORGE_3,"Bring me ore and coal, and I'll give you something that lasts.","Tráeme mineral y carbón, y te daré algo que dure.",aldeanos
+VTALK_SHOP_1,"A bit of everything, and fair prices. Well, almost fair.","Un poco de todo, y a buen precio. Bueno, casi bueno.",aldeanos
+VTALK_SHOP_2,Travellers buy rope and skins. The wise ones buy both.,Los viajeros compran cuerdas y odres. Los listos compran las dos cosas.,aldeanos
+VTALK_SHOP_3,"If I don't have it, nobody between here and the sea has it.","Si no lo tengo yo, no lo tiene nadie de aquí al mar.",aldeanos
+VTALK_STALL_FOOD_1,"Fish from this morning, meat from yesterday. Both still good.","Pescado de esta mañana, carne de ayer. Las dos cosas, buenas aún.",aldeanos
+VTALK_STALL_FOOD_2,An empty belly walks badly. Eat something before you go on.,Con la tripa vacía se camina mal. Come algo antes de seguir.,aldeanos
+VTALK_STALL_FOOD_3,The gulls watch my stall more than the customers do.,Las gaviotas miran mi puesto más que los clientes.,aldeanos
+VTALK_STALL_HIDES_1,"Feel this fur. Winter will come, and you'll thank me.","Toca esta piel. Llegará el invierno y me lo agradecerás.",aldeanos
+VTALK_STALL_HIDES_2,"A good hide needs a good hunter, and a patient hand to cure it.","Una buena piel pide un buen cazador, y una mano paciente para curtirla.",aldeanos
+VTALK_STALL_HIDES_3,"If you bring me pelts, I'll pay you well. The bigger the beast, the better.","Si me traes pieles, te pago bien. Cuanto más grande la fiera, mejor.",aldeanos
+VTALK_STALL_WARES_1,"Knives, hooks, torches... small things, but you'll miss them on the road.","Cuchillos, anzuelos, antorchas... cosas pequeñas, pero en el camino las echarás de menos.",aldeanos
+VTALK_STALL_WARES_2,I've walked from village to village with this load. My back knows every road.,He ido de poblado en poblado con esta carga. Mi espalda se sabe todos los caminos.,aldeanos
+VTALK_STALL_WARES_3,"Look all you want, but whoever breaks it pays for it.","Mira cuanto quieras, pero el que lo rompe lo paga.",aldeanos

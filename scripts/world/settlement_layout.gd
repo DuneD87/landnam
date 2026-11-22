@@ -38,6 +38,14 @@ const STEP_OK := 0.4
 ## Los surcos de un huerto, y sus matas a lo largo de ellos (m).
 const GARDEN_ROW := 1.0
 const GARDEN_PLANT := 0.6
+## La cerca (SettlementWall): cuántos tramos da la vuelta, lo que se aparta de las huellas (m), lo cerca
+## que pasa una senda del centro de un tramo (m) para dejarle una puerta y lo que mide una puerta como
+## poco (m). La llegada de la senda lleva puerta siempre, de WALL_GATE_SPAN tramos.
+const WALL_SEGMENTS := 96
+const WALL_GAP := 4.0
+const WALL_GATE_TRAIL := 2.5
+const WALL_GATE_SPAN := 2
+const WALL_GATE_MIN := 3.5
 ## Bloques del zócalo y de la rampa (BlockDatabase.BLOCK_CUBE_ID, BLOCK_SLOPE_ID).
 const _CUBE_BLOCK := 0
 const _RAMP_BLOCK := 1
@@ -76,7 +84,8 @@ static func find_center(site: Dictionary, ground: Callable, cfg: Dictionary) -> 
 ## {"template", "center", "ground", "into", "extent" (m del centro al borde de lo más lejano),
 ##  "buildings": [{"prefab", "kind", "origin", "basis" (la pose de su grid principal), "door" (el
 ##  umbral, en el suelo de dentro), "extra": PackedInt32Array de x, y, z, bloque, cuartos de vuelta,
-##  "work": sus sitios de trabajo (_workplace)}]}
+##  "work": sus sitios de trabajo (_workplace), "props": su decorado ({"kind", "pose", "item", "scale"})}],
+##  "wall": la cerca (_wall; {} sin ella)}
 static func plan(template: SettlementTemplate, center: Dictionary, into: Vector3, measures: Dictionary,
 		ground: Callable, trail_distance: Callable, cfg: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var radius := float(cfg.radius)
@@ -126,8 +135,74 @@ static func plan(template: SettlementTemplate, center: Dictionary, into: Vector3
 	var needed := mini(2, queue.size())
 	if placed.size() < needed:
 		return {}
+	var wall := {}
+	if template.wall != &"":
+		wall = _wall(template, c, right, fwd, rects, ground, trail_distance, cfg)
 	return {"template": template.id, "center": c, "ground": float(center.ground), "into": fwd,
-		"extent": extent, "buildings": placed}
+		"extent": extent, "buildings": placed, "wall": wall}
+
+
+## La cerca de [template] alrededor de las construcciones ([rects], en el plano del poblado de centro
+## [c]): la envolvente convexa de sus huellas y de la plaza, apartada WALL_GAP m, con un vértice cada
+## 360 / WALL_SEGMENTS grados y algo ondulada para que no parezca trazada a compás. {"kind", "points":
+## los vértices en el suelo (marco del terreno, en orden y cerrando la vuelta), "open": por tramo, 0
+## cerca, 1 puerta, 2 sin suelo}. Lleva puerta donde la cruza una senda y donde llega la del poblado.
+static func _wall(template: SettlementTemplate, c: Vector3, right: Vector3, fwd: Vector3, rects: Array,
+		ground: Callable, trail_distance: Callable, cfg: Dictionary) -> Dictionary:
+	var radius := float(cfg.radius)
+	var n := WALL_SEGMENTS
+	var cloud := PackedVector2Array()
+	for rect: Array in rects:
+		for q: Vector2 in rect:
+			for k in 8:
+				cloud.append(q + Vector2.from_angle(TAU * k / 8.0) * WALL_GAP)
+	for k in 24:
+		cloud.append(Vector2.from_angle(TAU * k / 24.0) * (template.plaza_radius + 2.0 + WALL_GAP))
+	var hull := Geometry2D.convex_hull(cloud)
+	var phase := fposmod(c.x * 7919.0 + c.z * 104729.0, TAU)
+	var points := PackedVector3Array()
+	var dirs: Array[Vector3] = []
+	var dry := PackedByteArray()
+	for j in n:
+		var theta := TAU * j / n
+		var ray := Vector2(sin(theta), cos(theta))
+		var r := 0.0
+		for i in hull.size() - 1:
+			var hit: Variant = Geometry2D.segment_intersects_segment(Vector2.ZERO, ray * 1000.0, hull[i], hull[i + 1])
+			if hit != null:
+				r = maxf(r, (hit as Vector2).length())
+		r *= 1.0 + 0.03 * sin(3.0 * theta + phase) + 0.015 * sin(7.0 * theta + phase * 2.0)
+		var dir := _at(c, right, fwd, r * ray.x, r * ray.y, radius)
+		var g: float = ground.call(dir)
+		var ok := not is_nan(g) and g >= float(cfg.sea_radius) + 1.0
+		dry.append(1 if ok else 0)
+		dirs.append(dir)
+		points.append(dir * (g if ok else radius))
+	var open := PackedByteArray()
+	open.resize(n)
+	for j in n:
+		var k := (j + 1) % n
+		if dry[j] == 0 or dry[k] == 0:
+			open[j] = 2
+		elif trail_distance.call((dirs[j] + dirs[k]).normalized()) < WALL_GATE_TRAIL:
+			open[j] = 1
+	# La llegada de la senda, por detrás (rumbo PI), siempre con puerta.
+	for k in range(-WALL_GATE_SPAN / 2, WALL_GATE_SPAN - WALL_GATE_SPAN / 2):
+		var j := posmod(n / 2 + k, n)
+		if open[j] == 0:
+			open[j] = 1
+	# Ninguna puerta más estrecha que WALL_GATE_MIN: se abre el tramo de al lado.
+	for j in n:
+		if open[j] != 1 or open[posmod(j - 1, n)] == 1:
+			continue
+		var k := j
+		var width := 0.0
+		while open[k % n] == 1 and k - j < n:
+			width += points[k % n].distance_to(points[(k + 1) % n])
+			k += 1
+		if width < WALL_GATE_MIN and open[k % n] == 0:
+			open[k % n] = 1
+	return {"kind": template.wall, "points": points, "open": open}
 
 
 ## La huella de [prefab] girada con la puerta a +Z: la caja de su blueprint en ese giro, alargada por
@@ -253,8 +328,16 @@ static func _try(prefab: SettlementPrefab, m: Dictionary, shape: Dictionary, c: 
 		var placed := _workplace(wp, Transform3D(basis, origin), ground, cfg)
 		if not placed.is_empty():
 			work.append(placed)
+	var props: Array = []
+	for prop in prefab.props:
+		var at := Transform3D(basis, origin) * prop.pose
+		if prop.grounded:
+			at.origin = _grounded(at.origin, ground, cfg)
+			if not at.origin.is_finite():
+				continue
+		props.append({"kind": prop.kind, "pose": at, "item": prop.item, "scale": prop.scale})
 	return {"rect": rect, "building": {"prefab": prefab.id, "kind": prefab.kind, "origin": origin,
-		"basis": basis, "door": door_point, "extra": extra, "work": work}}
+		"basis": basis, "door": door_point, "extra": extra, "work": work, "props": props}}
 
 
 ## [wp] en la construcción puesta en [pose] (su grid principal): lo de fuera, asentado en el terreno.
@@ -296,7 +379,7 @@ static func _workplace(wp: SettlementWorkplace, pose: Transform3D, ground: Calla
 				var x := -half.x + (k + 0.5) * wp.size.x / per_row
 				var h := _bilinear(corners, 3, 3, Vector2(x + half.x, z + half.y), wp.size)
 				plants.append(at * Vector3(x, h, z))
-	return {"kind": wp.kind, "pose": at, "stands": stands, "looks": looks, "plants": plants}
+	return {"kind": wp.kind, "pose": at, "stands": stands, "looks": looks, "plants": plants, "indoor": wp.indoor}
 
 
 ## [p] (marco del terreno) bajado o subido al suelo, o un vector no finito si ahí no hay (o es mar).

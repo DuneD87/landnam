@@ -11,7 +11,15 @@ const BLOCK_THATCH_RIDGE_ID := 7
 const BLOCK_PANE_TRIANGLE_ID := 8
 const BLOCK_NAVAL_CURVE_ID := 9
 const BLOCK_NAVAL_FULL_ID := 10
+## Carpintería y losa (BlockMeshGenerator: POST_BOX, BEAM_BOX, brace_points, SLAB_BOX).
+const BLOCK_POST_ID := 11
+const BLOCK_BEAM_ID := 12
+const BLOCK_BRACE_ID := 13
+const BLOCK_SLAB_ID := 14
+const BLOCK_BEAM_L_ID := 15
 const BASIC_BLOCK_IDS: Array[int] = [0, 1, 2, 3, 4, 5]
+const CARPENTRY_IDS: Array[int] = [BLOCK_POST_ID, BLOCK_BEAM_ID, BLOCK_BEAM_L_ID, BLOCK_BRACE_ID]
+const ROOF_IDS: Array[int] = [BLOCK_THATCH_SLOPE_ID, BLOCK_THATCH_RIDGE_ID]
 
 signal materials_ready
 ## Salta cada vez que un item estrena icono, para que la UI ya pintada se refresque sobre la
@@ -86,7 +94,8 @@ func _register_default_materials() -> void:
 	stone.item = ItemCatalog.get_item(&"stone_01")
 	stone.base_cost = 1
 	stone.density_kg_m3 = 2400.0
-	stone.allowed_block_ids = BASIC_BLOCK_IDS
+	stone.allowed_block_ids = BASIC_BLOCK_IDS.duplicate()
+	stone.allowed_block_ids.append_array([BLOCK_SLAB_ID, BLOCK_POST_ID])
 	stone.sound_material = &"rock"
 	stone.surface_material = stone.item.surface_material
 	build_materials.append(stone)
@@ -104,6 +113,8 @@ func _register_default_materials() -> void:
 	wood.buoyant = true
 	wood.allowed_block_ids = BASIC_BLOCK_IDS.duplicate()
 	wood.allowed_block_ids.append(BLOCK_PANE_TRIANGLE_ID)
+	wood.allowed_block_ids.append_array(CARPENTRY_IDS)
+	wood.allowed_block_ids.append(BLOCK_SLAB_ID)
 	wood.sound_material = &"wood"
 	wood.surface_material = wood.item.surface_material
 	build_materials.append(wood)
@@ -140,8 +151,41 @@ func _register_default_materials() -> void:
 	thatch.sound_material = &"wood"
 	build_materials.append(thatch)
 
+	_register_village_materials()
 	_publish_translucent_materials()
 	print("[BlockDatabase] Registered %d materials." % build_materials.size())
+
+
+## Los materiales de las casas de los poblados (texturas de tools/building/gen_block_textures.py):
+## enlucido, tablas, tejuelas, tepe, sillería y lona. Las tejuelas y el tepe cubren los faldones y la
+## cumbrera de la paja.
+func _register_village_materials() -> void:
+	var plain: Array[int] = [BLOCK_CUBE_ID, BLOCK_SLOPE_ID, BLOCK_CORNER_ID, BLOCK_INV_CORNER_ID]
+	var specs := [
+		# id, objeto, coste, densidad, sonido, formas
+		["plaster", &"stone_01", 1, 1600.0, &"rock", plain + [BLOCK_PANE_ID, BLOCK_PANE_TRIANGLE_ID, BLOCK_SLAB_ID]],
+		["planks", &"wood_01", 1, 500.0, &"wood", BASIC_BLOCK_IDS + CARPENTRY_IDS + [BLOCK_PANE_TRIANGLE_ID, BLOCK_SLAB_ID]],
+		["shingles", &"wood_01", 1, 450.0, &"wood", ROOF_IDS + [BLOCK_SLOPE_ID, BLOCK_CORNER_ID]],
+		["turf", &"plant_fiber", 2, 1500.0, &"rock", plain + ROOF_IDS],
+		["ashlar", &"stone_01", 2, 2500.0, &"rock", BASIC_BLOCK_IDS + [BLOCK_SLAB_ID, BLOCK_POST_ID]],
+		["cloth", &"plant_fiber", 1, 300.0, &"wood", [BLOCK_PANE_ID, BLOCK_PANE_SLOPE_ID, BLOCK_PANE_TRIANGLE_ID]],
+	]
+	for spec: Array in specs:
+		var mat := BuildMaterial.new()
+		mat.material_id = spec[0]
+		mat.display_name = "BUILD_MAT_" + String(spec[0]).to_upper()
+		mat.item = ItemCatalog.get_item(spec[1])
+		mat.base_cost = spec[2]
+		mat.density_kg_m3 = spec[3]
+		mat.sound_material = spec[4]
+		var ids: Array[int] = []
+		ids.assign(spec[5])
+		mat.allowed_block_ids = ids
+		mat.surface_material = load("res://data/building/%s.tres" % spec[0])
+		if spec[0] == "planks":
+			mat.solid_fraction = 0.5
+			mat.buoyant = true
+		build_materials.append(mat)
 
 
 ## Publica al mallador qué materiales dejan ver lo que hay detrás. La opacidad de un ShaderMaterial
@@ -317,7 +361,8 @@ func _register_default_blocks() -> void:
 	var wood_pane := pane.duplicate() as BlockData
 	wood_pane.mesh = BlockMeshGenerator.generate_pane(1.0, 0.0)
 	wood_pane.collision_shape = BlockMeshGenerator.generate_pane_collision(1.0, 0.1, 0.0)
-	pane.material_variants["wood"] = wood_pane
+	for flush: String in BlockMeshGenerator.FLUSH_PANE_MATERIALS:
+		pane.material_variants[flush] = wood_pane
 	register_block(pane)
 
 	var pane_slope := BlockData.new()
@@ -362,6 +407,7 @@ func _register_default_blocks() -> void:
 	pane_triangle.rotation_steps = 4
 	pane_triangle.icon_yaw = 160.0
 	register_block(pane_triangle)
+	_register_carpentry_blocks()
 	# Geometría naval por instancia; no se ofrece como bloque suelto en los materiales.
 	for id in [BLOCK_NAVAL_CURVE_ID, BLOCK_NAVAL_FULL_ID]:
 		var naval := BlockData.new()
@@ -372,6 +418,36 @@ func _register_default_blocks() -> void:
 		naval.collision_shape = cube.collision_shape
 		naval.material_override = NavalHullMesh.WOOD
 		register_block(naval)
+
+## Poste, listón de fachada, riostra y losa.
+func _register_carpentry_blocks() -> void:
+	var specs := [
+		[BLOCK_POST_ID, "post", BlockMeshGenerator.POST_BOX, 135.0],
+		[BLOCK_BEAM_ID, "beam", BlockMeshGenerator.BEAM_BOX, 160.0],
+		[BLOCK_BRACE_ID, "brace", [] as Array[Vector3], 160.0],
+		[BLOCK_BEAM_L_ID, "beam_l", [] as Array[Vector3], 160.0],
+		[BLOCK_SLAB_ID, "slab", BlockMeshGenerator.SLAB_BOX, 135.0],
+	]
+	for spec: Array in specs:
+		var block := BlockData.new()
+		block.block_id = spec[0]
+		block.block_name = spec[1]
+		block.block_description = "BLOCK_%s_DESC" % String(spec[1]).to_upper()
+		var box: Array = spec[2]
+		if spec[0] == BLOCK_BEAM_L_ID:
+			block.mesh = BlockMeshGenerator.generate_beam_l_mesh()
+			block.collision_shape = BlockMeshGenerator.generate_beam_l_collision()
+		elif box.is_empty():
+			block.mesh = BlockMeshGenerator.generate_brace_mesh()
+			block.collision_shape = BlockMeshGenerator.generate_brace_collision()
+		else:
+			block.mesh = BlockMeshGenerator.generate_box_mesh(box)
+			block.collision_shape = BlockMeshGenerator.generate_box_collision(box)
+		block.can_rotate = true
+		block.rotation_steps = 4
+		block.icon_yaw = spec[3]
+		register_block(block)
+
 
 func _create_block_item(block: BlockData) -> ItemData:
 	var item := ItemData.new()

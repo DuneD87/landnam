@@ -154,7 +154,7 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 		3:  _emit_inv_corner(st, offset, rot, size, flip, hidden)
 		4:
 			var inset := BlockMeshGenerator.PANE_INSET
-			if mat_id == "wood" and not hidden.get(Vector3i(0, 0, -1), false):
+			if mat_id in BlockMeshGenerator.FLUSH_PANE_MATERIALS and not hidden.get(Vector3i(0, 0, -1), false):
 				inset = 0.0
 			return _emit_pane(st, offset, rot, size, flip, hidden, inset)
 		5:  _emit_pane_slope(st, offset, rot, size, flip)
@@ -163,6 +163,13 @@ static func _emit_from_block_type(st: SurfaceTool, block_id: int, offset: Vector
 		8:
 			var inset := BlockMeshGenerator.PANE_INSET if hidden.get(Vector3i(0, 0, -1), false) else 0.0
 			_emit_pane_triangle(st, offset, rot, size, flip, inset)
+		11: return _emit_box(st, offset, rot, size, flip, BlockMeshGenerator.POST_BOX, hidden)
+		12: return _emit_box(st, offset, rot, size, flip, BlockMeshGenerator.BEAM_BOX, hidden)
+		13: return _emit_brace(st, offset, rot, size, flip, hidden)
+		14: return _emit_box(st, offset, rot, size, flip, BlockMeshGenerator.SLAB_BOX, hidden)
+		15:
+			_emit_box(st, offset, rot, size, flip, BlockMeshGenerator.BEAM_L_BOXES[0], hidden)
+			_emit_box(st, offset, rot, size, flip, BlockMeshGenerator.BEAM_L_BOXES[1], hidden)
 		_:
 			push_warning("[ChunkMeshBuilder] Block ID %d no reconocido" % block_id)
 			_emit_cube_no_cull(st, offset, rot, size, flip)
@@ -239,6 +246,56 @@ static func _emit_cube(
 		emitted = true
 	return emitted
 
+
+
+## Caja [box] (dos esquinas en fracciones de celda, BlockMeshGenerator) girada [rot] en el centro de la
+## celda. Las caras que caen en el borde de la celda se quitan si su vecino las tapa, como las del cubo.
+static func _emit_box(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool,
+		box: Array, hidden: Dictionary = {}) -> bool:
+	var lo: Vector3 = box[0]
+	var hi: Vector3 = box[1]
+	var c := Vector3.ONE * size * 0.5
+	var at := func(x: float, y: float, z: float) -> Vector3:
+		return rot * (Vector3(x, y, z) * size - c) + c + offset
+	# Cada cara con su dirección (local) y si toca el borde de la celda; (b - a) × (d - a) hacia fuera.
+	var faces := [
+		[Vector3i(0, 0, 1), hi.z >= 1.0, [Vector3(lo.x, lo.y, hi.z), Vector3(hi.x, lo.y, hi.z), Vector3(hi.x, hi.y, hi.z), Vector3(lo.x, hi.y, hi.z)]],
+		[Vector3i(0, 0, -1), lo.z <= 0.0, [Vector3(hi.x, lo.y, lo.z), Vector3(lo.x, lo.y, lo.z), Vector3(lo.x, hi.y, lo.z), Vector3(hi.x, hi.y, lo.z)]],
+		[Vector3i(1, 0, 0), hi.x >= 1.0, [Vector3(hi.x, lo.y, hi.z), Vector3(hi.x, lo.y, lo.z), Vector3(hi.x, hi.y, lo.z), Vector3(hi.x, hi.y, hi.z)]],
+		[Vector3i(-1, 0, 0), lo.x <= 0.0, [Vector3(lo.x, lo.y, lo.z), Vector3(lo.x, lo.y, hi.z), Vector3(lo.x, hi.y, hi.z), Vector3(lo.x, hi.y, lo.z)]],
+		[Vector3i(0, 1, 0), hi.y >= 1.0, [Vector3(lo.x, hi.y, hi.z), Vector3(hi.x, hi.y, hi.z), Vector3(hi.x, hi.y, lo.z), Vector3(lo.x, hi.y, lo.z)]],
+		[Vector3i(0, -1, 0), lo.y <= 0.0, [Vector3(lo.x, lo.y, lo.z), Vector3(hi.x, lo.y, lo.z), Vector3(hi.x, lo.y, hi.z), Vector3(lo.x, lo.y, hi.z)]],
+	]
+	var emitted := false
+	for face: Array in faces:
+		if face[1] and hidden.get(face[0], false):
+			continue
+		var q: Array = face[2]
+		_add_quad(st, at.call(q[0].x, q[0].y, q[0].z), at.call(q[1].x, q[1].y, q[1].z),
+			at.call(q[2].x, q[2].y, q[2].z), at.call(q[3].x, q[3].y, q[3].z), flip)
+		emitted = true
+	return emitted
+
+
+## Riostra (BlockMeshGenerator.brace_points): prisma de base romboidal pegado a la cara -Z.
+static func _emit_brace(st: SurfaceTool, offset: Vector3, rot: Basis, size: float, flip: bool,
+		hidden: Dictionary = {}) -> bool:
+	var c := Vector3.ONE * size * 0.5
+	var p := BlockMeshGenerator.brace_points()
+	for i in p.size():
+		p[i] = rot * (p[i] * size - c) + c + offset
+	# 0-3 la cara de atrás (z = 0), 4-7 la de delante, en sentido antihorario visto desde +Z.
+	_add_quad(st, p[4], p[5], p[6], p[7], flip)
+	if not hidden.get(Vector3i(0, 0, -1), false):
+		_add_quad(st, p[0], p[3], p[2], p[1], flip)
+	for i in 4:
+		var j := (i + 1) % 4
+		if i == 0 and hidden.get(Vector3i(0, -1, 0), false):
+			continue
+		if i == 2 and hidden.get(Vector3i(0, 1, 0), false):
+			continue
+		_add_quad(st, p[i], p[j], p[j + 4], p[i + 4], flip)
+	return true
 
 ## Lámina pegada a la cara -Z local de la celda. Va al borde y no al centro para que sus aristas
 ## coincidan con las del panel inclinado, que por ser un plano a 45° solo puede ir de esquina a

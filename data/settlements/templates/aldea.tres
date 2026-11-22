@@ -1,20 +1,24 @@
 [gd_resource type="Resource" script_class="SettlementTemplate" format=3]
 
-[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_67nwe"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="2_pnun5"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="3_o85ff"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="4_m4qhb"]
-[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="5_mktyy"]
-[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="6_0jf3c"]
+[ext_resource type="Script" path="res://scripts/world/settlement_prefab.gd" id="1_mktyy"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/choza.tres" id="2_0jf3c"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa.tres" id="3_n7cml"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_tablas.tres" id="4_0q4u6"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_turba.tres" id="5_m6ype"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/granero.tres" id="6_j4fan"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/herreria.tres" id="7_f51bx"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/puesto_comida.tres" id="8_2ff0c"]
+[ext_resource type="Resource" path="res://data/settlements/prefabs/casa_larga.tres" id="9_7dxym"]
+[ext_resource type="Script" path="res://scripts/world/settlement_template.gd" id="10_6bfe3"]
 
 [resource]
-script = ExtResource("6_0jf3c")
+script = ExtResource("10_6bfe3")
 id = &"aldea"
 display_name = "SETTLEMENT_HAMLET"
 weight = 0.4
-center = ExtResource("5_mktyy")
-buildings = Array[ExtResource("1_67nwe")]([ExtResource("2_pnun5"), ExtResource("2_pnun5"), ExtResource("3_o85ff"), ExtResource("4_m4qhb")])
-count_min = 3
-count_max = 5
+center = ExtResource("9_7dxym")
+buildings = Array[ExtResource("1_mktyy")]([ExtResource("2_0jf3c"), ExtResource("3_n7cml"), ExtResource("4_0q4u6"), ExtResource("5_m6ype"), ExtResource("6_j4fan"), ExtResource("7_f51bx"), ExtResource("8_2ff0c")])
+count_min = 4
+count_max = 6
 plaza_radius = 10.0
-ring_depth = 14.0
+wall = &"palisade"

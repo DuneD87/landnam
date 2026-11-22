@@ -1,7 +1,9 @@
 # Poblados
 
 Al final de las sendas del mundo y a sus lados hay poblados: granjas, aldeas y poblados de
-construcciones de bloques con su gente ([Aldeanos](villagers.md)). Se eligen y se trazan al crear el
+construcciones de bloques con su gente ([Aldeanos](villagers.md)): casas de troncos, de tablas, de tepe y
+de entramado, graneros, la herrería, la tienda, los puestos del mercadillo y la iglesia, con su decorado y
+una cerca alrededor. Se eligen y se trazan al crear el
 planeta, después de las sendas y sobre el terreno definitivo. Las construcciones se levantan cuando
 el jugador se acerca.
 
@@ -11,6 +13,8 @@ el jugador se acerca.
 | `SettlementLayout` (`scripts/world/settlement_layout.gd`) | El plano de un poblado: la plaza, y dónde va cada construcción, girada cómo, a qué altura, con su zócalo y su rampa |
 | `SettlementField` (`scripts/world/settlement_field.gd`) | Lo junta todo en hilos, lo guarda en caché y abre el claro de los árboles |
 | `SettlementPrefab`, `SettlementTemplate` | Los datos: cada construcción (un blueprint) y cada clase de poblado |
+| `SettlementProp` (`scripts/world/settlement_prop.gd`) | El decorado de una construcción: barriles, cajas, sacos, mercancía, letreros, el yunque, la cruz |
+| `SettlementWall` (`scripts/world/settlement_wall.gd`) | La cerca: empalizada o cerca de varas, con sus puertas |
 | `SettlementManager` (`scripts/world/settlement_manager.gd`) | En partida: levanta y quita las construcciones, y sabe cuáles ya son de la partida |
 | `tools/build_settlement_prefabs.tscn` | Genera los prefabs provisionales y las plantillas |
 
@@ -40,7 +44,8 @@ en `Planet.get_settlements()`. `PlanetLoader._setup_settlements` crea el gestor.
 En la Tierra (todas las puntas, y junto a la senda uno cada 1000 m con la mitad de suerte) hay 291
 puntas sueltas y 889 sitios junto a la senda. Salen 725 en el sorteo, 530 tienen plaza y 297 quedan
 separados. De ellos, 292 poblados (126 junto a la senda) con 1191 construcciones: 114 granjas, 95
-aldeas y 83 poblados, cada uno con su iglesia. El vecino más cercano queda a unos 1,9 km (mediana;
+aldeas y 83 poblados, cada uno con su iglesia (medido con las plantillas de antes de las tiendas y la
+cerca, que llevan más construcciones). El vecino más cercano queda a unos 1,9 km (mediana;
 2,7 km el p90). Tarda 4,3 s la primera vez, con la lectura del suelo repartida en hilos. Con solo una
 de cada tres puntas eran 60 poblados, a 4,4 km.
 
@@ -95,31 +100,49 @@ La huella y el suelo salen del propio blueprint (`SettlementPrefab.measure`). La
 primera, la de más bloques, y su capa más baja es el suelo.
 
 Los provisionales los genera `tools/build_settlement_prefabs.tscn`. Son casas de celdas de 1 m como la
-cabaña de `tests/building/thatch_roof_preview.gd`: suelo, paredes, tejado de paja a dos aguas con la
-cumbrera a lo largo de X y frontones de madera por fuera de las paredes de los extremos. La herramienta
-tiene piezas para montarlas: la casa con el material de cada celda de pared (zócalo y esquinas de
-piedra), huecos de puerta, ventanas (un panel de cristal en la cara de fuera de la pared, o un cuadrado
-de cristal en el frontón), la chimenea y la torre de la iglesia.
+cabaña de `tests/building/thatch_roof_preview.gd`: suelo, paredes, tejado a dos aguas con la cumbrera a
+lo largo de X (faldones y cumbrera de paja, de tejuelas o de tepe: ver [Materiales de las
+casas](building.md#materiales-de-las-casas-y-carpintería)) y frontones por fuera de las paredes de los
+extremos. La herramienta tiene piezas para montarlas: la casa con el material de cada celda de pared,
+huecos de puerta, ventanas (un panel de cristal en la cara de fuera de la pared, o un cuadrado de cristal
+en el frontón), la chimenea, la torre de la iglesia y el toldo de los puestos, y:
+
+- **el entramado** (`_half_timber`, `_frame`): listones de fachada de tablas oscuras en las celdas de
+  fuera del muro, pegados a él. Las líneas van por los cantos de las celdas, así que siguen de una a otra
+  sin hueco: postes en las esquinas y cada dos o tres celdas, la solera, un travesaño, y en los frontones
+  riostras bajo el de arriba. Donde se cruzan, la escuadra. No se pone nada delante de un hueco de puerta;
+- **los marcos** (`_frame_openings`) de puertas y ventanas: las dos jambas (la de la derecha, el listón
+  reflejado), el dintel y, en las ventanas, la peana;
+- **el decorado** (`SettlementProp`, ver abajo).
 
 Cada entrada lleva su **puerta de madera** (`wooden_door`, ver [Puertas y
 trampillas](building.md#puertas-y-trampillas)), puesta como con el martillo. La casa se levanta en una
 grid de verdad y la hoja se encaja con `WoodenDoor.fit`, apuntando a la jamba desde fuera, así que queda
 a ras de la cara de fuera del muro con las bisagras en esa jamba. El blueprint sale de
 `GridBlueprint.capture`, como al guardar uno, sin la fecha para que no cambie si no cambia la casa. Por
-eso la herramienta es una escena (hacen falta los autoloads) y no un script de `-s`.
+eso la herramienta es una escena (hacen falta los autoloads) y no un script de `-s`. `capture` guarda las
+celdas con la caja desde 0: por eso todo empieza en x = 0 (los frontones) y en z = 0 (los aleros), y lo
+que se mide en metros (lechos, puestos, decorado) cuenta desde ahí.
 
-Las paredes miden 3 m (5 la iglesia). Con 2, el alero del lado largo bajaba hasta el dintel y tapaba
-la puerta.
+Las paredes miden 3 m (5 la iglesia, 6 la casa alta). Con 2, el alero del lado largo bajaba hasta el
+dintel y tapaba la puerta.
 
-| Prefab | Suelo | Cómo es | Bloques |
+| Prefab | Para qué | Suelo | Cómo es |
 |---|---|---|---|
-| `choza` | 6 × 5 | Madera con esquinas de piedra; puerta de 1 × 2 en el frontón, tres ventanas | 140 |
-| `casa` | 9 × 7 | Zócalo y esquinas de piedra; puerta de 1 × 2 en el lado largo entre dos ventanas, tres detrás, una en el frontón y otra en el desván; chimenea de piedra | 263 |
-| `casa_larga` | 17 × 7 | Piedra; puerta de 1 × 2 en el centro del lado largo con marco de madera, nueve ventanas pequeñas y una en cada frontón | 432 |
-| `granero` | 7 × 5 | Suelo de piedra, zócalo y esquinas de piedra; portón de 3 × 2 en el frontón, dos ventanucos y uno en el desván | 154 |
-| `iglesia` | 13 × 7 + torre de 3 × 3 | Nave de piedra con paredes de 5 m, ocho ventanales de dos celdas, el altar al fondo bajo una ventana y una vidriera en el frontón; delante, el campanario con la entrada (puerta de 1 × 3), los vanos de las campanas, un chapitel de piedra y la cruz | 516 |
+| `choza` | casa, 2 lechos | 6 × 5 | Troncos con esquinas de piedra, tejado de tepe, frontones de tablas; puerta enmarcada en el frontón y una ventana en cada pared; leñera detrás |
+| `casa` | casa, 3 lechos | 9 × 7 | Entramado sobre enlucido, tejado de paja; puerta en el lado largo entre dos ventanas, chimenea, huerto detrás |
+| `casa_tablas` | casa, 3 lechos | 8 × 7 | Tablas oscuras con esquinas de piedra, tejado de tejuelas; bastidor de pieles junto al frontón y leñera |
+| `casa_turba` | casa, 3 lechos | 8 × 7 | A la islandesa: piedra abajo y tepe encima, tejado de tepe, el frontón de delante de tablas con la puerta; secadero de pescado y huerto |
+| `casa_alta` | casa, 3 lechos | 7 × 7 | Dos plantas: piedra abajo, entramado arriba, tejado de tejuelas; escalera de rampas al piso de tablas |
+| `casa_larga` | casa larga, 6 lechos | 17 × 7 | Zócalo de piedra y troncos, tejado de tejuelas, ventanas enmarcadas; banco dentro y leñera detrás |
+| `granero` | almacén | 7 × 5 | Tablas con zócalo de piedra, tejado de paja, portón de 3 × 2 en el frontón; banco, sacos y cajas |
+| `tienda` | tienda, 2 lechos | 9 × 7 | Entramado y tejuelas; en el lado largo, un mostrador de tres celdas abierto a la calle con la mercancía encima, la puerta al lado y el letrero en el frontón; el tendero detrás |
+| `herreria` | herrería | 7 × 5 | Piedra, abierta por delante entre dos pilares, tejado de tejuelas y chimenea; dentro la fragua, el yunque, el barril de templar y el herrero |
+| `puesto_comida`, `puesto_pieles`, `puesto_cacharros` | puesto | 3 × 3 | Suelo de tablas, dos losas de mostrador con el paso entre ellas, postes en las esquinas y toldo de lona a rayas; la mercancía de su género y quien la vende |
+| `iglesia` | iglesia | 13 × 7 + torre de 3 × 3 | Nave de tablas oscuras sobre sillería, tejado de tejuelas, ocho ventanales de dos celdas, el altar al fondo y una vidriera en el frontón; delante, el campanario de tablas con la entrada (puerta de 1 × 3), los vanos de las campanas, un chapitel de tejuelas y la cruz |
 
-Sin contar el zócalo, que de media son unos 95 bloques más por construcción.
+Los puestos y la herrería no tienen hoja de puerta ni ventanas: son abiertos por delante, y su «puerta»
+(`door_cell`) es por donde se entra.
 
 **Uno hecho con el martillo** sustituye a cualquiera: se construye (con sus puertas), se guarda como
 blueprint y se copia `user://blueprints/<nombre>.json` encima de `data/settlements/prefabs/<id>.json`.
@@ -131,17 +154,44 @@ Una **plantilla** (`SettlementTemplate`, `data/settlements/templates/<id>.tres`)
 poblado. Las lee todas `SettlementField.load_templates`. Una de otro bioma o de otra gente será una
 plantilla nueva, no código nuevo.
 
-| Plantilla | Peso | Principal | Las demás (al azar, con repetición) | Cuántas | Plaza, corona |
-|---|---|---|---|---|---|
-| `granja` | 0,4 | casa | granero, choza | 1-2 | 8, 10 m |
-| `aldea` | 0,4 | casa larga | choza ×2, casa, granero | 3-5 | 10, 14 m |
-| `poblado` | 0,2 | iglesia | choza, casa ×2, casa larga, granero | 6-9 | 14, 22 m |
+| Plantilla | Peso | Principal | Las demás (al azar, con repetición) | Cuántas | Plaza, corona | Cerca |
+|---|---|---|---|---|---|---|
+| `granja` | 0,4 | casa | granero, choza, casa de tepe, casa de tablas | 1-3 | 8, 10 m | de varas |
+| `aldea` | 0,4 | casa larga | choza, casa, casa de tablas, casa de tepe, granero, herrería, puesto de comida | 4-6 | 10, 16 m | empalizada |
+| `poblado` | 0,2 | iglesia | casa, casa alta, casa de tablas, casa larga, granero, tienda, herrería, los tres puestos, casa de tepe | 8-12 | 15, 24 m | empalizada |
+
+**El decorado** (`SettlementPrefab.props`, `SettlementProp`) es como los sitios de trabajo: el plano lo
+asienta (`"props"` de cada construcción; los de fuera, `grounded`, en el terreno) y `SettlementManager` lo
+pone con la casa (`SettlementDecor.prop`), sin guardarlo. Hay barriles, cajas, sacos y arcones, el yunque y
+la fragua, la cruz, el letrero colgado de un brazo con la seña de lo que se vende, el bastidor con una
+piel, el secadero con pescado colgado y la mercancía: cualquier objeto del juego, que se ve con su escena
+(`SettlementDecor.goods`, solo sus mallas). Los grandes llevan colisión.
 
 La herramienta no pisa las plantillas que ya existen; con `-- --templates` las rehace.
 
 ```sh
 godot --headless --path . res://tools/build_settlement_prefabs.tscn [-- --templates]
 ```
+
+## La cerca
+
+La plantilla dice si lleva cerca (`SettlementTemplate.wall`). `SettlementLayout._wall` la traza con el
+plano: la envolvente convexa de las huellas (con la rampa y los sitios de trabajo) y de la plaza,
+apartada `WALL_GAP` (4 m), con un vértice cada 3,75° (`WALL_SEGMENTS`, 96) sobre el suelo y algo ondulada
+para que no parezca trazada a compás. Cada tramo es cerca, puerta o hueco (sin suelo o bajo el mar). Lleva
+puerta donde una senda pasa a menos de `WALL_GATE_TRAIL` (2,5 m) del centro de un tramo, siempre en la
+llegada de la senda del poblado, y ninguna más estrecha que `WALL_GATE_MIN` (3,5 m).
+
+`SettlementWall` la levanta cuando el poblado se levanta y la quita con él: decorado con colisión (una caja
+por tramo), ni se guarda ni se toca con el martillo.
+
+- **Empalizada** (aldeas y poblados): troncos de 2,7 a 3,1 m con la punta afilada, uno cada 30 cm y
+  enterrados medio metro, algo torcidos, con dos largueros por dentro. Cada puerta, entre dos postes de
+  4 m con un dintel y las dos hojas de tablones abiertas hacia fuera.
+- **Cerca de varas** (granjas): postes cada 2,2 m y tres varas; la puerta, dos postes.
+
+Los troncos siguen el suelo entre vértices interpolado, no leído: van enterrados lo bastante para que no
+floten en un suelo algo abombado. Todo va en `MultiMesh` (una malla por pieza).
 
 ## El claro de los árboles
 
@@ -237,17 +287,19 @@ de sus blueprints) y `SettlementField.FILE_VERSION`, que hay que subir al cambia
 ## Comprobaciones
 
 ```sh
-godot --headless --path . res://tests/world/test_settlements.tscn
+godot --headless --path . res://tests/world/test_settlements.tscn [-- --only=prefabs,sites,layout,clearance,manager,villagers]
 ```
 
 La prueba cubre:
 
 - los prefabs: el hueco de su puerta, que delante no haya tejado hasta los 2 m, que desde la puerta se
-  entre andando, que tengan ventanas, que cada cristal dé a fuera y que una puerta cierre la entrada;
+  entre andando, que tengan ventanas, que cada cristal dé a fuera y que una puerta cierre la entrada
+  (menos los puestos y la herrería, abiertos por delante);
 - las puntas sueltas de unas sendas inventadas y el sorteo;
 - el plano de cada plantilla sobre un llano y sobre una ladera del 12 %: separadas, con la puerta a la
   plaza, la llegada libre, el suelo a menos de un escalón y el zócalo dentro del terreno;
 - que no hay plaza en un risco ni bajo el mar;
+- que la cerca rodea todas las construcciones y tiene puerta donde llega la senda;
 - la imagen del claro y los árboles apartados, y la caché;
 - el gestor con grids de verdad: levanta, no guarda, quita al alejarse, abrir una puerta no cuenta,
   pasa a la partida al poner un bloque o al desmontar, y una partida cargada no cuenta como tocada.

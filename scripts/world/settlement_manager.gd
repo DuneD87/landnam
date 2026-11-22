@@ -46,8 +46,10 @@ var _queued := {}
 ## por mallar, [grid, chunk]}.
 var _pending := {}
 var _timer := 0.0
-## "<poblado>:<casa>" -> su decorado: los lechos y los sitios de trabajo.
+## "<poblado>:<casa>" -> su decorado: los lechos, los sitios de trabajo y los adornos.
 var _decor := {}
+## Poblado -> su cerca (SettlementWall), mientras está cerca.
+var _walls := {}
 var _people: SettlementVillagers
 ## Los que se han ido con el jugador: se guardan aparte, en la categoría "npc".
 var _companions: SettlementCompanions
@@ -123,6 +125,12 @@ func _update() -> void:
 		var d := local.distance_to((plan.center as Vector3) * float(plan.ground))
 		var count := (plan.buildings as Array).size()
 		if d < _load_distance:
+			if not _walls.has(v) and not (plan.get("wall", {}) as Dictionary).is_empty():
+				var frame := _planet.global_transform.affine_inverse() * _terrain.global_transform
+				var wall := SettlementWall.build(plan.wall, frame, hash([v, "wall"]))
+				wall.name = "SettlementWall_%d" % v
+				_planet.add_child(wall)
+				_walls[v] = wall
 			for b in count:
 				var job := Vector2i(v, b)
 				var key := _key(v, b)
@@ -130,6 +138,7 @@ func _update() -> void:
 					_queue.append(job)
 					_queued[job] = true
 		elif d > _unload_distance:
+			_free_wall(v)
 			for b in count:
 				_unbuild(_key(v, b))
 				var job := Vector2i(v, b)
@@ -248,6 +257,20 @@ func _place_work(key: String) -> void:
 		node.name = "SettlementWork_%s_%d" % [key.replace(":", "_"), decor.size()]
 		_planet.add_child(node)
 		decor.append(node)
+	for prop: Dictionary in info.get("props", []):
+		var node := SettlementDecor.prop(prop, frame)
+		if node == null:
+			continue
+		node.name = "SettlementProp_%s_%d" % [key.replace(":", "_"), decor.size()]
+		_planet.add_child(node)
+		decor.append(node)
+
+
+func _free_wall(v: int) -> void:
+	var wall: Node3D = _walls.get(v)
+	if wall != null and is_instance_valid(wall):
+		wall.queue_free()
+	_walls.erase(v)
 
 
 func _free_decor(key: String) -> void:
@@ -407,6 +430,8 @@ func prepare_restore() -> void:
 	_built.clear()
 	for key: String in _decor.keys():
 		_free_decor(key)
+	for v: int in _walls.keys():
+		_free_wall(v)
 	if _people != null:
 		_people.clear()
 	_queue.clear()

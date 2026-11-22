@@ -38,6 +38,9 @@ const FETCH := {
 	&"garden": [[&"bone", 3, 6], [&"raw_fish", 2, 4], [&"flint", 2, 3], [&"feather", 4, 8]],
 	&"bench": [[&"flint", 3, 6], [&"copper_ore", 2, 4], [&"tin_ore", 2, 3], [&"antler", 2, 2], [&"sinew", 2, 4],
 		[&"bone", 4, 6]],
+	&"forge": [[&"copper_ore", 3, 6], [&"tin_ore", 2, 4], [&"coal", 4, 8], [&"bog_iron", 2, 4]],
+	&"stall_food": [[&"raw_fish", 3, 6], [&"raw_meat", 3, 6], [&"yarrow", 3, 6]],
+	&"stall_hides": [[&"raw_hide", 3, 5], [&"sinew", 3, 6], [&"antler", 1, 2], [&"feather", 6, 10]],
 	&"": [[&"cooked_meat", 2, 5], [&"raw_hide", 2, 4], [&"yarrow", 3, 6], [&"cooked_fish", 2, 4],
 		[&"raw_meat", 3, 5]],
 }

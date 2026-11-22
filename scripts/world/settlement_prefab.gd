@@ -7,7 +7,7 @@ class_name SettlementPrefab extends Resource
 
 ## Nombre corto y único: identifica la construcción en el plan y en sus grids (source_blueprint).
 @export var id: StringName
-## Para qué sirve ("house", "longhouse", "storage", "church"): lo que leerán los NPC del plan.
+## Para qué sirve ("house", "longhouse", "storage", "church", "shop", "smithy", "stall").
 @export var kind: StringName = &"house"
 ## El blueprint.
 @export_file("*.json") var blueprint_path: String
@@ -22,8 +22,10 @@ class_name SettlementPrefab extends Resource
 ## principal (m), en lo alto del suelo, con la cabecera hacia -Z. El poblado los pone (Bedroll sin
 ## guardar) y los aldeanos duermen en ellos (Villager).
 @export var beds: Array[Transform3D] = []
-## Sus sitios de trabajo (la leñera, el huerto, el banco): ver SettlementWorkplace.
+## Sus sitios de trabajo (la leñera, el huerto, el banco, el puesto): ver SettlementWorkplace.
 @export var workplaces: Array[SettlementWorkplace] = []
+## Su decorado (barriles, mercancía, letrero...): ver SettlementProp.
+@export var props: Array[SettlementProp] = []
 
 static var _cache := {}
 
@@ -68,5 +70,10 @@ func measure() -> Dictionary:
 			for corner in work.corners():
 				lo = Vector3(minf(lo.x, corner.x), lo.y, minf(lo.z, corner.z))
 				hi = Vector3(maxf(hi.x, corner.x), hi.y, maxf(hi.z, corner.z))
+	for prop in props:
+		if prop != null and prop.grounded:
+			var at := prop.pose.origin
+			lo = Vector3(minf(lo.x, at.x - 0.5), lo.y, minf(lo.z, at.z - 0.5))
+			hi = Vector3(maxf(hi.x, at.x + 0.5), hi.y, maxf(hi.z, at.z + 0.5))
 	return {"cell": float(main.get("cell_size", 1.0)), "floor": floor_cells, "floor_y": floor_y,
 		"min": lo, "max": hi}

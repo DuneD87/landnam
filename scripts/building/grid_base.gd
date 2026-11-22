@@ -470,6 +470,9 @@ static func _block_volume_factor(block_id: int) -> float:
 		return ThatchRoofMesh.volume_factor(block_id == 7)
 	if block_id == 8:
 		return BlockMeshGenerator.PANE_TRIANGLE_THICKNESS * 0.5
+	var carpentry := BlockMeshGenerator.carpentry_volume(block_id)
+	if carpentry >= 0.0:
+		return carpentry
 	return 1.0 if ChunkMeshBuilder._is_solid(block_id) else 0.5
 
 

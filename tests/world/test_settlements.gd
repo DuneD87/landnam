@@ -5,7 +5,7 @@ extends Node
 ## ladera, un risco y el mar, la imagen del claro y lo que aparta de los árboles, la caché, y el gestor
 ## levantando y quitando casas con las grids de verdad: que no se guardan, que al tocarlas pasan a la
 ## partida y que una partida cargada no las cuenta como tocadas; y su gente (Villager).
-##   godot --headless --path . res://tests/world/test_settlements.tscn
+##   godot --headless --path . res://tests/world/test_settlements.tscn [-- --only=prefabs,layout]
 
 const RADIUS := 30000.0
 const GROUND := 120.0
@@ -39,12 +39,24 @@ func _run() -> void:
 	east = Vector3(-sin(lon), 0.0, -cos(lon))
 	north = origin.cross(east).normalized()
 
-	_check_prefabs()
-	_check_sites()
-	_check_layout()
-	_check_clearance()
-	await _check_manager()
-	await _check_villagers()
+	# -- --only=prefabs,sites,layout,clearance,manager,villagers corre solo esas secciones.
+	var only := PackedStringArray()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--only="):
+			only = arg.trim_prefix("--only=").split(",")
+	var run := func(section: String) -> bool: return only.is_empty() or section in only
+	if run.call("prefabs"):
+		_check_prefabs()
+	if run.call("sites"):
+		_check_sites()
+	if run.call("layout"):
+		_check_layout()
+	if run.call("clearance"):
+		_check_clearance()
+	if run.call("manager"):
+		await _check_manager()
+	if run.call("villagers"):
+		await _check_villagers()
 	print("SETTLEMENT TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -87,7 +99,9 @@ func _check_prefabs() -> void:
 					var beyond := Vector3i(c.x + roundi(face.x), floor_y, c.z + roundi(face.z))
 					if blocks.has(beyond):
 						outward = false
-			check(windows >= 2 and outward, "%s: %d paneles de ventana, todos por fuera" % [p.id, windows])
+			# Los puestos y la herrería son abiertos por delante: ni ventanas ni hoja de puerta.
+			var open_front := p.kind in [&"stall", &"smithy"]
+			check((windows >= 2 or open_front) and outward, "%s: %d paneles de ventana, todos por fuera" % [p.id, windows])
 			# La hoja de la puerta (wooden_door) cierra el hueco de la puerta, de pie y hasta el suelo.
 			var closes := false
 			for prop: Dictionary in (p.load_data().grids as Array)[0].get("props", []):
@@ -96,7 +110,7 @@ func _check_prefabs() -> void:
 				var size := DoorDesign.cells(DoorDesign.normalize(prop.state, DoorDesign.DOOR))
 				var slots := WoodenDoor.slot_cells(GridBase._array_to_transform(prop.local_transform), size, m.cell)
 				closes = closes or (slots.has(door + Vector3i.UP) and slots.has(door + Vector3i.UP * 2))
-			check(closes, "%s: una puerta cierra el hueco de la entrada" % p.id)
+			check(closes or open_front, "%s: una puerta cierra el hueco de la entrada" % p.id)
 	check(SettlementField.signature(templates) == SettlementField.signature(templates),
 		"la firma de las plantillas es estable")
 
@@ -275,6 +289,22 @@ func _check_plan(plan: Dictionary, t: SettlementTemplate, measures: Dictionary, 
 	check(grounded and footed, "%s (%.2f): el suelo a menos de un escalón sobre el terreno y el zócalo dentro de él" % [t.id, s])
 	check(float(plan.extent) > t.plaza_radius and float(plan.extent) < t.plaza_radius + t.ring_depth + 30.0,
 		"%s (%.2f): ocupa %.0f m" % [t.id, s, plan.extent])
+	if t.wall != &"":
+		# La cerca rodea todas las construcciones y tiene puerta en la llegada de la senda (por el sur).
+		var wall: Dictionary = plan.get("wall", {})
+		var ring := PackedVector2Array()
+		for q: Vector3 in wall.get("points", PackedVector3Array()):
+			ring.append(_local(q.normalized()))
+		var inside := ring.size() >= 3
+		for mid: Vector2 in centers:
+			inside = inside and Geometry2D.is_point_in_polygon(mid, ring)
+		var gate := false
+		var open: PackedByteArray = wall.get("open", PackedByteArray())
+		for j in open.size():
+			var at := (ring[j] + ring[(j + 1) % ring.size()]) * 0.5
+			if open[j] == 1 and absf(at.x) < 4.0 and at.y < c.y:
+				gate = true
+		check(inside and gate, "%s (%.2f): la cerca rodea las %d construcciones y tiene puerta en la senda" % [t.id, s, centers.size()])
 
 
 func _check_clearance() -> void:
@@ -504,10 +534,12 @@ func _check_villagers() -> void:
 			var stand: Vector3 = (village.workplace(job).stands as PackedVector3Array)[job.stand]
 			# Sin la colisión del terreno (aquí no hay) fuera siguen a la altura que traían: se mide en el plano.
 			var off := Villager._tangent_raw(v.local_position() - stand, stand).length()
-			if off >= 0.4 or v._tool == null or not v._tool.visible:
+			# Los que venden atienden sin nada en la mano.
+			var seller := StringName(job.kind) in SettlementWorkplace.SELLERS
+			if off >= 0.4 or (not seller and (v._tool == null or not v._tool.visible)):
 				at_work = false
 	check(out and opened and _doors_shut(village), "de día salen de casa y la puerta queda cerrada")
-	check(working > 0 and at_work, "los de oficio trabajan en su sitio con la herramienta en la mano (%d)" % working)
+	check(working > 0 and at_work, "los de oficio trabajan en su sitio con la herramienta en la mano, o atienden su puesto (%d)" % working)
 
 	village.hour_override = 12.5
 	for v in villagers:
@@ -586,13 +618,16 @@ func _check_villagers() -> void:
 	var talker: Villager
 	for v in villagers:
 		v._stand(200.0)
+	# Uno de fuera con alguien a mano: en un poblado grande el primero puede no tener a nadie cerca.
 	for v in villagers:
-		if v._inside < 0:
+		if v._inside < 0 and village.partner_for(v) != null:
 			talker = v
 			break
-	var paired := talker._start_talk()
+	var paired := talker != null and talker._start_talk()
 	var talking := false
 	for i in 40:
+		if not paired:
+			break
 		await _run_villagers(villagers, village, 1.0)
 		if talker.act == Villager.Act.TALK:
 			talking = talker._partner != null and talker._partner.act == Villager.Act.TALK \
@@ -631,6 +666,9 @@ func _run_villagers(villagers: Array[Villager], village: SettlementVillage, seco
 
 func _doors_shut(village: SettlementVillage) -> bool:
 	for b: int in village.homes:
+		# Los puestos y la herrería no tienen puerta.
+		if StringName(village.plan.buildings[b].kind) in [&"stall", &"smithy"]:
+			continue
 		var leaf := village._leaf(b)
 		if leaf == null or leaf.open_side != 0:
 			return false

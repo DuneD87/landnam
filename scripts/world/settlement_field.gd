@@ -13,7 +13,7 @@ class_name SettlementField extends RefCounted
 
 const FILE_MAGIC := "GVST"
 ## Va en la clave de la caché: hay que subirla también al cambiar cómo se traza (SettlementLayout).
-const FILE_VERSION := 5
+const FILE_VERSION := 6
 const TEMPLATE_DIR := "res://data/settlements/templates/"
 
 ## La imagen del claro (en la convención del nodo SdfSphereHeightmap, como TrailField). Guarda d, la
@@ -80,8 +80,8 @@ static func load_templates() -> Array[SettlementTemplate]:
 static func signature(templates: Array[SettlementTemplate]) -> String:
 	var parts := PackedStringArray()
 	for t in templates:
-		parts.append("%s:%.3f:%d:%d:%.2f:%.2f" % [t.id, t.weight, t.count_min, t.count_max, t.plaza_radius,
-			t.ring_depth])
+		parts.append("%s:%.3f:%d:%d:%.2f:%.2f:%s" % [t.id, t.weight, t.count_min, t.count_max, t.plaza_radius,
+			t.ring_depth, t.wall])
 		var prefabs: Array = [t.center]
 		prefabs.append_array(t.buildings)
 		for p: SettlementPrefab in prefabs:
@@ -89,6 +89,8 @@ static func signature(templates: Array[SettlementTemplate]) -> String:
 				var work := []
 				for w in p.workplaces:
 					work.append([w.kind, w.pose, w.indoor, w.size, w.stands, w.looks])
+				for prop in p.props:
+					work.append([prop.kind, prop.pose, prop.grounded, prop.item, prop.scale])
 				parts.append("%s:%s:%s:%s:%s:%s" % [p.id, p.door, p.door_cell, p.foundation_material,
 					FileAccess.get_md5(p.blueprint_path), var_to_str(work)])
 	return "|".join(parts).sha256_text()

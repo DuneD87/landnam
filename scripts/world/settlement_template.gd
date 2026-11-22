@@ -19,3 +19,5 @@ class_name SettlementTemplate extends Resource
 @export var plaza_radius: float = 9.0
 ## Hasta cuánto más allá de la plaza se reparten las construcciones (m).
 @export var ring_depth: float = 16.0
+## La cerca alrededor (SettlementWall): &"" ninguna, &"fence" cerca de varas, &"palisade" empalizada.
+@export var wall: StringName = &""

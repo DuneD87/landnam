@@ -30,6 +30,7 @@ const TOOLS := {
 	&"woodpile": [&"stone_axe_01", &"bronze_axe"],
 	&"garden": [&"stone_hoe_01", &"bronze_hoe"],
 	&"bench": [&"stone_hammer_01", &"stone_hammer_01"],
+	&"forge": [&"stone_hammer_01", &"stone_hammer_01"],
 }
 const BRONZE_CHANCE := 0.3
 ## Mudas de pieles: ids de ItemData de la armadura de la edad de piedra que se fabrica (no la vieja de

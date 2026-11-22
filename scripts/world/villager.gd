@@ -93,6 +93,9 @@ const CLEAR_DELAY := Vector2(2.0, 12.0)
 ## Entre golpe y golpe (s), y el ritmo del golpe en el banco (más corto que partir leña).
 const STRIKE_PAUSE := Vector2(0.4, 1.3)
 const BENCH_STRIKE_SPEED := 1.25
+## Quien vende (SettlementWorkplace.SELLERS): lo que está callado y lo que pregona, por turnos (s).
+const SELL_IDLE := Vector2(4.0, 10.0)
+const SELL_CALL := Vector2(2.0, 5.0)
 ## Lo que espera de pie a su pareja de charla (s) y a qué distancia se ponen (m).
 const WAIT_PARTNER := 25.0
 const TALK_GAP := 1.3
@@ -144,6 +147,9 @@ var _waiting := false
 var _look_at := Vector3.ZERO
 var _strike_left := 0.0
 var _striking := false
+## Atiende un puesto o una tienda (_work), y lo que le queda hasta cambiar de reposo a pregón.
+var _selling := false
+var _sell_left := 0.0
 ## Lo que hacía antes de saludar: [act, lo que le quedaba].
 var _before_wave := []
 var _greet_left := 0.0
@@ -582,7 +588,7 @@ func _go_work(job: Dictionary) -> void:
 
 ## Si el sitio de trabajo [work] está dentro de su casa (en su suelo, no en el terreno).
 func _indoor(work: Dictionary) -> bool:
-	return StringName(work.kind) == &"bench"
+	return work.get("indoor", StringName(work.kind) == &"bench")
 
 
 func _stand(time: float) -> void:
@@ -603,9 +609,16 @@ func _work(look: Vector3) -> void:
 	_left = _rng.randf_range(WORK_TIME.x, WORK_TIME.y)
 	_look_at = look
 	_show_tool(true)
-	if StringName(resident.job.kind) == &"garden":
+	var kind := StringName(resident.job.kind)
+	_selling = kind in SettlementWorkplace.SELLERS
+	if kind == &"garden":
 		_striking = false
 		_play(ANIM_DIG)
+	elif _selling:
+		# Tras el mostrador: de pie y de vez en cuando pregonando o charlando con quien pasa.
+		_striking = false
+		_sell_left = _rng.randf_range(SELL_IDLE.x, SELL_IDLE.y)
+		_play(ANIM_IDLE)
 	else:
 		_striking = true
 		_strike_left = _rng.randf_range(0.2, 1.0)
@@ -614,6 +627,16 @@ func _work(look: Vector3) -> void:
 
 ## A golpes: el golpe entero y, entre uno y otro, un respiro de pie.
 func _strike(delta: float) -> void:
+	if _selling:
+		_sell_left -= delta
+		if _sell_left <= 0.0:
+			if _anim == ANIM_TALK:
+				_play(ANIM_IDLE)
+				_sell_left = _rng.randf_range(SELL_IDLE.x, SELL_IDLE.y)
+			else:
+				_play(ANIM_TALK)
+				_sell_left = _rng.randf_range(SELL_CALL.x, SELL_CALL.y)
+		return
 	if not _striking:
 		return
 	_strike_left -= delta
@@ -623,7 +646,7 @@ func _strike(delta: float) -> void:
 		_play(ANIM_IDLE)
 		_strike_left = _rng.randf_range(STRIKE_PAUSE.x, STRIKE_PAUSE.y)
 	else:
-		var speed := BENCH_STRIKE_SPEED if StringName(resident.job.kind) == &"bench" else 1.0
+		var speed := BENCH_STRIKE_SPEED if StringName(resident.job.kind) in [&"bench", &"forge"] else 1.0
 		_play(ANIM_STRIKE, speed, 0.15)
 		_strike_left = _player.get_animation(ANIM_STRIKE).length / speed
 
