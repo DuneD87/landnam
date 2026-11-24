@@ -146,6 +146,11 @@ func try_talk(who: Node3D) -> bool:
 	if not villager.can_chat():
 		_player.hotbar.notify(tr("VILLAGER_ASLEEP") % villager.resident.name)
 		return true
+	if villager.village.closed():
+		# Con rencor (SettlementRelations.closed) no hablan, ni comercian, ni dan encargos.
+		_player.hotbar.notify(tr("VQUEST_SAYS") % [villager.resident.name,
+			VillagerTalk.pick(&"CLOSED", villager._rng).text])
+		return true
 	_open(villager, null)
 	return true
 
@@ -808,6 +813,9 @@ func _give_gift(data: ItemData) -> void:
 	var value := ItemValue.of(data)
 	var taste := VillagerTalk.taste(StringName(_who().get("job", {}).get("kind", "")), data)
 	var gain := _relations().gift(_v(), value, taste)
+	if _villager != null:
+		# Pasa a su género: lo puede vender (SettlementTrade.receive).
+		_villager.village.trade.receive(_villager.resident, {data.id: 1})
 	_say(VillagerTalk.gift_line(gain, taste, value * taste, _rng, _last_line))
 	_show_gain(gain)
 	AudioManager.play_ui(&"item_pickup")

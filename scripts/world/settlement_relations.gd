@@ -3,6 +3,10 @@ class_name SettlementRelations extends RefCounted
 ## Lo que es el jugador para cada poblado: su confianza (0..100), a quién conoce y cuándo habló con él
 ## por última vez, y lo que les ha regalado hace poco (que se enfría con las horas). Lleva su propio reloj
 ## de horas de juego. Lo guarda SettlementManager. Ver docs/villagers.md.
+##
+## Aparte, el rencor de cada poblado (0..GRUDGE_MAX): lo que sube al pegar a uno de los suyos o al robarles
+## con alguien mirando (offend), y que se enfría GRUDGE_DECAY por hora. Con CLOSED o más no hablan con el
+## jugador (ni comercian ni dan encargos); con HOSTILE o más, su guardia va a por él y los demás huyen.
 
 const MAX_TRUST := 100.0
 ## Los niveles: desde cuánta confianza, y su nombre.
@@ -25,6 +29,11 @@ const GIFT_MAX := 8.0
 ## La que hace falta para que alguien del poblado se vaya con el jugador (SettlementCompanions): la de
 ## amigos.
 const RECRUIT_TRUST := 60.0
+## El rencor: el tope, lo que baja por hora, desde cuánto no hablan y desde cuánto los atacan.
+const GRUDGE_MAX := 100.0
+const GRUDGE_DECAY := 1.0
+const CLOSED := 10.0
+const HOSTILE := 25.0
 
 ## Horas de juego desde que empezó a contar.
 var clock := 0.0
@@ -34,6 +43,8 @@ var _trust := {}
 var _talks := {}
 ## Poblado -> valor regalado hace poco.
 var _gifts := {}
+## Poblado -> rencor.
+var _grudge := {}
 
 
 ## Pasan [hours] horas de juego.
@@ -46,6 +57,10 @@ func advance(hours: float) -> void:
 		_gifts[v] *= keep
 		if _gifts[v] < 0.05:
 			_gifts.erase(v)
+	for v: int in _grudge.keys():
+		_grudge[v] = float(_grudge[v]) - GRUDGE_DECAY * hours
+		if _grudge[v] <= 0.0:
+			_grudge.erase(v)
 
 
 func trust(v: int) -> float:
@@ -74,6 +89,26 @@ func add(v: int, amount: float) -> float:
 	var before := trust(v)
 	_trust[v] = clampf(before + amount, 0.0, MAX_TRUST)
 	return float(_trust[v]) - before
+
+
+## El jugador le ha hecho daño a [v]: sube su rencor [grudge] y baja su confianza [trust_loss].
+func offend(v: int, grudge_gain: float, trust_loss: float) -> void:
+	_grudge[v] = clampf(grudge(v) + grudge_gain, 0.0, GRUDGE_MAX)
+	add(v, -trust_loss)
+
+
+func grudge(v: int) -> float:
+	return float(_grudge.get(v, 0.0))
+
+
+## Si [v] no quiere saber nada del jugador: ni hablar, ni comerciar, ni encargos.
+func closed(v: int) -> bool:
+	return grudge(v) >= CLOSED
+
+
+## Si la guardia de [v] va a por el jugador.
+func hostile(v: int) -> bool:
+	return grudge(v) >= HOSTILE
 
 
 ## Si ya ha hablado alguna vez con [who] (su "id").
@@ -117,7 +152,11 @@ func save_data() -> Dictionary:
 	var gifts_out := {}
 	for v: int in _gifts:
 		gifts_out[str(v)] = _gifts[v]
-	return {"clock": clock, "trust": trust_out, "talks": _talks.duplicate(), "gifts": gifts_out}
+	var grudge_out := {}
+	for v: int in _grudge:
+		grudge_out[str(v)] = _grudge[v]
+	return {"clock": clock, "trust": trust_out, "talks": _talks.duplicate(), "gifts": gifts_out,
+		"grudge": grudge_out}
 
 
 func restore(data: Dictionary) -> void:
@@ -134,3 +173,7 @@ func restore(data: Dictionary) -> void:
 	var gifts_in: Dictionary = data.get("gifts", {})
 	for key in gifts_in:
 		_gifts[int(key)] = float(gifts_in[key])
+	_grudge.clear()
+	var grudge_in: Dictionary = data.get("grudge", {})
+	for key in grudge_in:
+		_grudge[int(key)] = float(grudge_in[key])

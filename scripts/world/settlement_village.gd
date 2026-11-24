@@ -5,6 +5,10 @@ class_name SettlementVillage extends RefCounted
 ## quién anda por él, dónde está el jugador y si ataca una fiera. Es lo que los aldeanos (Villager)
 ## consultan: van de un sitio a la puerta por dentro, a la puerta por fuera y a la plaza, en línea recta
 ## (las casas miran a la plaza).
+##
+## Lleva también lo que el jugador les hace (SettlementRelations.offend): pegar a uno de los suyos (struck) o
+## robarles con alguien mirando (robbed, witness). Con el poblado hostil y el jugador cerca, cunde la alarma
+## como con una fiera: la guardia va a por él (target) y los demás se esconden.
 
 ## Lo que se aparta de la puerta (m), por dentro y por fuera, el sitio desde el que se cruza.
 const INSIDE := 1.0
@@ -32,6 +36,20 @@ const HOUR_INTERVAL := 2.0
 const WEATHER_INTERVAL := 2.0
 const RAIN := 0.3
 const SNOW := 0.4
+## Pegar a un vecino (a un guardia, más): lo que sube el rencor y baja la confianza; un golpe por vecino cada
+## STRIKE_COOLDOWN s cuenta (un combo no es tres delitos).
+const HIT_GRUDGE := 15.0
+const HIT_GUARD_GRUDGE := 30.0
+const HIT_TRUST := 6.0
+const STRIKE_COOLDOWN := 1.5
+## Robar con testigos: el rencor es THEFT_GRUDGE más THEFT_RATE por unidad de valor (ItemValue), hasta
+## THEFT_MAX; la confianza baja la mitad.
+const THEFT_GRUDGE := 6.0
+const THEFT_RATE := 0.6
+const THEFT_MAX := 40.0
+## Quién ve robar: despierto, a menos de esto (m) y sin nada en medio.
+const WITNESS_REACH := 12.0
+const EYE_HEIGHT := 1.6
 
 var index := -1
 ## Su nombre (SettlementPopulation.village_name).
@@ -60,6 +78,10 @@ var danger := false
 ## La fiera de la última vez que se miró (para la consola), o null; y su especie.
 var threat: NPCController
 var threat_kind := &""
+## Si el poblado va a por el jugador (SettlementRelations.hostile, con él cerca y vivo).
+var hostile := false
+## Vecino ("id") -> msec del último golpe del jugador que contó.
+var _struck := {}
 var _danger_age := INF
 ## Las marcas de quién pide algo: cada cuánto se miran, y a quién ya ha llamado (id -> periodo).
 const MARKS_INTERVAL := 2.0
@@ -143,8 +165,10 @@ func update(delta: float) -> void:
 	_calm += _danger_age
 	_danger_age = 0.0
 	threat = _threat_near()
+	hostile = _hostile_now()
 	if threat != null:
 		threat_kind = threat.npc_type
+	if threat != null or hostile:
 		_calm = 0.0
 		if not danger:
 			danger = true
@@ -153,6 +177,90 @@ func update(delta: float) -> void:
 					v.alarm()
 	elif danger and _calm >= CALM_TIME:
 		danger = false
+
+
+## Si el poblado va a por el jugador ahora: hostil con él y el jugador vivo y cerca (lo de las fieras).
+func _hostile_now() -> bool:
+	if relations == null or not relations.hostile(index):
+		return false
+	var at := player_local()
+	if not at.is_finite():
+		return false
+	var combat: Variant = player.get("combat")
+	if combat != null and combat.has_method(&"is_dead") and combat.is_dead():
+		return false
+	return at.distance_to(center) < float(plan.get("extent", plaza_radius)) + DANGER_REACH
+
+
+## A quién va la guardia: la fiera que ataca o, con el poblado hostil, el jugador. null si a nadie.
+func target() -> Node3D:
+	if threat != null and is_instance_valid(threat) and not threat.is_dead:
+		return threat
+	if hostile and _hostile_now():
+		return player
+	return null
+
+
+## Si el poblado no quiere saber nada del jugador (SettlementRelations.closed).
+func closed() -> bool:
+	return relations != null and relations.closed(index)
+
+
+## El jugador ha pegado a [who]: se lo apunta el poblado (una vez cada STRIKE_COOLDOWN s por vecino), y si
+## con eso pasa a hostil, cunde la alarma ya.
+func struck(who: Villager) -> void:
+	if relations == null:
+		return
+	var id := String(who.resident.get("id", ""))
+	var now := Time.get_ticks_msec()
+	if now - int(_struck.get(id, -100000)) < int(STRIKE_COOLDOWN * 1000.0):
+		return
+	_struck[id] = now
+	relations.offend(index, HIT_GUARD_GRUDGE if who.is_guard() else HIT_GRUDGE, HIT_TRUST)
+	_say(who, &"STRUCK")
+	_danger_age = DANGER_INTERVAL
+
+
+## El jugador se ha llevado algo que vale [value] (ItemValue) de una casa, en [at] (mundo): si lo ve alguien
+## (witness), el poblado se lo apunta y el testigo da la voz. El testigo, o null.
+func robbed(value: float, at: Vector3) -> Villager:
+	var who := witness(at)
+	if who == null or relations == null:
+		return null
+	var grudge := minf(THEFT_GRUDGE + value * THEFT_RATE, THEFT_MAX)
+	relations.offend(index, grudge, grudge * 0.5)
+	_say(who, &"THIEF")
+	_danger_age = DANGER_INTERVAL
+	return who
+
+
+## Quién ve al jugador en [at] (mundo): el vecino despierto más cercano a menos de WITNESS_REACH m con la
+## vista libre (un rayo de cabeza a cabeza contra el mundo y las casas). null si nadie.
+func witness(at: Vector3) -> Villager:
+	var best: Villager = null
+	var best_d := WITNESS_REACH
+	for v in villagers:
+		if not is_instance_valid(v) or not v.is_inside_tree() or v.act == Villager.Act.SLEEP:
+			continue
+		var d := v.global_position.distance_to(at)
+		if d >= best_d:
+			continue
+		var up := v.global_basis.y.normalized()
+		var query := PhysicsRayQueryParameters3D.create(v.global_position + up * EYE_HEIGHT, at + up * EYE_HEIGHT,
+			PhysicsLayers.WORLD)
+		if not v.get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+			continue
+		best = v
+		best_d = d
+	return best
+
+
+## [who] dice una frase del montón [pool] (VillagerTalk) en el aviso del jugador.
+func _say(who: Villager, pool: StringName) -> void:
+	var hotbar: Node = player.get("hotbar") if player != null and is_instance_valid(player) else null
+	if hotbar != null:
+		var said := VillagerTalk.pick(pool, who._rng)
+		hotbar.notify(TranslationServer.translate("VQUEST_SAYS") % [who.resident.get("name", ""), said.text])
 
 
 ## Quién tiene algo que pedir al jugador (un encargo por sortear o sin aceptar: «!») y a quién hay que
@@ -175,7 +283,7 @@ func _update_marks() -> void:
 				mark = &"ready"
 		elif not quests.errand_for(id).is_empty():
 			mark = &"ready"
-		elif not danger and not quests.offer(v.resident, index, name, prey).is_empty():
+		elif not danger and not closed() and not quests.offer(v.resident, index, name, prey).is_empty():
 			mark = &"offer"
 		v.set_mark(mark)
 		if mark == &"offer" and at.is_finite() and not _called.has(id) \

@@ -2,10 +2,10 @@ class_name UseTarget
 extends RefCounted
 
 ## Lo que la E usa cuando se apunta directamente a algo: el rayo del centro de la pantalla se prueba
-## contra el volumen de cada cosa usable al alcance (lechos, cofres, tronos, bebederos, hogueras, hornos,
-## bancos, botines, colonos y aldeanos, cadáveres, lo soltado, las lanzas clavadas y lo que se recoge
-## del suelo) y gana la primera que atraviesa. Muchas de ellas no tienen colisión, así que no basta
-## el raycast físico; este solo sirve para saber si algo se interpone (una pared).
+## contra el volumen de cada cosa usable al alcance (lechos, cofres, los arcones de los poblados, tronos,
+## bebederos, hogueras, hornos, bancos, botines, colonos y aldeanos, cadáveres, lo soltado, las lanzas
+## clavadas y lo que se recoge del suelo) y gana la primera que atraviesa. Muchas de ellas no tienen
+## colisión, así que no basta el raycast físico; este solo sirve para saber si algo se interpone (una pared).
 
 ## Alcance desde el pecho hasta el punto más cercano del volumen (m).
 const REACH := 2.6
@@ -51,7 +51,7 @@ static func aimed(player: PlayerController, from: Vector3, dir: Vector3, ray_hit
 
 	var boxed: Array[Node3D] = []
 	for group in [Bedroll.GROUP, Storage.GROUP, Throne.GROUP, WaterTrough.GROUP, Campfire.GROUP, Furnace.GROUP,
-			Workstation.GROUP, DeathLoot.GROUP, DroppedItem.GROUP, WoodenDoor.GROUP]:
+			Workstation.GROUP, DeathLoot.GROUP, DroppedItem.GROUP, WoodenDoor.GROUP, SettlementStash.GROUP]:
 		for node in tree.get_nodes_in_group(group):
 			boxed.append(node)
 	for node in tree.get_nodes_in_group(CombatProjectile.PICKUP_GROUP):
@@ -120,6 +120,8 @@ static func use(player: PlayerController, target: Node) -> bool:
 		player.survival.open_bedroll(target)
 	elif target is Storage:
 		player.survival.open_storage(target)
+	elif target is SettlementStash:
+		(target as SettlementStash).open(player)
 	elif target is Throne:
 		return player.throne_view.try_sit(target)
 	elif target is WaterTrough:

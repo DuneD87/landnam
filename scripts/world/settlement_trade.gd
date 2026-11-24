@@ -7,6 +7,11 @@ class_name SettlementTrade extends RefCounted
 ## (ItemValue) por BUY y lo que se lleva, por SELL, los dos según la confianza del poblado. Lo que da de
 ## más es un regalo, y cada trato sube un poco la confianza. Lo guarda SettlementManager. Ver
 ## docs/villagers.md.
+##
+## Lo que el jugador le da a un vecino (regalos y lo que entrega en un trato) pasa a su género (receive): lo
+## vende como lo suyo, y se le va gastando (la mitad cada día). Lleva también lo que hay en los arcones,
+## cajas, barriles y sacos de las casas (stash, SettlementStash): sale de STASH cada día, menos lo que se
+## ha llevado el jugador ese día.
 
 ## Por oficio ("kind" del puesto, "" sin oficio): [id, mínimo, máximo, probabilidad de tenerlo ese día].
 const STOCK := {
@@ -41,6 +46,18 @@ const STOCK := {
 		[&"antler", 1, 1, 0.15], [&"fur_mittens", 1, 1, 0.15], [&"fur_moccasins", 1, 1, 0.15],
 		[&"deer_moccasins", 1, 1, 0.15]],
 }
+## Lo que guardan las casas, por lo que lo guarda (SettlementProp.kind): como STOCK.
+const STASH := {
+	&"chest": [[&"fur_mantle", 1, 1, 0.3], [&"fur_moccasins", 1, 1, 0.3], [&"fur_mittens", 1, 1, 0.3],
+		[&"deer_moccasins", 1, 1, 0.2], [&"fur_hood", 1, 1, 0.2], [&"waterskin", 1, 1, 0.3],
+		[&"flint_knife", 1, 1, 0.3], [&"bone_dagger", 1, 1, 0.2], [&"torch_01", 1, 3, 0.5],
+		[&"sinew", 1, 4, 0.4], [&"bronze_ingot", 1, 2, 0.15], [&"bedroll", 1, 1, 0.1]],
+	&"crate": [[&"flint", 2, 6, 0.6], [&"bone", 2, 6, 0.5], [&"plant_fiber", 4, 10, 0.7], [&"sinew", 1, 3, 0.4],
+		[&"arrow", 3, 10, 0.3], [&"fishing_hook", 1, 3, 0.3], [&"torch_01", 1, 3, 0.4], [&"stone_axe_01", 1, 1, 0.15]],
+	&"barrel": [[&"cooked_meat", 1, 4, 0.6], [&"raw_meat", 1, 3, 0.4], [&"raw_fish", 1, 4, 0.4],
+		[&"cooked_fish", 1, 3, 0.4], [&"yarrow", 1, 4, 0.3]],
+	&"sack": [[&"plant_fiber", 5, 15, 0.8], [&"yarrow", 2, 6, 0.5], [&"feather", 3, 10, 0.5], [&"raw_hide", 1, 2, 0.3]],
+}
 ## Por nivel de confianza (SettlementRelations.TIERS): lo que cobran por lo suyo y lo que dan por lo del
 ## jugador, en veces su valor. Nunca dan más de lo que cobran: comprar y revender no deja nada.
 const SELL: Array[float] = [1.6, 1.35, 1.15, 1.0, 0.95]
@@ -57,6 +74,8 @@ var _seed := 1
 var _bought := {}
 ## Vecino -> el día del último trato que subió la confianza.
 var _traded := {}
+## Vecino -> {"day", "items": id -> cuántos}: lo que le ha dado el jugador, contado el día "day".
+var _given := {}
 
 
 func _init(trust: SettlementRelations, seed: int) -> void:
@@ -69,17 +88,28 @@ func day() -> int:
 	return floori(relations.clock / 24.0)
 
 
-## Lo que tiene hoy [who] para cambiar: id (StringName) -> cuántos, sin lo que ya se ha llevado el jugador.
+## Lo que tiene hoy [who] para cambiar: id (StringName) -> cuántos, sin lo que ya se ha llevado el jugador
+## y con lo que le ha dado (receive).
 func stock(who: Dictionary) -> Dictionary:
 	var id := String(who.get("id", ""))
+	var kind := StringName(who.get("job", {}).get("kind", ""))
+	var out := _roll(STOCK.get(kind, STOCK[&""]), id, "stock")
+	for item: String in _received(id):
+		var key := StringName(item)
+		if ItemCatalog.get_item(key) != null:
+			out[key] = int(out.get(key, 0)) + int(_given[id].items[item])
+	return out
+
+
+## Lo de [table] (STOCK o STASH) para [id] hoy, sin lo que ya se ha llevado el jugador.
+func _roll(table: Array, id: String, salt: String) -> Dictionary:
 	var today := day()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash([_seed, id, today, "stock"])
-	var kind := StringName(who.get("job", {}).get("kind", ""))
+	rng.seed = hash([_seed, id, today, salt])
 	var taken: Dictionary = _bought.get(id, {}).get("items", {}) if int(_bought.get(id, {}).get("day", -1)) == today \
 		else {}
 	var out := {}
-	for entry: Array in STOCK.get(kind, STOCK[&""]):
+	for entry: Array in table:
 		# Las tres tiradas siempre, para que lo de después no cambie con lo de antes.
 		var has := rng.randf() < float(entry[3])
 		var count := rng.randi_range(int(entry[1]), int(entry[2]))
@@ -89,6 +119,56 @@ func stock(who: Dictionary) -> Dictionary:
 		if count > 0:
 			out[entry[0]] = count
 	return out
+
+
+## Lo que le queda hoy a [id] de lo que le ha dado el jugador (id -> cuántos, en _given): la mitad por
+## cada día que ha pasado.
+func _received(id: String) -> Dictionary:
+	if not _given.has(id):
+		return {}
+	var record: Dictionary = _given[id]
+	var days := day() - int(record.get("day", 0))
+	if days > 0:
+		var items: Dictionary = record.items
+		for item: String in items.keys():
+			items[item] = int(items[item]) >> mini(days, 30)
+			if int(items[item]) <= 0:
+				items.erase(item)
+		record.day = day()
+		if items.is_empty():
+			_given.erase(id)
+			return {}
+	return record.items
+
+
+## [who] recibe [items] (id -> cuántos) del jugador: pasa a su género.
+func receive(who: Dictionary, items: Dictionary) -> void:
+	var id := String(who.get("id", ""))
+	_received(id)
+	var record: Dictionary = _given.get_or_add(id, {"day": day(), "items": {}})
+	for item in items:
+		record.items[String(item)] = int(record.items.get(String(item), 0)) + int(items[item])
+
+
+## Lo que hay hoy en el arcón, caja, barril o saco [key] ("<poblado>:<casa>:<adorno>") de clase [kind]
+## (SettlementProp.kind): id (StringName) -> cuántos, sin lo que se ha llevado el jugador hoy.
+func stash(key: String, kind: StringName) -> Dictionary:
+	return _roll(STASH.get(kind, STASH[&"crate"]), "stash:" + key, "stash")
+
+
+## El jugador se lleva [items] (id -> cuántos) de [key] (stash).
+func take_stash(key: String, items: Dictionary) -> void:
+	_take("stash:" + key, items)
+
+
+func _take(id: String, items: Dictionary) -> void:
+	var today := day()
+	var record: Dictionary = _bought.get(id, {})
+	if int(record.get("day", -1)) != today:
+		record = {"day": today, "items": {}}
+	for item in items:
+		record.items[String(item)] = int(record.items.get(String(item), 0)) + int(items[item])
+	_bought[id] = record
 
 
 ## Lo que cobra el poblado [v] por [data] (en piezas de leña, ItemValue) y lo que da por él.
@@ -117,12 +197,23 @@ func deal(who: Dictionary, v: int, take: Dictionary, give: Dictionary) -> float:
 	var sums := balance(v, take, give)
 	var id := String(who.get("id", ""))
 	var today := day()
-	var record: Dictionary = _bought.get(id, {})
-	if int(record.get("day", -1)) != today:
-		record = {"day": today, "items": {}}
+	# Lo que se lleva sale antes de lo que le dio el jugador; el resto, de lo suyo.
+	var given := _received(id)
+	var taken := {}
 	for data: ItemData in take:
-		record.items[String(data.id)] = int(record.items.get(String(data.id), 0)) + int(take[data])
-	_bought[id] = record
+		var count := int(take[data])
+		var back := mini(count, int(given.get(String(data.id), 0)))
+		if back > 0:
+			given[String(data.id)] = int(given[String(data.id)]) - back
+			if int(given[String(data.id)]) <= 0:
+				given.erase(String(data.id))
+		if count > back:
+			taken[data.id] = count - back
+	_take(id, taken)
+	var handed := {}
+	for data: ItemData in give:
+		handed[data.id] = int(give[data])
+	receive(who, handed)
 	var gain := 0.0
 	var surplus := float(sums.credit) - float(sums.cost)
 	if surplus > 0.0:
@@ -143,7 +234,11 @@ func save_data() -> Dictionary:
 	for id: String in _traded:
 		if int(_traded[id]) == today:
 			traded[id] = today
-	return {"bought": bought, "traded": traded}
+	var given := {}
+	for id: String in _given.keys():
+		if not _received(id).is_empty():
+			given[id] = _given[id].duplicate(true)
+	return {"bought": bought, "traded": traded, "given": given}
 
 
 func restore(data: Dictionary) -> void:
@@ -159,3 +254,11 @@ func restore(data: Dictionary) -> void:
 	var traded: Dictionary = data.get("traded", {})
 	for id in traded:
 		_traded[str(id)] = int(traded[id])
+	_given.clear()
+	var given: Dictionary = data.get("given", {})
+	for id in given:
+		var entry: Dictionary = given[id]
+		var items := {}
+		for item in entry.get("items", {}):
+			items[str(item)] = int(entry.items[item])
+		_given[str(id)] = {"day": int(entry.get("day", 0)), "items": items}

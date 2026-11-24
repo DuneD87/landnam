@@ -287,7 +287,9 @@ func _place_work(key: String) -> void:
 		node.name = "SettlementWork_%s_%d" % [key.replace(":", "_"), decor.size()]
 		_planet.add_child(node)
 		decor.append(node)
-	for prop: Dictionary in info.get("props", []):
+	var props: Array = info.get("props", [])
+	for i in props.size():
+		var prop: Dictionary = props[i]
 		if StringName(prop.kind) == &"pen":
 			_place_pen(key, prop, frame, decor)
 			continue
@@ -295,6 +297,19 @@ func _place_work(key: String) -> void:
 		if node == null:
 			continue
 		node.name = "SettlementProp_%s_%d" % [key.replace(":", "_"), decor.size()]
+		if SettlementStash.KINDS.has(StringName(prop.kind)):
+			# Los arcones, cajas, barriles y sacos se abren (SettlementStash).
+			var stash := SettlementStash.new()
+			stash.name = node.name
+			stash.key = "%s:%d" % [key, i]
+			stash.kind = StringName(prop.kind)
+			stash.village_index = int(parts[0])
+			stash.manager = self
+			stash.transform = node.transform
+			node.transform = Transform3D.IDENTITY
+			node.name = "Prop"
+			stash.add_child(node)
+			node = stash
 		_planet.add_child(node)
 		decor.append(node)
 
@@ -425,6 +440,15 @@ func _is_up(key: String) -> bool:
 
 static func _key(v: int, b: int) -> String:
 	return "%d:%d" % [v, b]
+
+
+## El jugador se ha llevado [items] (id -> cuántos, que valen [value]) de [stash]: se apunta, y si lo ve
+## alguien del poblado, es robar (SettlementVillage.robbed).
+func stash_taken(stash: SettlementStash, items: Dictionary, value: float) -> void:
+	trade.take_stash(stash.key, items)
+	var village := village_of(stash.village_index)
+	if village != null and _player != null and is_instance_valid(_player):
+		village.robbed(value, _player.global_position)
 
 
 ## El SettlementManager de [loader] (un PlanetLoader), o null.

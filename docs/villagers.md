@@ -291,8 +291,45 @@ Nunca dan más de lo que cobran, así que comprar y revender no deja nada. Lo qu
 es un regalo (`SettlementRelations.gift`, con gusto 1). Un trato de al menos 4 leños sube además la
 confianza 2, una vez al día por vecino y hasta 60: comerciando se llega a amigos, no a familia.
 
-`SettlementManager` guarda lo que se ha llevado el jugador hoy de cada vecino (`trade` en su
-`get_save_data`).
+**Lo que se les da** (regalos y lo que el jugador entrega en un trato) pasa al género de quien lo recibe
+(`SettlementTrade.receive`): lo vende como lo suyo, así que se puede volver a comprar, y se le va gastando
+(cada día le queda la mitad). Lo que se lleva el jugador sale antes de eso que de lo suyo.
+
+`SettlementManager` guarda lo que se ha llevado el jugador hoy de cada vecino y lo que les ha dado (`trade`
+en su `get_save_data`).
+
+## Lo que el jugador les hace
+
+**Pegarles.** Los aldeanos encajan los golpes (`Hurtbox`, con una salud enorme que se rellena: no mueren).
+Se doblan (`combat/hit_react`) y, si el golpe es del jugador, el poblado se lo apunta
+(`SettlementVillage.struck`): sube su rencor y baja la confianza. El golpeado corre a esconderse a su casa
+45 s; el guardia, en cambio, se queda. Un combo contra el mismo vecino cuenta una vez (1,5 s). Las fieras
+también les pegan, sin que cuente.
+
+**Robar.** Los arcones, cajas, barriles y sacos de las casas (`SettlementStash`, los `SettlementProp` de
+esas clases) se abren con E como un botín. Tienen lo que les toca hoy (`SettlementTrade.STASH`, sorteado
+cada día como el género): ropa, herramientas y algún lingote en los arcones; sílex, hueso, fibra y flechas
+en las cajas; comida en los barriles; fibra, milenrama y plumas en los sacos. Llevarse lo suyo es robar: se
+apunta (falta hasta el día siguiente) y, si lo ve alguien del poblado (despierto, a menos de 12 m y sin
+nada en medio: `SettlementVillage.witness`), el poblado guarda rencor y el testigo da la voz. Lo que deja el
+jugador sigue siendo suyo: volver a cogerlo no cuenta. Si no lo ve nadie, nadie se entera.
+
+**El rencor** (`SettlementRelations.offend`, por poblado, de 0 a 100) se enfría 1 por hora de juego:
+
+| Delito | Rencor | Confianza |
+|---|---|---|
+| Pegar a un vecino | +15 | −6 |
+| Pegar a un guardia | +30 | −6 |
+| Robar con testigos | +6 y 0,6 por leño de valor, hasta 40 | −la mitad |
+
+- Desde **10** el poblado **cierra la puerta**: no hablan con el jugador (ni comercian, ni dan encargos, ni
+  lo llaman, ni lo saludan).
+- Desde **25** es **hostil**: con el jugador cerca (a lo que se teme una fiera), cunde la alarma como con
+  una fiera. La guardia va a por él con la lanza (`SettlementVillage.target`) y hace daño de verdad, que
+  se puede parar o esquivar; los demás se esconden en casa. Lejos del poblado, o muerto el jugador, lo
+  dejan.
+
+Se guarda con la confianza (`relations`).
 
 ## Encargos
 
@@ -910,9 +947,15 @@ física dados a mano, comprueba que:
 - dos se juntan a charlar;
 - lejos se van.
 
+`tests/world/test_reputation.tscn` (sin mundo ni gente vestida): el rencor (cerrar la puerta, hostil,
+enfriarse, guardarse), lo recibido en el género (revenderlo, la mitad al día siguiente, guardarse), los
+arcones (lo del jugador no cuenta, lo suyo se apunta y se repone al día siguiente) y los golpes (un combo
+cuenta una vez, el guardia pone hostil al poblado, lejos lo dejan, sin testigos no hay robo).
+
 La consola `village` dice cuántos hay cerca y cuántos quedan por vestir, de qué fiera se esconden (si se
 esconden) y los encargos abiertos con cómo van. `village trust <0-100>` pone la confianza del poblado
-más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca fieras para pelear o cazar.
+más cercano (para probar el compañero sin ganársela), `village grudge <0-100>` su rencor (10 cierra la
+puerta, 25 lo pone hostil), y `spawn <animal>` saca fieras para pelear o cazar.
 
 ## Limitaciones
 
@@ -929,14 +972,16 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   buscan camino: si en 12 s no llegan, aparecen en su sitio. El jugador no se sienta en las bancadas
   ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
-- Ante una fiera los aldeanos solo huyen; no se puede pelear con ellos. El compañero sí pelea: para con el
+- Ante una fiera los aldeanos solo huyen, menos la guardia. Se les puede pegar, pero no mueren ni caen:
+  encajan y huyen. El compañero pelea: para con el
   escudo o con un arma a dos manos y, si no, esquiva hacia atrás (no rueda); no usa hondas ni lanzas
   arrojadizas. La armadura le protege toda sumada, no por partes como al
   jugador, y la ropa no le abriga.
 - El tiempo es el del sitio del jugador, no el del poblado: valen porque solo hay gente en los
   poblados cercanos. No cambian de ropa con el frío.
-- Lo regalado y lo que se les da en un trato se pierde: aún no va a ninguna parte del poblado ni lo
-  revenden.
+- Lo que el jugador deja en un arcón se pierde cuando la casa se quita (es decorado). Robar de un arcón
+  con testigos pone al poblado en contra, pero nadie persigue ni registra al jugador: no hay multa ni
+  forma de devolverlo. Los poblados vecinos no se enteran.
 - Solo trepa por donde ha trepado el jugador, y sin la pared de verdad: va por los puntos del jugador
   (sin inclinarse con ella, ni de lado con `climb_left`/`climb_right`), así que una pared que se ha
   roto o construido después no le cambia nada. No trepa por su cuenta (para salir de un hoyo, para
@@ -950,6 +995,4 @@ más cercano (para probar el compañero sin ganársela), y `spawn <animal>` saca
   aparece detrás de él como cualquier compañero. La fiera con nombre que se deja atrás se quita y vuelve
   a salir con toda su vida. Las fieras de un rescate o de una emboscada no tienen en cuenta el bioma: son
   las que rondan el poblado o lobos.
-- La confianza baja solo con los encargos (fallarlos, dejarlos o regatear mal); no por pegarles ni por
-  robar.
 - Una casa que ha pasado a la partida pierde sus lechos al cargarla, porque son decorado.
