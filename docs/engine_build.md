@@ -1,8 +1,8 @@
 # Motor: Godot 4.6 con Voxel Tools parcheado
 
 El juego funciona con el Godot 4.6 de Voxel Tools 1.6 sin tocar, pero varios repartos de trabajo por
-fotograma (colisión del terreno en trozos, retirada de vegetación, instancer sin descargas de la GPU) solo
-existen en el módulo parcheado. Sin él, `PlanetLoader._apply_streaming_budgets` y `Planet._init` no
+fotograma (colisión del terreno en trozos, retirada de vegetación, instancer sin descargas de la GPU) y la
+histéresis de las cajas de LOD del terreno solo existen en el módulo parcheado. Sin él, `PlanetLoader._apply_streaming_budgets` y `Planet._init` no
 encuentran las propiedades y no tocan nada.
 
 - Módulo: fork `git@github.com:DuneD87/godot_voxel.git`, rama `mejoras-landnam` (sobre `v1.6`).

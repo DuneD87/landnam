@@ -662,6 +662,11 @@ const COLLISION_BUILD_BUDGET_USEC := 2000
 ## los bloques lejanos solo engordaban el pase de sombra (~860 dibujos mirando hacia el mar) sin
 ## cambio visible.
 const SHADOW_CASTING_MAX_LOD := 2
+## Histéresis de las cajas de LOD del terreno (módulo parcheado), en fracción del bloque de cada LOD: para
+## que una caja se mueva hay que pasar su borde medio bloque (16 m en el LOD 0), y lo mismo para volver.
+## Sin ella, ir y volver sobre un borde descargaba y volvía a mallar una franja entera cada vez (30-140
+## tareas de mallado y 1-3 s a 40-50 fps), lo que en la plaza de una villa pasaba a cada paseo.
+const LOD_HYSTERESIS := 0.5
 
 
 func _apply_streaming_budgets() -> void:
@@ -670,6 +675,8 @@ func _apply_streaming_budgets() -> void:
 		voxel_terrain.set("collision_build_budget_usec", COLLISION_BUILD_BUDGET_USEC)
 	if "shadow_casting_max_lod" in voxel_terrain:
 		voxel_terrain.set("shadow_casting_max_lod", SHADOW_CASTING_MAX_LOD)
+	if "lod_hysteresis" in voxel_terrain:
+		voxel_terrain.set("lod_hysteresis", LOD_HYSTERESIS)
 
 
 func save_voxel_data() -> VoxelSaveCompletionTracker:
