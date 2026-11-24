@@ -44,6 +44,8 @@ var _editing_marker := 0
 var _pending_marker_uv := Vector2(-1.0, -1.0)
 var _press_position := Vector2.ZERO
 var _panning := false
+## Tras devolver el cursor al centro (_trackpad_pan): el salto que eso genera no se cuenta.
+var _recentered := false
 
 var _material: ShaderMaterial
 var _world_map: PlanetWorldMap
@@ -478,6 +480,8 @@ func _on_frame_input(event: InputEvent) -> void:
 					_edit_marker_at(uv, id)
 	elif event is InputEventMouseMotion:
 		_hover_uv = _uv_at(event.position)
+		if not _dragging and _trackpad_pan(event):
+			return
 		if _dragging:
 			if not _panning and event.position.distance_to(_press_position) < PAN_THRESHOLD:
 				return
@@ -487,6 +491,28 @@ func _on_frame_input(event: InputEvent) -> void:
 			_follow = false
 			_offset += event.relative
 			_clamp_offset()
+
+
+## Con el mando en uso (Gamepad.pad_in_use), el ratón que se mueve sin botones es el trackpad: arrastra el
+## mapa como si se pulsara. El cursor del stick izquierdo (Gamepad.VIRTUAL_DEVICE) no. Cerca del borde de la
+## pantalla el cursor vuelve al centro del mapa, para seguir arrastrando hacia ese lado. Si arrastra.
+func _trackpad_pan(event: InputEventMouseMotion) -> bool:
+	if not Gamepad.pad_in_use or event.device == Gamepad.VIRTUAL_DEVICE or event.button_mask != 0:
+		return false
+	if _recentered:
+		_recentered = false
+		# El salto de warp_mouse, no el dedo.
+		if event.relative.length() > _frame.size.length() * 0.1:
+			return true
+	_follow = false
+	_offset += event.relative
+	_clamp_offset()
+	var margin := _frame.size * 0.15
+	var inner := Rect2(margin, _frame.size - margin * 2.0)
+	if not inner.has_point(event.position):
+		_recentered = true
+		_frame.warp_mouse(_frame.size * 0.5)
+	return true
 
 
 ## Zoom anclado al cursor: el punto del mapa bajo el ratón no se mueve.
@@ -529,6 +555,7 @@ func _paint_overlay(canvas: Control) -> void:
 	if _world_map == null or not _world_map.is_ready():
 		return
 	_draw_trails(canvas)
+	_draw_settlements(canvas)
 	_draw_body_labels(canvas)
 	_draw_saved_markers(canvas)
 	_draw_player_marker(canvas)
@@ -672,6 +699,38 @@ func _draw_trails(canvas: Control) -> void:
 		for i in uvs.size():
 			points[i] = _offset + uvs[i] * ms
 		canvas.draw_polyline(points, TrailMap.COLOR, width, true)
+
+
+## Los poblados (SettlementMap): de lejos un punto, de cerca su icono, y los que el jugador conoce,
+## rotulados al acercar el zoom.
+func _draw_settlements(canvas: Control) -> void:
+	var manager := SettlementManager.of(player.get("planet"))
+	if manager == null:
+		return
+	var ms := _map_size()
+	var meters_per_px := TAU * _world_map.map.radius / maxf(ms.x, 1.0)
+	var ui_scale := MapMarkerEditor.ui_scale_for(get_viewport())
+	var font := canvas.get_theme_default_font()
+	var font_size := roundi(15.0 * ui_scale)
+	var view := Rect2(Vector2.ZERO, canvas.size).grow(40.0 * ui_scale)
+	for site: Dictionary in manager.map_sites():
+		var point := _point_of_uv(WorldMapData.dir_to_uv(site.dir))
+		if not view.has_point(point):
+			continue
+		var text: String = site.name
+		if meters_per_px > SettlementMap.DOT_FROM:
+			SettlementMap.dot(canvas, point, 2.5 * ui_scale, not text.is_empty())
+			continue
+		var size := 30.0 * ui_scale
+		SettlementMap.draw(canvas, point, site.kind, size, not text.is_empty())
+		if text.is_empty() or font == null or meters_per_px > SettlementMap.LABEL_FROM:
+			continue
+		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var label_pos := point + Vector2(-width * 0.5, size * 0.5 + font_size)
+		canvas.draw_string_outline(font, label_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			font_size, roundi(4.0 * ui_scale), Color(0.02, 0.03, 0.04, 0.95))
+		canvas.draw_string(font, label_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			font_size, Color(0.95, 0.97, 1.0))
 
 
 ## Rotula los cuerpos de agua grandes; el umbral baja con el zoom para no amontonar nombres.

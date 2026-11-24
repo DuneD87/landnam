@@ -468,9 +468,14 @@ func _check_manager() -> void:
 		"villager_distance": 0.0})
 	var center_world: Vector3 = (plan.center as Vector3) * (RADIUS + GROUND)
 	var before := GridManager.get_all_grids().size()
+	var site: Dictionary = manager.map_sites()[0]
+	check(site.kind == &"aldea" and String(site.name).is_empty() and (site.dir as Vector3).is_normalized(),
+		"en el mapa sale el poblado, sin nombre mientras no se conoce")
 
 	player.global_position = center_world + origin * 2.0
 	await _settle(manager)
+	site = manager.map_sites()[0]
+	check(manager.is_known(0) and not String(site.name).is_empty(), "visto de cerca, el mapa lo nombra (%s)" % site.name)
 	var built := manager.get_built()
 	var meshed := true
 	for key: String in built:
@@ -518,18 +523,33 @@ func _check_manager() -> void:
 	await _settle(manager)
 	check(manager.get_built().is_empty() and GridManager.get_grid(grid0.grid_id) == grid0
 		and GridManager.get_all_grids().size() == before + 1, "lejos se quitan, menos la tocada")
+	# De lejos, la malla barata del poblado, sin las dos que son de la partida.
+	for i in 200:
+		if manager._far._nodes.has(0) and (manager._far._nodes[0] as MeshInstance3D).visible:
+			break
+		manager._update()
+		await get_tree().process_frame
+	var far: MeshInstance3D = manager._far._nodes.get(0)
+	var full := SettlementFar.village_arrays(plan, manager._far._data, {})
+	var full_tris := (full[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	var far_tris := (far.mesh as ArrayMesh).surface_get_array_len(0) / 3 if far != null else 0
+	check(far != null and far.visible and far_tris > 0 and far_tris < full_tris and full_tris < count * 800,
+		"de lejos se ve la malla barata (%d triángulos de %d, %d casas), sin las de la partida" % [far_tris, full_tris, count])
 
 	player.global_position = center_world
 	await _settle(manager)
 	check(manager.get_built().size() == count - 2, "al volver salen otra vez, menos las dos que son de la partida")
+	manager._update()
+	check(manager._far._nodes.has(0) and not (manager._far._nodes[0] as MeshInstance3D).visible,
+		"con todas levantadas, la malla de lejos se esconde")
 
 	# Una partida cargada: GridManager quita todas las grids y no cuenta como tocarlas.
 	var data := manager.get_save_data()
 	manager.prepare_restore()
 	GridManager.clear_all()
 	manager.restore_save_data(data)
-	check((manager.get_save_data().claimed as Array).size() == 2 and manager.get_built().is_empty(),
-		"al cargar, las de la partida siguen siéndolo y ninguna más")
+	check((manager.get_save_data().claimed as Array).size() == 2 and manager.get_built().is_empty()
+		and manager.is_known(0), "al cargar, las de la partida siguen siéndolo y ninguna más, y se sigue conociendo")
 	await _settle(manager)
 	check(manager.get_built().size() == count - 2, "y las demás se vuelven a levantar")
 	GridManager.clear_all()

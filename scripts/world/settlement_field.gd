@@ -48,6 +48,8 @@ const DEFAULTS := {
 	# SettlementManager: a qué distancia del centro se levanta y se quita (m).
 	"load_distance": 600.0,
 	"unload_distance": 800.0,
+	# SettlementFar: hasta dónde se ven de lejos, con una malla barata (m).
+	"far_distance": 4000.0,
 	# SettlementVillagers: a qué distancia del centro tiene gente (m; se va 60 m más allá).
 	"villager_distance": 200.0,
 }

@@ -15,6 +15,9 @@ class_name SettlementManager extends Node
 ## que no se guarda; y los poblados cercanos, su gente (SettlementVillagers), menos quien se ha ido con
 ## el jugador (SettlementCompanions). Lleva la confianza de cada poblado, el trueque y los encargos, que se
 ## guardan con la partida; y cuenta las fieras que caen para los encargos de caza (creature_killed).
+##
+## De lejos (hasta far_distance), cada poblado es una malla barata (SettlementFar). Apunta los poblados que
+## el jugador ha visto de cerca (a menos de load_distance), que el mapa nombra (map_sites).
 
 ## Cada cuánto se mira a qué distancia está el jugador (s).
 const CHECK_INTERVAL := 0.5
@@ -35,6 +38,14 @@ var _villages: Array = []
 var _prefabs := {}
 var _load_distance := 600.0
 var _unload_distance := 800.0
+## Las mallas de lejos de los poblados.
+var _far: SettlementFar
+## Poblado -> true: los que el jugador ha visto de cerca. Se guarda con la partida.
+var _known := {}
+## Los sitios para el mapa (map_sites), sin los nombres.
+var _sites: Array = []
+## La semilla de los poblados (la de sus nombres).
+var _seed := 1
 ## "<poblado>:<casa>" -> true: las que ya son de la partida.
 var _claimed := {}
 ## "<poblado>:<casa>" -> las grids levantadas.
@@ -74,6 +85,7 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	quests = SettlementQuests.new(relations, int(cfg.seed))
 	quests.villages = _villages
 	var seed := int(cfg.seed)
+	_seed = seed
 	quests.residents_of = func(v: int) -> Array:
 		return SettlementPopulation.residents(_villages[v], v, _prefabs, seed) if v >= 0 and v < _villages.size() else []
 	_load_distance = float(cfg.load_distance)
@@ -85,6 +97,10 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 				_prefabs[p.id] = p
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	add_to_group(NPCController.KILLS_GROUP)
+	_far = SettlementFar.new()
+	_far.setup(_villages, _prefabs, planet.global_transform.affine_inverse() * terrain.global_transform,
+		float(cfg.far_distance))
+	planet.add_child(_far)
 	_companions = SettlementCompanions.new()
 	_companions.name = "Companions"
 	_companions.entity_id = entity_id + "_companions"
@@ -97,6 +113,12 @@ func setup(planet: Node3D, terrain: Node3D, player: Node3D, field: Dictionary, c
 	director = QuestDirector.new()
 	director.setup(self, terrain, player)
 	add_child(director)
+
+
+func _exit_tree() -> void:
+	# La malla de lejos cuelga del planeta, no de aquí.
+	if _far != null and is_instance_valid(_far):
+		_far.queue_free()
 
 
 func _process(delta: float) -> void:
@@ -124,6 +146,7 @@ func _update() -> void:
 		var d := local.distance_to((plan.center as Vector3) * float(plan.ground))
 		var count := (plan.buildings as Array).size()
 		if d < _load_distance:
+			_known[v] = true
 			if not _walls.has(v):
 				_walls[v] = _build_grounds(v, plan)
 			for b in count:
@@ -140,6 +163,18 @@ func _update() -> void:
 				if _queued.has(job):
 					_queued.erase(job)
 					_queue.erase(job)
+	if _far != null:
+		_far.update(local, _claimed, _village_up)
+
+
+## Si todas las casas del poblado [v] están levantadas (o son de la partida): entonces no hace falta su
+## malla de lejos.
+func _village_up(v: int) -> bool:
+	for b in (_villages[v].buildings as Array).size():
+		var key := _key(v, b)
+		if not _claimed.has(key) and not _built.has(key):
+			return false
+	return true
 
 
 ## Empieza la casa [b] del poblado [v], si sigue por levantar: las grids de su prefab con sus bloques y
@@ -369,6 +404,8 @@ func _claim(key: String) -> void:
 			grid.settlement = ""
 	_built.erase(key)
 	_claimed[key] = true
+	if _far != null:
+		_far.changed(int(key.get_slice(":", 0)))
 
 
 ## Las casas a las que les ha desaparecido alguna grid sin quitarlas el poblado (desmontada, convertida
@@ -388,6 +425,40 @@ func _is_up(key: String) -> bool:
 
 static func _key(v: int, b: int) -> String:
 	return "%d:%d" % [v, b]
+
+
+## El SettlementManager de [loader] (un PlanetLoader), o null.
+static func of(loader: Object) -> SettlementManager:
+	return (loader as Node).get_node_or_null(^"Settlements") as SettlementManager if loader is Node else null
+
+
+## Los poblados para el mapa: [{"v", "dir": su centro (unitario, marco del terreno, como los trazos de
+## TrailMap), "kind": la plantilla (&"granja", &"aldea", &"poblado", &"villa"), "name": "" si el jugador
+## no lo conoce}]. Lo conoce si lo ha visto de cerca o si un encargo abierto lo nombra.
+func map_sites() -> Array:
+	if _sites.size() != _villages.size():
+		_sites.clear()
+		for v in _villages.size():
+			var plan: Dictionary = _villages[v]
+			_sites.append({"v": v, "dir": (plan.center as Vector3).normalized(),
+				"kind": StringName(plan.get("template", &"")), "name": ""})
+	var named := _known.duplicate()
+	for quest: Dictionary in quests.open_list():
+		for field in ["village", "dest"]:
+			if quest.get(field) != null:
+				named[int(quest[field])] = true
+	for site: Dictionary in _sites:
+		var v: int = site.v
+		if named.has(v) and String(site.name).is_empty():
+			site.name = SettlementPopulation.village_name(v, _seed)
+		elif not named.has(v):
+			site.name = ""
+	return _sites
+
+
+## Si el jugador conoce el poblado [v] (map_sites).
+func is_known(v: int) -> bool:
+	return _known.has(v)
 
 
 ## Los poblados levantados: {casa: grids}. Para las pruebas.
@@ -455,7 +526,7 @@ func creature_killed(creature: NPCController, killer: Object) -> void:
 
 func get_save_data() -> Dictionary:
 	return {"claimed": _claimed.keys(), "relations": relations.save_data(), "trade": trade.save_data(),
-		"quests": quests.save_data()}
+		"quests": quests.save_data(), "known": _known.keys()}
 
 
 ## Antes de cargar una partida: GridManager va a quitar todas las grids, y al vaciarse avisan; las del
@@ -484,6 +555,11 @@ func restore_save_data(data: Dictionary) -> void:
 	_claimed.clear()
 	for key in data.get("claimed", []):
 		_claimed[str(key)] = true
+	_known.clear()
+	for v in data.get("known", []):
+		_known[int(v)] = true
+	if _far != null:
+		_far.reset()
 	relations.restore(data.get("relations", {}))
 	trade.restore(data.get("trade", {}))
 	quests.restore(data.get("quests", {}))

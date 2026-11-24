@@ -311,6 +311,36 @@ y ya no la levanta. Al cargar una partida, `prepare_restore` suelta antes las gr
 que no cuenten como tocadas cuando `GridManager` las quita. El daño que no rompe ningún bloque no
 cuenta y se pierde al alejarse.
 
+## De lejos y en el mapa
+
+**De lejos** (`SettlementFar`, `scripts/world/settlement_far.gd`). Entre `load_distance` y `far_distance`,
+cada poblado es una sola malla sin texturas, con el color medio de cada material (`SettlementFar.COLORS`,
+sacado de sus albedos). Sale del blueprint de cada casa, con su zócalo, su rampa y la empalizada:
+
+- los cubos, con las caras de un mismo material en un mismo plano juntas en rectángulos;
+- los faldones y las cumbreras de paja, tejuelas o tepe: cada hilera de piezas iguales, como una sola tira
+  con el perfil sin las capas;
+- las rampas, esquinas, paneles y losas, como en la grid;
+- sin carpintería (postes, listones, riostras, escuadras), sin puertas ni decorado, y sin la cerca de
+  varas;
+- bajo el suelo de cada casa, un faldón de piedra de 2 m, por si el terreno de lejos queda más bajo que el
+  de cerca.
+
+Son de 130 a 680 triángulos por casa en vez de 2000-7000, y de 0,3 a 4 ms por casa. La malla de cada poblado
+se hace en un hilo (`WorkerThreadPool`) y se suelta pasados `far_distance` + 300 m. Las caras van metidas
+5 cm hacia dentro, así que mientras el poblado se levanta las casas de verdad tapan las de lejos sin
+parpadear. Cuando ya están todas, la malla se esconde. Las casas que son de la partida no salen en ella:
+al pasar una a la partida, la malla se rehace.
+
+**En el mapa** (`SettlementMap`, `scripts/ui/settlement_map.gd`). El mapa grande (M) y el minimapa
+dibujan todos los poblados (`SettlementManager.map_sites`) con un icono por plantilla
+(`textures/icons/settlements`): la granja con su cerca, la aldea con dos casas, el poblado con la iglesia y
+la villa tras la empalizada. En el mapa grande, de lejos, cada poblado es un
+punto. Los que el jugador conoce van en hueso y los demás, apagados. Un poblado se conoce cuando se ha
+visto de cerca (a menos de `load_distance`, y queda guardado en la partida) o cuando lo nombra un encargo
+abierto. Con el zoom cerca, el mapa grande rotula los conocidos con su nombre
+(`SettlementPopulation.village_name`).
+
 ## Consola
 
 `village` dice qué poblado es el más cercano (su plantilla y cuántas construcciones tiene), a cuántos
@@ -403,6 +433,7 @@ de sus blueprints) y `SettlementField.FILE_VERSION`, que hay que subir al cambia
 | `max_step`, `max_grade` | 3, 0,25 | Desnivel dentro de una huella: hasta `max_step` m o `max_grade` por su lado largo, lo que sea más |
 | `clear_margin` | 14 | Claro de los árboles más allá de lo más lejano (m) |
 | `load_distance`, `unload_distance` | 600, 800 | Cuándo se levantan y se quitan (m) |
+| `far_distance` | 4000 | Hasta dónde se ven de lejos (m) |
 
 ## Comprobaciones
 
@@ -424,12 +455,16 @@ La prueba cubre:
 - el aplanado sobre una ladera: el plano sigue la pendiente con tope, pesa entero dentro y nada lejos, y
   no rellena un barranco de 30 m junto al poblado;
 - el gestor con grids de verdad: levanta, no guarda, quita al alejarse, abrir una puerta no cuenta,
-  pasa a la partida al poner un bloque o al desmontar, y una partida cargada no cuenta como tocada.
+  pasa a la partida al poner un bloque o al desmontar, y una partida cargada no cuenta como tocada;
+- el mapa: el poblado sale sin nombre hasta verlo de cerca, y se sigue conociendo al cargar;
+- de lejos: la malla barata del poblado sale sin las casas de la partida y se esconde con todas
+  levantadas.
 
 ## Pendiente
 
 - **El terreno.** Sin hierba bajo las casas (el aplanado y las calles ya están).
-- **De lejos.** Más allá de `load_distance` no se ve nada. Faltan un impostor o una marca en el mapa.
+- **De lejos.** Sin los cercados, el ganado ni la cerca de varas. Sin nieve en los tejados. Más allá de
+  `far_distance` no se ve nada.
 - **Mallar en un hilo.** El peor fotograma (poner los bloques de la iglesia, ~8 ms) bajaría con un
   mallador en un hilo o con los bloques del prefab ya leídos.
 - **Reparar con el prefab.** `RepairSite` busca el blueprint en la biblioteca del jugador.
