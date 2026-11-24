@@ -1,6 +1,6 @@
 [gd_resource type="VoxelGraphFunction" format=3]
 
-[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_terrain_base.tres" id="1_base"]
+[ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/earth_relief.tres" id="1_base"]
 [ext_resource type="VoxelGraphFunction" path="res://data/graph_functions/settlement_flatten.tres" id="2_flat"]
 
 [sub_resource type="ZN_FastNoiseLite" id="ZN_FastNoiseLite_caveveg"]
