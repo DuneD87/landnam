@@ -124,7 +124,7 @@ func body_morphable() -> ArrayMesh:
 ## Body mesh with the current weights baked into its vertices. `shapes` stay
 ## blend shapes on top, each a mix of morphs (name -> {morph: weight}).
 func body_baked(shapes := {}) -> ArrayMesh:
-	var arrays := data.mesh.surface_get_arrays(0)
+	var arrays := MeshArrays.read(data.mesh, 0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 	var touched := PackedByteArray()
@@ -170,7 +170,7 @@ func body_baked(shapes := {}) -> ArrayMesh:
 		target[Mesh.ARRAY_NORMAL] = shape_normals
 		target[Mesh.ARRAY_TANGENT] = arrays[Mesh.ARRAY_TANGENT]
 		targets.append(target)
-	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, targets, lods)
+	MeshArrays.add_surface(result, Mesh.PRIMITIVE_TRIANGLES, arrays, targets, lods)
 	return result
 
 
@@ -210,12 +210,12 @@ func proxy_mesh(proxy: HumanProxyData, reuse: ArrayMesh = null) -> ArrayMesh:
 		shape[Mesh.ARRAY_TANGENT] = arrays[Mesh.ARRAY_TANGENT]
 		shapes.append(shape)
 	var result := reuse if reuse != null else ArrayMesh.new()
-	result.clear_surfaces()
+	MeshArrays.clear(result)
 	result.clear_blend_shapes()
 	if not shapes.is_empty():
 		result.blend_shape_mode = Mesh.BLEND_SHAPE_MODE_NORMALIZED
 		result.add_blend_shape(BLINK)
-	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, shapes, lods)
+	MeshArrays.add_surface(result, Mesh.PRIMITIVE_TRIANGLES, arrays, shapes, lods)
 	return result
 
 

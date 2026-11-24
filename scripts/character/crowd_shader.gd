@@ -97,6 +97,7 @@ void fragment() {
 
 ## Source code (hash) -> the shader with the skinning step.
 static var _shaders := {}
+static var _lock := Mutex.new()
 static var _registered := false
 
 
@@ -126,26 +127,11 @@ static func material(source: Material, bones: Texture2D) -> ShaderMaterial:
 	result.render_priority = source.render_priority
 	var from_shader := source as ShaderMaterial
 	var built_in := source as BaseMaterial3D
+	result.shader = _shader_for(source)
 	if from_shader != null and from_shader.shader != null:
-		result.shader = _derived(from_shader.shader.code)
 		for uniform: Dictionary in from_shader.shader.get_shader_uniform_list():
 			result.set_shader_parameter(uniform.name, from_shader.get_shader_parameter(uniform.name))
 	elif built_in != null:
-		var modes := PackedStringArray()
-		match built_in.cull_mode:
-			BaseMaterial3D.CULL_DISABLED:
-				modes.append("cull_disabled")
-			BaseMaterial3D.CULL_FRONT:
-				modes.append("cull_front")
-		var alpha := ""
-		match built_in.transparency:
-			BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
-				alpha = "ALPHA = color.a; ALPHA_SCISSOR_THRESHOLD = %f;" % built_in.alpha_scissor_threshold
-			BaseMaterial3D.TRANSPARENCY_ALPHA_HASH:
-				alpha = "ALPHA = color.a; ALPHA_HASH_SCALE = %f;" % built_in.alpha_hash_scale
-			BaseMaterial3D.TRANSPARENCY_ALPHA, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS:
-				alpha = "ALPHA = color.a;"
-		result.shader = _derived(STANDARD % [("render_mode " + ", ".join(modes) + ";") if not modes.is_empty() else "", alpha])
 		result.set_shader_parameter(&"albedo", built_in.albedo_color)
 		result.set_shader_parameter(&"texture_albedo", built_in.albedo_texture)
 		result.set_shader_parameter(&"vertex_color", built_in.vertex_color_use_as_albedo)
@@ -167,6 +153,38 @@ static func material(source: Material, bones: Texture2D) -> ShaderMaterial:
 	return result
 
 
+## Makes (and keeps) the shaders material() will give `sources`, so it finds them made. Any thread:
+## HumanMerge calls it from its own, where compiling them does not hold up a frame.
+static func warm(sources: Array) -> void:
+	for source: Material in sources:
+		_shader_for(source)
+
+
+## The shader material() gives `source`, or null.
+static func _shader_for(source: Material) -> Shader:
+	var from_shader := source as ShaderMaterial
+	var built_in := source as BaseMaterial3D
+	if from_shader != null and from_shader.shader != null:
+		return _derived(from_shader.shader.code)
+	if built_in == null:
+		return null
+	var modes := PackedStringArray()
+	match built_in.cull_mode:
+		BaseMaterial3D.CULL_DISABLED:
+			modes.append("cull_disabled")
+		BaseMaterial3D.CULL_FRONT:
+			modes.append("cull_front")
+	var alpha := ""
+	match built_in.transparency:
+		BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+			alpha = "ALPHA = color.a; ALPHA_SCISSOR_THRESHOLD = %f;" % built_in.alpha_scissor_threshold
+		BaseMaterial3D.TRANSPARENCY_ALPHA_HASH:
+			alpha = "ALPHA = color.a; ALPHA_HASH_SCALE = %f;" % built_in.alpha_hash_scale
+		BaseMaterial3D.TRANSPARENCY_ALPHA, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS:
+			alpha = "ALPHA = color.a;"
+	return _derived(STANDARD % [("render_mode " + ", ".join(modes) + ";") if not modes.is_empty() else "", alpha])
+
+
 static func _channel(channel: BaseMaterial3D.TextureChannel) -> Vector4:
 	match channel:
 		BaseMaterial3D.TEXTURE_CHANNEL_GREEN:
@@ -182,8 +200,12 @@ static func _channel(channel: BaseMaterial3D.TextureChannel) -> Vector4:
 
 static func _derived(code: String) -> Shader:
 	var key := code.hash()
-	if _shaders.has(key):
-		return _shaders[key]
+	_lock.lock()
+	var known := _shaders.has(key)
+	var made: Shader = _shaders.get(key)
+	_lock.unlock()
+	if known:
+		return made
 	var shader: Shader = null
 	# In world space the step would pose the vertex after its instance moved it.
 	if not code.contains("world_vertex_coords") and not code.contains("skip_vertex_transform"):
@@ -195,5 +217,11 @@ static func _derived(code: String) -> Shader:
 			text = code + DECLARATIONS + "\nvoid vertex() {" + CALL + "}\n"
 		shader = Shader.new()
 		shader.code = text
-	_shaders[key] = shader
+	_lock.lock()
+	# Made meanwhile in another thread: that one, so every material shares it.
+	if _shaders.has(key):
+		shader = _shaders[key]
+	else:
+		_shaders[key] = shader
+	_lock.unlock()
 	return shader

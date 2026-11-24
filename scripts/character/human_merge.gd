@@ -11,8 +11,8 @@ class_name HumanMerge
 ##   BodyProportions) and its matrices baked from CrowdClips with those proportions.
 ##
 ## gather() runs on the main thread once the human is dressed and fitted; build() in a thread
-## (reading a mesh back from the renderer waits for it, so it pauses between surfaces); finish()
-## on the main thread again.
+## (with the arrays its meshes were built from, MeshArrays: reading a mesh back from the renderer
+## stalls it, so when it must it pauses between surfaces); finish() on the main thread again.
 
 ## Never merged: nobody sees them from where the light versions show.
 const SKIP: Array[StringName] = [&"HumanEyes", &"HumanTeeth", &"HumanTongue", &"HumanEyebrows", &"HumanEyelashes"]
@@ -216,14 +216,18 @@ static func build(job: Dictionary) -> Dictionary:
 		for s in mesh.get_surface_count():
 			if mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
 				continue
-			var arrays := mesh.surface_get_arrays(s)
-			OS.delay_msec(READ_PAUSE_MS)
-			var data := RenderingServer.mesh_get_surface(mesh.get_rid(), s)
-			OS.delay_msec(READ_PAUSE_MS)
+			# Kept on the CPU when it was built (MeshArrays); read back from the renderer, paced, if not.
+			var kept := MeshArrays.is_kept(mesh)
+			var arrays := MeshArrays.read(mesh, s)
+			if not kept:
+				OS.delay_msec(READ_PAUSE_MS)
+			var carried := MeshArrays.lods(mesh, s)
+			if not kept:
+				OS.delay_msec(READ_PAUSE_MS)
 			if arrays.is_empty() or arrays[Mesh.ARRAY_BONES] == null or arrays[Mesh.ARRAY_NORMAL] == null:
 				continue
 			var material: Material = source.materials[s]
-			var lods := _lods(arrays, data)
+			var lods := _lods(arrays, carried)
 			if not far_only:
 				_append(_group(near, material), arrays, _indices(arrays, lods, NEAR_ERROR), unified, [], Transform3D.IDENTITY)
 			_append(_group(far, material), arrays, _indices(arrays, lods, FAR_ERROR), crowd, at_rest, to_model)
@@ -233,9 +237,13 @@ static func build(job: Dictionary) -> Dictionary:
 	var skin := Skin.new()
 	for i in bind_names.size():
 		skin.add_named_bind(bind_names[i], bind_poses[i])
+	var far_materials := _materials(far.values())
+	var distant_materials := _materials(distant.values())
+	# The crowd's shaders, here: compiling one on the main thread (crowd()) was a 300 ms frame.
+	CrowdShader.warm(far_materials + distant_materials)
 	return {near = _mesh(near.values(), false) if not far_only else null, skin = skin,
-		far = _mesh(far.values(), true), far_materials = _materials(far.values()),
-		distant = _mesh(distant.values(), true), distant_materials = _materials(distant.values()),
+		far = _mesh(far.values(), true), far_materials = far_materials,
+		distant = _mesh(distant.values(), true), distant_materials = distant_materials,
 		image = _bake(job, ref)}
 
 
@@ -287,22 +295,14 @@ static func _group(groups: Dictionary, material: Material) -> Group:
 	return groups[material]
 
 
-## The LODs of a surface, [error, its triangles] from fine to coarse: the ones it carries or, if it
-## has none (the hair), the ones MeshLods can make of it.
-static func _lods(arrays: Array, data: Dictionary) -> Array:
+## The LODs of a surface, [error, its triangles] from fine to coarse: the ones it carries (`carried`,
+## MeshArrays.lods) or, if it has none (the hair), the ones MeshLods can make of it.
+static func _lods(arrays: Array, carried: Dictionary) -> Array:
 	var out := []
-	var vertices := (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	for lod: Dictionary in data.get("lods", []):
-		var bytes: PackedByteArray = lod.get("index_data", PackedByteArray())
-		var indices := PackedInt32Array()
-		if vertices > 65536:
-			indices = bytes.to_int32_array()
-		else:
-			indices.resize(bytes.size() / 2)
-			for k in indices.size():
-				indices[k] = bytes.decode_u16(k * 2)
-		out.append([float(lod.get("edge_length", INF)), indices])
-	if out.is_empty() and arrays[Mesh.ARRAY_INDEX] != null:
+	for error: float in carried:
+		out.append([error, carried[error]])
+	out.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	if out.is_empty() and not arrays.is_empty() and arrays[Mesh.ARRAY_INDEX] != null:
 		var made := MeshLods.generate(arrays)
 		for error: float in made:
 			out.append([error, made[error]])

@@ -71,7 +71,7 @@ static func measure(meshes: Array, skeleton: Skeleton3D, globals: Array[Transfor
 		var binds := bind_transforms(entry[1], skeleton, globals)
 		var skeleton_bones := bind_bones(entry[1], skeleton)
 		for surface in mesh.get_surface_count():
-			var arrays := mesh.surface_get_arrays(surface)
+			var arrays := MeshArrays.read(mesh, surface)
 			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 			var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 			var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]

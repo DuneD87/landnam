@@ -123,8 +123,8 @@ static func source(mesh: ArrayMesh) -> Array[Dictionary]:
 	var surfaces: Array[Dictionary] = []
 	for s in mesh.get_surface_count():
 		surfaces.append({
-			arrays = mesh.surface_get_arrays(s),
-			lods = _lods(mesh, s),
+			arrays = MeshArrays.read(mesh, s),
+			lods = MeshArrays.lods(mesh, s),
 			primitive = mesh.surface_get_primitive_type(s),
 			flags = mesh.surface_get_format(s) & (Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES),
 			material = mesh.surface_get_material(s),
@@ -133,12 +133,12 @@ static func source(mesh: ArrayMesh) -> Array[Dictionary]:
 	return surfaces
 
 
-## The fitted mesh from fit()'s surfaces. Main thread.
+## The fitted mesh from fit()'s surfaces. Any thread.
 static func build(surfaces: Array[Dictionary], name: String) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	for s in surfaces.size():
 		var data: Dictionary = surfaces[s]
-		mesh.add_surface_from_arrays(data.primitive, data.arrays, [], data.lods, data.flags)
+		MeshArrays.add_surface(mesh, data.primitive, data.arrays, [], data.lods, data.flags)
 		mesh.surface_set_material(s, data.material)
 		mesh.surface_set_name(s, data.name)
 	mesh.resource_name = name
@@ -157,7 +157,7 @@ static func body_surface(meshes: Array, skeleton: Skeleton3D, globals: Array[Tra
 		var binds := BodyMeasurements.bind_transforms(entry[1], skeleton, globals)
 		var bind_bones := BodyMeasurements.bind_bones(entry[1], skeleton)
 		for s in mesh.get_surface_count():
-			var arrays := mesh.surface_get_arrays(s)
+			var arrays := MeshArrays.read(mesh, s)
 			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 			var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 			var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
@@ -434,24 +434,3 @@ func _clear_body(points: PackedVector3Array, bare: PackedByteArray) -> void:
 		shifted[i] = p + direction.normalized() * amount if amount > 0.0 else p
 	for i in count:
 		points[i] = shifted[i]
-
-
-## The source surface's LODs, as add_surface_from_arrays takes them.
-static func _lods(mesh: ArrayMesh, surface_index: int) -> Dictionary:
-	var data := RenderingServer.mesh_get_surface(mesh.get_rid(), surface_index)
-	var result := {}
-	var index_count: int = data.get("index_count", 0)
-	if index_count == 0:
-		return result
-	var width: int = data.index_data.size() / index_count
-	for lod in data.get("lods", []):
-		var bytes: PackedByteArray = lod.index_data
-		var indices := PackedInt32Array()
-		if width == 4:
-			indices = bytes.to_int32_array()
-		else:
-			indices.resize(bytes.size() / 2)
-			for k in indices.size():
-				indices[k] = bytes.decode_u16(k * 2)
-		result[lod.edge_length] = indices
-	return result

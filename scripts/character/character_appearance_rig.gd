@@ -490,18 +490,18 @@ func _rig_hair(state: Dictionary) -> void:
 	HairBones.set_joints(_skeleton, rig.joints, ring)
 	if not rig.swings:
 		return
-	var arrays: Array = state.mesh.surface_get_arrays(0)
+	var arrays: Array = MeshArrays.read(state.mesh, 0)
 	arrays[Mesh.ARRAY_BONES] = rig.bones
 	arrays[Mesh.ARRAY_WEIGHTS] = rig.weights
-	state.mesh.clear_surfaces()
-	state.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	MeshArrays.clear(state.mesh)
+	MeshArrays.add_surface(state.mesh, Mesh.PRIMITIVE_TRIANGLES, arrays)
 	state.skin = rig.skin
 	state.swings = true
 
 
 ## {joints, skin, bones, weights, swings} of a style's hair `mesh`.
 func _hair_rig(mesh: ArrayMesh, ring: Dictionary) -> Dictionary:
-	var arrays: Array = mesh.surface_get_arrays(0)
+	var arrays: Array = MeshArrays.read(mesh, 0)
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
@@ -693,13 +693,23 @@ func _fit(item: Node) -> void:
 		var bones := BodyMeasurements.bind_bones(instance.skin, _skeleton)
 		var context := _context()
 		var bare := _bare_bones(item, instance)
-		var task := WorkerThreadPool.add_task(context.fit.bind(surfaces, binds, bones, bare), false,
-				"Armour fit")
+		var built := {}
+		var task := WorkerThreadPool.add_task(_fit_and_build.bind(context, surfaces, binds, bones, bare,
+				source.resource_name, built), false, "Armour fit")
 		_task_contexts[task] = context
 		if running.has("task"):
 			_stale_tasks.append(running.task)
-		_fitting[source] = {task = task, version = _body_version, surfaces = surfaces}
+		_fitting[source] = {task = task, version = _body_version, surfaces = surfaces, built = built}
 		set_process(true)
+
+
+## In a worker thread: fits `surfaces` (ArmorFit.fit) and builds the fitted mesh into `built`.mesh,
+## so the main thread only hands it over.
+static func _fit_and_build(context: ArmorFit, surfaces: Array[Dictionary], binds: Array[Transform3D],
+		bones: PackedInt32Array, bare: PackedByteArray, mesh_name: String, built: Dictionary) -> void:
+	context.fit(surfaces, binds, bones, bare)
+	if surfaces.all(func(surface: Dictionary) -> bool: return surface.has("points")):
+		built.mesh = ArmorFit.build(surfaces, mesh_name)
 
 
 ## The bones whose skin a piece is not pushed off (ArmorFit.fit()'s `bare`):
@@ -725,6 +735,12 @@ func _bare_bones(item: Node, instance: MeshInstance3D) -> PackedByteArray:
 ## Picks up the fits that are done and hands their meshes to the armour,
 ## then tucks the hair under what covers it, then shows the pieces.
 func _process(_delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_pick_up_fits()
+	DebugStats.report_cost(&"rig:ajuste", Time.get_ticks_usec() - t0)
+
+
+func _pick_up_fits() -> void:
 	_stale_tasks = _stale_tasks.filter(func(task: int) -> bool:
 			if not WorkerThreadPool.is_task_completed(task):
 				return true
@@ -743,7 +759,9 @@ func _process(_delta: float) -> void:
 		if running.surfaces.any(func(surface: Dictionary) -> bool: return not surface.has("points")):
 			push_warning("CharacterAppearanceRig: the fit of '%s' failed" % source.resource_name)
 			continue
-		var mesh := ArmorFit.build(running.surfaces, source.resource_name)
+		var mesh: ArrayMesh = running.built.get("mesh")
+		if mesh == null:
+			mesh = ArmorFit.build(running.surfaces, source.resource_name)
 		# Its points at rest, for tucking the hair under it.
 		var points := PackedVector3Array()
 		for surface in running.surfaces:

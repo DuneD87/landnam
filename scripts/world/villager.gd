@@ -668,10 +668,14 @@ func _update_detail() -> void:
 	if camera == null or _model == null:
 		return
 	var d := camera.global_position.distance_to(global_position)
+	var t0 := Time.get_ticks_usec()
 	_prepare_light()
+	DebugStats.report_cost(&"aldeanos:ligeras", Time.get_ticks_usec() - t0)
 	var tier := _tier_for(d)
 	if tier != _tier:
+		t0 = Time.get_ticks_usec()
 		_set_tier(tier)
+		DebugStats.report_cost(&"aldeanos:nivel", Time.get_ticks_usec() - t0)
 	if _tier == Tier.CROWD:
 		return
 	if _rig != null:
@@ -710,6 +714,7 @@ func _prepare_light() -> void:
 				return
 			var job := HumanMerge.gather(_model)
 			if job.is_empty():
+				MeshArrays.forget(_model)
 				_light = Light.FAILED
 				return
 			_merged_for = job.nodes
@@ -720,6 +725,8 @@ func _prepare_light() -> void:
 			var result: Variant = HumanMerge.take(get_instance_id())
 			if result == null:
 				return
+			# Ya nadie las vuelve a leer: fuera la copia de sus mallas que se guardó al hacerlas (MeshArrays).
+			MeshArrays.forget(_model)
 			if (result as Dictionary).is_empty():
 				_light = Light.FAILED
 				return

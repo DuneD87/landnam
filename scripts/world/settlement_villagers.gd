@@ -91,7 +91,9 @@ func _process(delta: float) -> void:
 	var ready: Array = _done.pop_front() if not _done.is_empty() else []
 	_lock.unlock()
 	if not ready.is_empty():
+		var t0 := Time.get_ticks_usec()
 		_spawn(ready[0], ready[1])
+		DebugStats.report_cost(&"aldeanos:salir", Time.get_ticks_usec() - t0)
 	if _task >= 0 and WorkerThreadPool.is_task_completed(_task):
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
@@ -165,6 +167,12 @@ func _stream(local: Vector3) -> void:
 ## La multitud del poblado [v]: una figura por vecino sin cuerpo que ahora estaría fuera, en su sitio
 ## (Villager.spawn_pose) y con el cuerpo de multitud suyo o de uno de su clase. Solo se rehace si cambia.
 func _update_crowd(v: int) -> void:
+	var t0 := Time.get_ticks_usec()
+	_rebuild_crowd(v)
+	DebugStats.report_cost(&"aldeanos:multitud", Time.get_ticks_usec() - t0)
+
+
+func _rebuild_crowd(v: int) -> void:
 	var village: SettlementVillage = _active.get(v)
 	if village == null:
 		return
@@ -264,6 +272,12 @@ func _ask_stand_in(v: int, who: Dictionary, kind: String) -> void:
 ## Los figurantes ya vestidos: cuando acaba el ajuste de su ropa se les hace el cuerpo de multitud
 ## (HumanMerge, en su hilo) y se van.
 func _update_stand_ins() -> void:
+	var t0 := Time.get_ticks_usec()
+	_pick_stand_ins()
+	DebugStats.report_cost(&"aldeanos:figurantes", Time.get_ticks_usec() - t0)
+
+
+func _pick_stand_ins() -> void:
 	HumanMerge.pump()
 	for stand_in: Dictionary in _stand_ins.duplicate():
 		var model: Node3D = stand_in.model
