@@ -134,6 +134,16 @@ const SHADOW_MARGIN := 1.0
 ## Cada cuánto se mira lo anterior (s), y cada cuántas veces se repasan las mallas del que no da sombra.
 const DETAIL_INTERVAL := 0.25
 const SHADOW_RESCAN := 8
+## Cómo se dibuja según lo lejos que está de la cámara: entero (hasta SHADOW_REACH, con su sombra);
+## fundido (HumanMerge: todo lo que lleva en una malla sobre su esqueleto, hasta SWING_REACH); y de
+## multitud (CrowdBody: sin esqueleto ni animación en CPU, lo posa una textura). Los dos últimos se
+## hacen en un hilo cuando ya está vestido; hasta entonces va entero. TIER_MARGIN: lo que hay que
+## acercarse de más para volver del de multitud, para que no baile en el borde.
+enum Tier { FULL, MERGED, CROWD }
+const TIER_MARGIN := 1.5
+## Cuántas miradas seguidas (DETAIL_INTERVAL) tiene que llevar vestido antes de pedir sus versiones ligeras.
+const LIGHT_SETTLE := 4
+enum Light { NONE, BUILDING, READY, FAILED }
 ## Hablando con el jugador: lo que dura cada frase (s).
 const SAY_TIME := 2.6
 
@@ -195,6 +205,20 @@ var _shadowless := false
 var _shadow_scan := 0
 ## Malla -> la sombra que daba, de las que se la ha quitado (_set_shadowless).
 var _shadows := {}
+var _tier := Tier.FULL
+var _light := Light.NONE
+var _light_wait := 0
+## La malla fundida (bajo su esqueleto) y las mallas a las que sustituye.
+var _merged: MeshInstance3D
+var _merged_for: Array[MeshInstance3D] = []
+## Su cuerpo de multitud y dónde se dibuja (CrowdBody.figure, en sus pies).
+var _crowd_body: CrowdBody
+var _crowd: Node3D
+## Cuándo empezó el clip que suena, en el reloj de la multitud (CrowdClips.time).
+var _clip_started := 0.0
+## La última pose puesta (_pose): si no cambia, no se vuelve a poner.
+var _posed := Transform3D()
+var _posed_frame := Transform3D()
 var _body: AnimatableBody3D
 var _tool: Node3D
 var _anim := &""
@@ -322,6 +346,28 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 		_stand(_rng.randf_range(1.0, STAND_TIME.y))
 
 
+## Dónde y cómo aparecería [who] en [village] ahora (setup), para su figura de multitud mientras no
+## tiene cuerpo (SettlementVillagers): {"at" y "forward" (marco del terreno), "inside", "clip"}.
+static func spawn_pose(who: Dictionary, village: SettlementVillage) -> Dictionary:
+	var h := village.hour()
+	var job: Dictionary = who.get("job", {})
+	if _is_night(h) or village.danger or village.raining:
+		return {"at": village.bed(who.home, who.bed).origin, "forward": Vector3.ZERO, "inside": true, "clip": ANIM_IDLE}
+	if not job.is_empty() and _work_hour(h):
+		var work := village.workplace(job)
+		var at: Vector3 = (work.stands as PackedVector3Array)[job.stand]
+		var look: Vector3 = (work.looks as PackedVector3Array)[job.stand]
+		return {"at": at, "forward": _tangent(look - at, at), "inside": bool(work.get("indoor", StringName(work.kind) == &"bench")),
+			"clip": ANIM_DIG if StringName(work.kind) == &"garden" else ANIM_IDLE}
+	# El sitio de la plaza que le toca en setup: las mismas tiradas, en el mismo orden.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([who.get("look", 0), "routine"])
+	rng.randi()
+	rng.randf()
+	var spot := village.plaza_spot(rng)
+	return {"at": spot, "forward": _tangent(village.center - spot, spot), "inside": false, "clip": ANIM_IDLE}
+
+
 ## Dónde aparecería [who] en [village] ahora (Villager.setup): {"at" (marco del terreno), "inside": si es
 ## dentro de una casa}. Para repartir la gente por cercanía (SettlementVillagers).
 static func spawn_point(who: Dictionary, village: SettlementVillage) -> Dictionary:
@@ -438,7 +484,14 @@ func leave_with_player() -> Node3D:
 	_drop_partner()
 	village.villagers.erase(self)
 	act = Act.STAND
-	# El humano se va entero: con sus vaivenes, su sombra y el esqueleto por su cuenta.
+	# El humano se va entero: sin sus versiones ligeras, con sus vaivenes, su sombra y el esqueleto por
+	# su cuenta.
+	HumanMerge.cancel(get_instance_id())
+	_light = Light.FAILED
+	_set_tier(Tier.FULL)
+	if _merged != null:
+		_merged.free()
+		_merged = null
 	_set_shadowless(false)
 	if _rig != null:
 		_rig.swings_enabled = true
@@ -564,6 +617,10 @@ func _process(delta: float) -> void:
 	if _detail_left <= 0.0:
 		_detail_left = DETAIL_INTERVAL
 		_update_detail()
+	if _tier == Tier.CROWD:
+		# Lo posa su textura: ni animación ni esqueleto.
+		_anim_accum = 0.0
+		return
 	var stride := AnimationLod.stride_for(self, 1.0, AnimationLod.CREATURE_STRIDES)
 	if _frame % stride == 0:
 		# El esqueleto va a mano (setup): sus modificadores, con el mismo tiempo que la animación.
@@ -572,15 +629,22 @@ func _process(delta: float) -> void:
 		_anim_accum = 0.0
 
 
-## Lo que solo se nota de cerca: los vaivenes del pelo y la ropa (en cámara y a menos de SWING_REACH)
-## y la sombra (a menos de SHADOW_REACH).
+## Lo que cambia con la distancia a la cámara: cómo se dibuja (Tier), los vaivenes del pelo y la ropa
+## (en cámara y a menos de SWING_REACH) y, mientras no tiene sus versiones ligeras, la sombra.
 func _update_detail() -> void:
 	var camera := get_viewport().get_camera_3d()
-	if camera == null:
+	if camera == null or _model == null:
 		return
 	var d := camera.global_position.distance_to(global_position)
+	_prepare_light()
+	var tier := _tier_for(d)
+	if tier != _tier:
+		_set_tier(tier)
+	if _tier == Tier.CROWD:
+		return
 	if _rig != null:
 		_rig.swings_enabled = d < SWING_REACH and AnimationLod.in_view(self, 1.0)
+	# Lejos, entero (aún sin sus versiones ligeras) o fundido, sin sombra.
 	var far := d > (SHADOW_REACH - SHADOW_MARGIN if _shadowless else SHADOW_REACH)
 	_shadow_scan += 1
 	# Sin sombra se repasa de vez en cuando: el rig puede cambiarle la sombra a una pieza después.
@@ -588,21 +652,128 @@ func _update_detail() -> void:
 		_set_shadowless(far)
 
 
-## Le quita la sombra a todas sus mallas, o se la devuelve como la tenían.
+## Cómo le toca dibujarse a [d] m de la cámara. Dormido no va de multitud (sus clips no están en la
+## textura y se apoya en el lecho con el esqueleto), ni hablando con el jugador.
+func _tier_for(d: float) -> Tier:
+	if _light != Light.READY:
+		return Tier.FULL
+	if _crowd != null and act != Act.SLEEP and act != Act.CHAT and CrowdClips.has(_anim) \
+			and d > (SWING_REACH - TIER_MARGIN if _tier == Tier.CROWD else SWING_REACH):
+		return Tier.CROWD
+	if d > (SHADOW_REACH - SHADOW_MARGIN if _tier != Tier.FULL else SHADOW_REACH):
+		return Tier.MERGED
+	return Tier.FULL
+
+
+## Pide sus versiones ligeras cuando lleva un rato vestido (el ajuste de la ropa acaba ya en el árbol) y
+## las recoge cuando están (HumanMerge las hace en un hilo, de uno en uno).
+func _prepare_light() -> void:
+	match _light:
+		Light.NONE:
+			if _rig == null or _rig.is_dressing():
+				_light_wait = 0
+				return
+			_light_wait += 1
+			if _light_wait < LIGHT_SETTLE:
+				return
+			var job := HumanMerge.gather(_model)
+			if job.is_empty():
+				_light = Light.FAILED
+				return
+			_merged_for = job.nodes
+			HumanMerge.request(get_instance_id(), job)
+			_light = Light.BUILDING
+		Light.BUILDING:
+			HumanMerge.pump()
+			var result: Variant = HumanMerge.take(get_instance_id())
+			if result == null:
+				return
+			if (result as Dictionary).is_empty():
+				_light = Light.FAILED
+				return
+			_merged = HumanMerge.merged(result)
+			_skeleton.add_child(_merged)
+			_merged.skeleton = _merged.get_path_to(_skeleton)
+			_crowd_body = HumanMerge.crowd(result)
+			if _crowd_body != null:
+				_crowd_body.kind = CrowdBody.kind_of(resident)
+				CrowdBody.remember(String(resident.get("id", "")), _crowd_body)
+				_crowd = _crowd_body.figure()
+				_crowd.name = "Crowd"
+				_crowd.visible = false
+				add_child(_crowd)
+			_light = Light.READY
+
+
+## Pasa a dibujarse como [tier].
+func _set_tier(tier: Tier) -> void:
+	var was := _tier
+	_tier = tier
+	var crowd := tier == Tier.CROWD
+	_model.visible = not crowd
+	# De multitud el humano entero se para: ni el rig, ni el parpadeo, ni los vaivenes.
+	_model.process_mode = Node.PROCESS_MODE_DISABLED if crowd else Node.PROCESS_MODE_INHERIT
+	if _crowd != null:
+		_crowd.visible = crowd
+	if crowd:
+		# La textura sigue el clip por donde iba.
+		var at := _player.current_animation_position if _player.is_playing() else 0.0
+		_clip_started = CrowdClips.time - at / maxf(_anim_speed, 0.01)
+		_sync_crowd()
+	elif was == Tier.CROWD and _player.is_playing():
+		# Y al volver, la animación por donde iba la textura.
+		var length := _player.current_animation_length
+		var at := (CrowdClips.time - _clip_started) * _anim_speed
+		if length > 0.0:
+			var loops := _player.get_animation(_player.current_animation).loop_mode != Animation.LOOP_NONE
+			_player.seek(fposmod(at, length) if loops else minf(at, length), true)
+		_anim_accum = 0.0
+	var merged := tier == Tier.MERGED
+	if _merged != null:
+		_merged.visible = merged
+		for mesh in _merged_for:
+			if is_instance_valid(mesh):
+				mesh.visible = not merged
+
+
+## El clip que suena, a su instancia de multitud.
+func _sync_crowd() -> void:
+	if _crowd != null:
+		CrowdBody.clip(_crowd, CrowdClips.params(_anim, _anim_speed, (CrowdClips.time - _clip_started) * _anim_speed))
+
+
+## Le quita la sombra a todas sus mallas, o se la devuelve como la tenían. La que solo daba sombra (el
+## pelo bajo una capucha) se oculta: sin sombra se vería.
 func _set_shadowless(off: bool) -> void:
 	_shadowless = off
 	if _model == null:
 		return
 	if off:
 		for mesh: GeometryInstance3D in _model.find_children("*", "GeometryInstance3D", true, false):
-			if mesh.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
-				_shadows[mesh] = mesh.cast_shadow
+			if mesh == _merged or mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				continue
+			_shadows[mesh] = mesh.cast_shadow
+			if mesh.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+				mesh.set_meta(&"shadow_hidden", mesh.visible)
+				mesh.visible = false
+			else:
 				mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	else:
 		for mesh: Variant in _shadows:
-			if is_instance_valid(mesh):
-				(mesh as GeometryInstance3D).cast_shadow = _shadows[mesh]
+			if not is_instance_valid(mesh):
+				continue
+			var instance := mesh as GeometryInstance3D
+			if instance.has_meta(&"shadow_hidden"):
+				instance.visible = instance.get_meta(&"shadow_hidden")
+				instance.remove_meta(&"shadow_hidden")
+			else:
+				instance.cast_shadow = _shadows[mesh]
 		_shadows.clear()
+
+
+func _exit_tree() -> void:
+	if _light == Light.BUILDING:
+		HumanMerge.cancel(get_instance_id())
 
 
 ## Lo siguiente, según la hora, el tiempo y si ataca una fiera.
@@ -1264,7 +1435,14 @@ func _pose() -> void:
 	if forward == Vector3.ZERO:
 		forward = _tangent(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT, _pos)
 	_forward = forward
-	global_transform = village.frame() * Transform3D(Basis(up.cross(forward), up, forward), _pos)
+	# Quieto no se vuelve a poner: cada vez avisa a todo lo que cuelga de él.
+	var frame := village.frame()
+	var local := Transform3D(Basis(up.cross(forward), up, forward), _pos)
+	if local == _posed and frame == _posed_frame:
+		return
+	_posed = local
+	_posed_frame = frame
+	global_transform = frame * local
 
 
 func _set_solid(solid: bool) -> void:
@@ -1281,6 +1459,9 @@ func _play(anim: StringName, speed := 1.0, blend := BLEND) -> void:
 		return
 	_anim = anim
 	_anim_speed = speed
+	_clip_started = CrowdClips.time
+	if _tier == Tier.CROWD:
+		_sync_crowd()
 	# Fuera del árbol (setup) arranca en _ready.
 	if is_inside_tree():
 		_player.play(anim, blend, speed)

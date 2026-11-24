@@ -36,6 +36,7 @@ func _ready() -> void:
 	# Antes de que cargue el planeta: el shader de la vegetación las necesita para compilar.
 	BloodFoliage.register_globals()
 	SettlementStreets.register_globals()
+	CrowdShader.register_globals()
 
 
 func register_player(p: CharacterBody3D) -> void:

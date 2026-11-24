@@ -31,6 +31,8 @@ guardan; la confianza, los encargos, el compañero y los colonos sí.
 | `SettlerZones` (`scripts/world/settler_zones.gd`) | Las zonas de trabajo del trono, con su cupo |
 | `SettlerScaffold` (`scripts/world/settler_scaffold.gd`) | El andamio del constructor |
 | `AnimSplice` (`scripts/character/anim_splice.gd`) | Clips empalmados (piernas de uno, tronco de otro): despiezar agachado |
+| `HumanMerge` (`scripts/character/human_merge.gd`) | Las versiones ligeras de un humano vestido: la malla fundida y el cuerpo de multitud |
+| `CrowdBody`, `CrowdClips`, `CrowdShader` (`scripts/character/crowd_*.gd`) | La multitud de lejos: un cuerpo sin esqueleto, los clips muestreados y el sombreador que lo posa desde una textura |
 
 ## Quién vive
 
@@ -109,6 +111,53 @@ fondo, de uno en uno y fuera del árbol (`Villager.build_model`), y mete uno por
 
 Nueve aldeanos tardan unos 10 s en estar todos. Cada uno cuesta en el hilo principal ~1 ms al entrar
 y, al acabar el ajuste, montar su ropa (el peor fotograma medido con 20 a la vez, 9 ms).
+
+## De lejos: tres niveles y la multitud
+
+Un humano entero son 11 mallas con skin y 27 superficies sobre un esqueleto de unos 150 huesos: unos
+0,3-0,4 ms de CPU cada uno cerca y a la vista, y casi cien dibujos con las sombras. Lo que cuesta no son
+los triángulos sino los dibujos y actualizar el esqueleto, así que cada aldeano se dibuja de tres maneras
+según lo lejos que está de la cámara (`Villager.Tier`, mirado cada 0,25 s):
+
+| Nivel | Hasta | Qué es |
+|---|---|---|
+| Entero | 10 m (`SHADOW_REACH`) | El humano de siempre, con su sombra |
+| Fundido | 25 m (`SWING_REACH`) | Todo lo que lleva en una malla, una superficie por material (6-7) y un solo skin, sobre su esqueleto: posa exactamente igual. Sin sombra, sin ojos, dientes, lengua, cejas ni pestañas |
+| De multitud | más lejos | Su `CrowdBody`: una malla más basta que posa una textura, sin esqueleto, sin `AnimationPlayer` y con el humano entero parado. A más de 60 m (`CrowdBody.DISTANT_REACH`), su malla ligera |
+
+Dormido y hablando con el jugador no pasa del fundido. Las versiones ligeras las hace `HumanMerge` en un
+hilo cuando el aldeano lleva un segundo vestido (el ajuste de la ropa acaba ya en el árbol), de uno en uno
+y parando 3 ms entre superficies, porque leer una malla del renderer lo espera; tarda alrededor de un
+segundo por aldeano. Hasta entonces va entero, y lejos sin sombra.
+
+- **La malla fundida** lleva los mismos vértices, y su skin es el de todas las piezas en fila (unos 210
+  binds): el cuerpo y la ropa no comparten pose de enlace (el cuerpo lleva las proporciones de cada uno),
+  así que no se pueden unificar sin que se muevan.
+- **El cuerpo de multitud** sí los unifica: cada vértice va a la pose de reposo propia del humano (el
+  reposo del esqueleto más su `BodyProportions`) y al espacio del modelo, con hasta cuatro huesos y sus
+  pesos como bytes (`CUSTOM0`, `CUSTOM1`). Los huesos que añaden el pelo o la falda siguen al hueso del
+  que cuelgan. Su textura lleva la matriz de cada uno de los 65 huesos del modelo en cada fila de
+  `CrowdClips` (los clips de los aldeanos muestreados a 15 fps, 439 filas), cocida con sus proporciones:
+  195 × 439 texeles RGBAH, 0,7 MB.
+- **El sombreador** (`CrowdShader`) es el del material de siempre con un paso delante de su `vertex()`
+  que posa el vértice desde la textura, interpolando dos filas. Un `StandardMaterial3D` (cuyo sombreador
+  no se puede leer desde un script) pasa a uno propio con lo que se ve de lejos: color, color de vértice,
+  rugosidad, metal, mapa de normales, escala de UV, caras y transparencia. La instancia dice qué clip
+  suena (`CrowdClips.params`: primera fila, filas, cuándo empezó y a qué ritmo) y el reloj es la global
+  `crowd_time`, que avanza `SettlementVillagers`.
+
+De multitud no se ve la herramienta en la mano, no hay mezcla entre clips y los vaivenes no existen.
+
+**Las figuras** (`SettlementVillagers._update_crowd`). Los vecinos de un poblado con vida que no tienen
+cuerpo (lejos, o esperando a vestirse) y que ahora estarían fuera se ven de pie en su sitio
+(`Villager.spawn_pose`, el mismo donde luego aparecen) como instancias de un `MultiMesh` por cuerpo, sin
+ningún nodo por vecino: con su propio cuerpo de multitud si ya se hizo en esta partida, o con el de uno de
+su clase (sexo y ropa de arriba). Si no hay ninguno de su clase se viste un **figurante** en la cola de
+todos, el último, solo para hacer ese cuerpo. Se guardan 128 cuerpos (`CrowdBody.KEPT`).
+
+Medido en la villa del banco de pruebas (27 vecinos en pie, de día): de 62-74 fps a 69-83 según el rumbo.
+Y 2000 figuras de multitud alrededor del jugador, con 38 cuerpos distintos, cuestan 1 ms de fotograma
+(unos 400 dibujos) con la malla ligera, y 4 ms con la de media distancia.
 
 ## La rutina
 

@@ -20,6 +20,8 @@ const MAX_PEOPLE := 60
 ## Un perro por cada tantas casas con gente, y como mucho estos.
 const DOG_HOMES := 3
 const MAX_DOGS := 6
+## Las miradas (CHECK_INTERVAL) que un figurante lleva vestido antes de hacerle su cuerpo de multitud.
+const STAND_IN_SETTLE := 3
 
 var _manager: SettlementManager
 var _host: Node3D
@@ -45,6 +47,17 @@ var _done: Array = []
 var _lock := Mutex.new()
 var _task := -1
 var _timer := 0.0
+## La multitud de lejos: los vecinos que aún no tienen cuerpo (lejos, o vistiéndose) se ven de pie en su
+## sitio, sin nodo ni esqueleto (CrowdBody en un MultiMesh). Poblado -> {"nodes", "signature"}.
+var _crowds := {}
+## Vecino ("id") -> [el sitio que se buscó, dónde dio con el suelo o null]; y si va con la malla de lejos.
+var _crowd_ground := {}
+var _crowd_far := {}
+## Los figurantes: un vecino de cada clase (sexo y ropa) que se viste solo para hacer su cuerpo de
+## multitud, que luego llevan de lejos todos los de su clase. Clase -> true (pedido), y los que se
+## están ajustando: {"model", "rig", "kind", "wait", "asked"}.
+var _stand_in_kinds := {}
+var _stand_ins: Array = []
 
 
 ## [manager]: el que levanta las casas; [host]: el padre de los aldeanos (el de las grids);
@@ -64,12 +77,14 @@ func setup(manager: SettlementManager, host: Node3D, terrain: Node3D, player: No
 
 
 func _process(delta: float) -> void:
+	CrowdShader.tick(delta)
 	if _player == null or not is_instance_valid(_player) or _terrain == null:
 		return
 	_timer -= delta
 	if _timer <= 0.0:
 		_timer = CHECK_INTERVAL
 		_update()
+		_update_stand_ins()
 	for v: int in _active:
 		(_active[v] as SettlementVillage).update(delta)
 	_lock.lock()
@@ -131,6 +146,8 @@ func _stream(local: Vector3) -> void:
 					if d < (NEAR_INSIDE if spot.inside else NEAR):
 						wanted.append([d, v, entry])
 	wanted.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for v: int in _roster:
+		_update_crowd(v)
 	_lock.lock()
 	for item: Array in wanted:
 		if people >= MAX_PEOPLE:
@@ -143,6 +160,140 @@ func _stream(local: Vector3) -> void:
 	# Lo que espera, también por cercanía: el que se acerca pasa delante.
 	_jobs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.distance) < float(b.distance))
 	_lock.unlock()
+
+
+## La multitud del poblado [v]: una figura por vecino sin cuerpo que ahora estaría fuera, en su sitio
+## (Villager.spawn_pose) y con el cuerpo de multitud suyo o de uno de su clase. Solo se rehace si cambia.
+func _update_crowd(v: int) -> void:
+	var village: SettlementVillage = _active.get(v)
+	if village == null:
+		return
+	var frame := _terrain.global_transform
+	var local := frame.affine_inverse() * _player.global_position
+	var space := _host.get_world_3d().direct_space_state if _host.is_inside_tree() else null
+	var figures: Array = []
+	var signature := 0
+	for entry: Dictionary in _roster.get(v, []):
+		if int(entry.state) == OUT or _manager.get_companions().has(String(entry.who.id)):
+			continue
+		var pose := Villager.spawn_pose(entry.who, village)
+		if pose.inside:
+			continue
+		var id := String(entry.who.id)
+		var kind := CrowdBody.kind_of(entry.who)
+		var body := CrowdBody.borrow(id, kind)
+		if body == null:
+			_ask_stand_in(v, entry.who, kind)
+			continue
+		# En el suelo de verdad: el sitio del plano puede quedar algo por encima o por debajo.
+		var at: Vector3 = pose.at
+		var known: Array = _crowd_ground.get(id, [])
+		if known.is_empty() or known[0] != at or known[1] == null:
+			var above := at.normalized()
+			var hit := {}
+			if space != null:
+				hit = space.intersect_ray(PhysicsRayQueryParameters3D.create(frame * (at + above * 4.0), frame * (at - above * 8.0), 1))
+			known = [at, frame.affine_inverse() * (hit.position as Vector3) if not hit.is_empty() else null]
+			_crowd_ground[id] = known
+		if known[1] == null:
+			continue
+		# Lejos, con la malla más ligera del cuerpo.
+		var far := (known[1] as Vector3).distance_to(local) > CrowdBody.DISTANT_REACH + (0.0 if _crowd_far.get(id, false) else 6.0)
+		_crowd_far[id] = far
+		figures.append([body, known[1], pose.forward, pose.clip, id, far])
+		signature = hash([signature, body.get_instance_id(), known[1], pose.clip, id, far])
+	var crowd: Dictionary = _crowds.get(v, {})
+	if not crowd.is_empty() and int(crowd.signature) == signature:
+		return
+	_free_crowd(v)
+	if figures.is_empty():
+		return
+	var up := village.center.normalized()
+	var east := up.cross(Vector3.UP if absf(up.y) < 0.99 else Vector3.RIGHT).normalized()
+	var origin := Transform3D(Basis(east, up, east.cross(up)), village.center)
+	var by_body := {}
+	for figure: Array in figures:
+		(by_body.get_or_add([figure[0], figure[5]], []) as Array).append(figure)
+	var nodes: Array[Node3D] = []
+	for key: Array in by_body:
+		var body: CrowdBody = key[0]
+		var group: Array = by_body[key]
+		var node := body.instance(group.size(), key[1])
+		var bounds := AABB()
+		for i in group.size():
+			var at: Vector3 = group[i][1]
+			var y := at.normalized()
+			var forward: Vector3 = group[i][2]
+			if forward == Vector3.ZERO:
+				forward = Villager._tangent(village.center - at, at)
+			if forward == Vector3.ZERO:
+				forward = y.cross(Vector3.RIGHT).normalized()
+			var placed := origin.affine_inverse() * Transform3D(Basis(y.cross(forward), y, forward), at)
+			node.multimesh.set_instance_transform(i, placed)
+			# Cada uno por su punto del clip.
+			node.multimesh.set_instance_custom_data(i, CrowdClips.params(group[i][3], 1.0, (hash(group[i][4]) % 997) * 0.01))
+			var box := AABB(placed.origin + CrowdBody.BOUNDS.position, CrowdBody.BOUNDS.size)
+			bounds = box if i == 0 else bounds.merge(box)
+		node.multimesh.custom_aabb = bounds
+		node.name = "SettlementCrowd_%d_%d" % [v, nodes.size()]
+		node.transform = _host.global_transform.affine_inverse() * frame * origin
+		_host.add_child(node)
+		nodes.append(node)
+	_crowds[v] = {"nodes": nodes, "signature": signature}
+
+
+func _free_crowd(v: int) -> void:
+	for node: Node3D in _crowds.get(v, {}).get("nodes", []):
+		if is_instance_valid(node):
+			node.queue_free()
+	_crowds.erase(v)
+
+
+## Pide un figurante de la clase [kind] (como [who]), si no hay ya un cuerpo de esa clase ni se ha pedido:
+## se viste en la cola de todos, el último.
+func _ask_stand_in(v: int, who: Dictionary, kind: String) -> void:
+	if _stand_in_kinds.has(kind) or CrowdBody.has_kind(kind):
+		return
+	_stand_in_kinds[kind] = true
+	_lock.lock()
+	_jobs.append({"village": v, "generation": int(_generation.get(v, 0)), "resident": who, "pieces": pieces_of(who),
+		"tool": "", "distance": 1.0e9, "stand_in": kind})
+	_lock.unlock()
+
+
+## Los figurantes ya vestidos: cuando acaba el ajuste de su ropa se les hace el cuerpo de multitud
+## (HumanMerge, en su hilo) y se van.
+func _update_stand_ins() -> void:
+	HumanMerge.pump()
+	for stand_in: Dictionary in _stand_ins.duplicate():
+		var model: Node3D = stand_in.model
+		var rig: CharacterAppearanceRig = stand_in.rig
+		if not stand_in.asked:
+			if rig != null and rig.is_dressing():
+				stand_in.wait = 0
+				continue
+			stand_in.wait += 1
+			if stand_in.wait < STAND_IN_SETTLE:
+				continue
+			var job := HumanMerge.gather(model)
+			if job.is_empty():
+				_stand_ins.erase(stand_in)
+				model.queue_free()
+				continue
+			job.far_only = true
+			HumanMerge.request(model.get_instance_id(), job)
+			stand_in.asked = true
+			continue
+		var result: Variant = HumanMerge.take(model.get_instance_id())
+		if result == null:
+			continue
+		if not (result as Dictionary).is_empty():
+			var body := HumanMerge.crowd(result)
+			if body != null:
+				body.kind = stand_in.kind
+				CrowdBody.remember("kind:" + String(stand_in.kind), body)
+		_stand_ins.erase(stand_in)
+		model.queue_free()
 
 
 ## El poblado [v] se llena: sus vecinos, por vestir.
@@ -257,7 +408,12 @@ func _leave(v: int) -> void:
 	_dogs.erase(v)
 	if village.fire != null and is_instance_valid(village.fire):
 		village.fire.queue_free()
+	_free_crowd(v)
 	_lock.lock()
+	# El figurante que esperaba en su cola se vuelve a pedir cuando haga falta.
+	for job: Dictionary in _jobs:
+		if job.village == v and job.has("stand_in"):
+			_stand_in_kinds.erase(job.stand_in)
 	_jobs = _jobs.filter(func(job: Dictionary) -> bool: return job.village != v)
 	_lock.unlock()
 
@@ -277,6 +433,13 @@ func _dress_all() -> void:
 
 
 func _spawn(job: Dictionary, model: Node3D) -> void:
+	if job.has("stand_in"):
+		# Un figurante: no sale; se queda oculto mientras se le ajusta la ropa (_update_stand_ins).
+		model.visible = false
+		add_child(model)
+		_stand_ins.append({"model": model, "rig": model.get_node_or_null("AppearanceRig"), "kind": job.stand_in,
+			"wait": 0, "asked": false})
+		return
 	var village: SettlementVillage = _active.get(job.village)
 	# El que se ha ido con el jugador mientras se vestía (o lo ha sacado la consola) ya no sale.
 	if village == null or int(job.generation) != int(_generation.get(job.village, 0)) \
@@ -292,6 +455,8 @@ func _spawn(job: Dictionary, model: Node3D) -> void:
 	if job.has("entry"):
 		job.entry.state = OUT
 		job.entry.villager = villager
+	# Su figura de multitud se va en el mismo fotograma.
+	_update_crowd(job.village)
 
 
 ## Los aldeanos de ahora (para la consola y las pruebas).
@@ -324,6 +489,7 @@ func clear() -> void:
 
 
 func _exit_tree() -> void:
+	HumanMerge.shutdown()
 	if _task >= 0:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1

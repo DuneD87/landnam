@@ -39,7 +39,7 @@ func _run() -> void:
 	east = Vector3(-sin(lon), 0.0, -cos(lon))
 	north = origin.cross(east).normalized()
 
-	# -- --only=prefabs,sites,layout,clearance,flatten,manager,villagers corre solo esas secciones.
+	# -- --only=prefabs,sites,layout,clearance,flatten,manager,villagers,crowd corre solo esas secciones.
 	var only := PackedStringArray()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
@@ -59,6 +59,8 @@ func _run() -> void:
 		await _check_manager()
 	if run.call("villagers"):
 		await _check_villagers()
+	if run.call("crowd"):
+		_check_crowd()
 	print("SETTLEMENT TESTS: %d failures" % failures)
 	get_tree().quit(1 if failures > 0 else 0)
 
@@ -859,3 +861,88 @@ func _line(from: Vector2, delta: Vector2) -> PackedVector3Array:
 	for i in n + 1:
 		out.append(_dir(from + delta * float(i) / n))
 	return out
+
+
+## Las piezas de la multitud de lejos que no necesitan renderer: los clips muestreados, el sombreador con
+## el paso de la pose por delante y la fusión de vértices con sus huesos.
+func _check_crowd() -> void:
+	CrowdClips.ensure()
+	check(CrowdClips.has(&"idle") and CrowdClips.has(&"village/walk_normal") and CrowdClips.has(&"attack_vertical"),
+		"la multitud tiene los clips de los aldeanos")
+	check(CrowdClips.bones().size() == 65 and CrowdClips.rows().size() > 100 and (CrowdClips.rows()[0] as Array).size() == 65,
+		"muestreados por filas, una pose por hueso (%d filas)" % CrowdClips.rows().size())
+	var loop := CrowdClips.params(&"village/walk_normal", 2.0)
+	var once := CrowdClips.params(&"attack_vertical")
+	check(loop.g > 0.0 and once.g < 0.0 and loop.a > 0.0 and is_equal_approx(loop.b, CrowdClips.time),
+		"un clip en bucle da sus filas en positivo y uno de una vez en negativo")
+	check(CrowdClips.params(&"no_existe").r == CrowdClips.params(&"idle").r, "un clip que no está suena como el de estar de pie")
+
+	var bodies: Array[CrowdBody] = []
+	for i in 3:
+		var body := CrowdBody.new()
+		body.kind = "female:fur_coat" if i < 2 else "male:fur_coat"
+		CrowdBody.remember("prueba:%d" % i, body)
+		bodies.append(body)
+	check(CrowdBody.borrow("prueba:0", "") == bodies[0] and CrowdBody.borrow("otro", "male:fur_coat") == bodies[2]
+		and CrowdBody.borrow("otro", "female:fur_coat") in [bodies[0], bodies[1]] and CrowdBody.borrow("otro", "nadie") == null,
+		"un vecino sin cuerpo toma el suyo o uno de su clase")
+	var changed := CrowdBody.new()
+	changed.kind = "male:fur_coat"
+	CrowdBody.remember("prueba:0", changed)
+	check(CrowdBody.borrow("x", "female:fur_coat") == bodies[1] and CrowdBody.has_kind("male:fur_coat"),
+		"y si cambia el cuerpo de alguien, cambia su clase")
+
+	var with_vertex := CrowdShader._derived("shader_type spatial;\nvoid vertex() {\n\tVERTEX.y += 1.0;\n}\n")
+	var without := CrowdShader._derived("shader_type spatial;\nvoid fragment() {\n\tALBEDO = vec3(1.0);\n}\n")
+	check(with_vertex != null and with_vertex.code.find("crowd_pose(CUSTOM0") < with_vertex.code.find("VERTEX.y += 1.0")
+		and with_vertex.code.find("crowd_pose(CUSTOM0") > with_vertex.code.find("void vertex()"),
+		"el paso de la pose va al principio del vertex() del sombreador")
+	check(without != null and without.code.contains("void vertex() {") and without.code.contains("crowd_pose(CUSTOM0"),
+		"y si no tenía vertex(), se le pone")
+	check(CrowdShader._derived("shader_type spatial;\nrender_mode world_vertex_coords;\n") == null,
+		"un sombreador en coordenadas de mundo no se convierte")
+	var standard := StandardMaterial3D.new()
+	standard.albedo_color = Color(0.2, 0.4, 0.6)
+	standard.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var converted := CrowdShader.material(standard, null)
+	check(converted != null and converted.shader.code.contains("cull_disabled")
+		and (converted.get_shader_parameter(&"albedo") as Color).is_equal_approx(standard.albedo_color),
+		"un material corriente pasa con su color y su cara doble")
+
+	# Un triángulo con ocho pesos por vértice: se queda con los cuatro que más pesan, el mismo hueso suma,
+	# y el vértice va a la pose de reposo y al espacio del modelo.
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1)])
+	arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP])
+	var bones := PackedInt32Array()
+	var weights := PackedFloat32Array()
+	for v in 3:
+		bones.append_array([0, 1, 2, 3, 4, 5, 0, 0])
+		weights.append_array([0.4, 0.2, 0.2, 0.1, 0.05, 0.05, 0.0, 0.0])
+	arrays[Mesh.ARRAY_BONES] = bones
+	arrays[Mesh.ARRAY_WEIGHTS] = weights
+	# Los binds 1 y 2 van al mismo hueso de la multitud (7): pesan 0,4 entre los dos.
+	var bind_map := PackedInt32Array([3, 7, 7, 9, 11, 12])
+	var shift := Transform3D(Basis.IDENTITY, Vector3(0, 0, 10))
+	var at_rest: Array[Transform3D] = [shift, shift, shift, shift, shift, shift]
+	var group := HumanMerge.Group.new()
+	HumanMerge._append(group, arrays, PackedInt32Array([0, 1, 2, 2, 1, 0]), bind_map, at_rest,
+		Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.01), Vector3.ZERO))
+	var picked := {}
+	var total := 0
+	for j in 4:
+		picked[group.custom_bones[j]] = group.custom_weights[j]
+		total += group.custom_weights[j]
+	check(group.vertex.size() == 3 and group.index.size() == 6 and group.custom_bones.size() == 12,
+		"la fusión no repite los vértices que comparten los triángulos")
+	check(total == 255 and picked.has(3) and picked.has(7) and picked.has(9) and not picked.has(12)
+		and absi(int(picked[7]) - int(picked[3])) <= 2,
+		"cada vértice lleva sus cuatro huesos de más peso, en bytes que suman uno (%s)" % str(picked))
+	check(group.vertex[0].is_equal_approx(Vector3(0.01, 0.0, 0.1)),
+		"y va a la pose de reposo y al espacio del modelo (%s)" % str(group.vertex[0]))
+	var near := HumanMerge.Group.new()
+	HumanMerge._append(near, arrays, PackedInt32Array([0, 1, 2]), bind_map, [], Transform3D.IDENTITY)
+	check(near.bones.size() == 12 and is_equal_approx(near.weights[0] + near.weights[1] + near.weights[2] + near.weights[3], 1.0)
+		and near.vertex[0].is_equal_approx(Vector3(1, 0, 0)),
+		"la malla fundida deja el vértice donde estaba, con cuatro pesos que suman uno")
