@@ -11,6 +11,9 @@ const BUTTONS := {
 	&"crafting": JOY_BUTTON_DPAD_DOWN, &"hotbar_previous": JOY_BUTTON_DPAD_LEFT,
 	&"hotbar_next": JOY_BUTTON_DPAD_RIGHT,
 }
+## Botones de más para algunas acciones: Guide también abre el mapa, porque algunos mandos (o Moonlight,
+## al jugar en remoto) no tienen View / Select.
+const EXTRA_BUTTONS := {&"world_map": [JOY_BUTTON_GUIDE]}
 const AXES := {
 	&"move_left": [JOY_AXIS_LEFT_X, -1.0], &"move_right": [JOY_AXIS_LEFT_X, 1.0],
 	&"move_forward": [JOY_AXIS_LEFT_Y, -1.0], &"move_back": [JOY_AXIS_LEFT_Y, 1.0],
@@ -25,6 +28,10 @@ const CURSOR_SPEED := 1000.0
 const SCROLL_INTERVAL := 0.10
 
 var active_device := -1
+## Si lo último que se tocó fue el mando y no el teclado. Con él, el ratón que se mueve sin botones (el
+## trackpad del mando por Moonlight, que llega como ratón) arrastra el mapa (WorldMapUI). Los clics no
+## cuentan: el trackpad también los hace.
+var pad_in_use := false
 var _trigger_down: Dictionary = {}
 var _mouse_buttons: Dictionary = {}
 var _scroll_time := 0.0
@@ -49,6 +56,14 @@ func _ready() -> void:
 		event.button_index = BUTTONS[action]
 		if not InputMap.action_has_event(action, event):
 			InputMap.action_add_event(action, event)
+	for action: StringName in EXTRA_BUTTONS:
+		_ensure_action(action)
+		for button: JoyButton in EXTRA_BUTTONS[action]:
+			var event := InputEventJoypadButton.new()
+			event.device = -1
+			event.button_index = button
+			if not InputMap.action_has_event(action, event):
+				InputMap.action_add_event(action, event)
 	for action: StringName in AXES:
 		_ensure_action(action)
 		var event := InputEventJoypadMotion.new()
@@ -105,10 +120,13 @@ func ui_is_open() -> bool:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		pad_in_use = false
 	if not (event is InputEventJoypadButton or event is InputEventJoypadMotion):
 		return
 	if event is InputEventJoypadButton or absf(event.axis_value) > 0.2:
 		active_device = event.device
+		pad_in_use = true
 	# Un gatillo emite muchos valores al apretarlo: el juego recibe solo el cruce de la
 	# zona muerta y su liberación, para no reiniciar la carga ni repetir el golpe.
 	if event is InputEventJoypadMotion and event.axis in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:

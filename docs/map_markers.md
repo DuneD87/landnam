@@ -8,6 +8,9 @@ casa, recursos, cueva, campamento, peligro, punto de interés y tumba, con un no
 Los marcadores que caen a menos de 1,2 km salen también en el minimapa (ver
 [ui.md](ui.md#minimapa)).
 
+Los poblados no son marcadores: el mapa los dibuja todos, con su nombre cuando el jugador los conoce
+(ver [Poblados](settlements.md#de-lejos-y-en-el-mapa)).
+
 Un clic sobre un marcador existente permite cambiarle el nombre o el icono, o borrarlo.
 Arrastrar desde un marcador sigue desplazando el mapa. Los iconos mantienen su tamaño al hacer
 zoom; los nombres personalizados aparecen debajo y el resto se muestra al señalar o editar.

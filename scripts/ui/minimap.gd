@@ -211,6 +211,7 @@ func _draw_overlay() -> void:
 				GameTheme.body_font(), maxi(12, roundi(18.0 * s)), GameTheme.MUTED)
 	else:
 		_draw_trails(centre, radius)
+		_draw_settlements(centre, radius)
 		_draw_markers(centre, radius)
 		_draw_player(centre)
 	_draw_ring(centre, radius)
@@ -309,6 +310,22 @@ static func _inside(a: Vector2, b: Vector2, r: float) -> Vector2:
 	var t0 := maxf((-qb - root) / (2.0 * qa), 0.0)
 	var t1 := minf((-qb + root) / (2.0 * qa), 1.0)
 	return Vector2(t0, t1) if t0 < t1 else Vector2(-1.0, -1.0)
+
+
+## Los poblados que caen dentro del aro (SettlementMap), sin nombre.
+func _draw_settlements(centre: Vector2, radius: float) -> void:
+	var manager := SettlementManager.of(player.planet)
+	if manager == null:
+		return
+	var s := _ui_scale
+	var size := 20.0 * s
+	var limit := radius - 7.0 * s - size * 0.5
+	var pixels_per_meter := radius * 2.0 / SPAN
+	for site: Dictionary in manager.map_sites():
+		var offset: Variant = _project(site.dir, _material_map.radius, pixels_per_meter)
+		if offset == null or (offset as Vector2).length() > limit:
+			continue
+		SettlementMap.draw(_overlay, centre + (offset as Vector2), site.kind, size, not String(site.name).is_empty())
 
 
 ## Los marcadores del mapa que caen dentro del aro, como en el mapa grande pero más pequeños.

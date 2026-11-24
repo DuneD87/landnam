@@ -253,6 +253,8 @@ func _load_planet() -> void:
 	_apply_texture_scale()
 	SettingsManager.apply_terrain_material(planet.shader_material)
 	planet.setup_voxel_generator()
+	if not Engine.is_editor_hint():
+		_setup_horizon_culling()
 	planet._load_vegetation()
 	add_child(planet)
 	global_pos = planet.global_position
@@ -656,27 +658,97 @@ func _ready() -> void:
 ##   llegaba la malla: 5-10 ms por bloque de 32 m (~0,6 us por triángulo en Jolt).
 ## (El reparto equivalente del instancer está en Planet._init, que es quien lo crea.)
 ## Medido volando 150 s tierra adentro (build/ab/drop_probe.gd): frames > 33 ms 13 -> 5, > 25 ms 120 -> 80.
+## - Sin el módulo parcheado el terreno vuelve a bloques de 16 m: los de 32 m (planet_loader.tscn) solo
+##   salen a cuenta con la colisión en trozos y el instancer sin descargas de la GPU; sin ellos cada bloque
+##   nuevo construye en un fotograma ocho veces más colisión y descarga ocho veces más instancias.
 const DEFERRED_COLLISION_MIN_LOD := 0
 const COLLISION_BUILD_BUDGET_USEC := 2000
-## Solo los LOD 0-2 del terreno proyectan sombra (módulo parcheado). La sombra del sol llega a 100 m;
-## los bloques lejanos solo engordaban el pase de sombra (~860 dibujos mirando hacia el mar) sin
-## cambio visible.
-const SHADOW_CASTING_MAX_LOD := 2
-## Histéresis de las cajas de LOD del terreno (módulo parcheado), en fracción del bloque de cada LOD: para
-## que una caja se mueva hay que pasar su borde medio bloque (16 m en el LOD 0), y lo mismo para volver.
-## Sin ella, ir y volver sobre un borde descargaba y volvía a mallar una franja entera cada vez (30-140
-## tareas de mallado y 1-3 s a 40-50 fps), lo que en la plaza de una villa pasaba a cada paseo.
+const UNPATCHED_MESH_BLOCK_SIZE := 16
+## - Sombras del terreno: solo proyectan los bloques hasta este LOD. Con bloques de 32 m el LOD k empieza
+##   a unos 32·2^k m, así que el LOD 7 queda a más de 4 km, el doble del alcance de la sombra del sol
+##   (1500 m). Los LOD lejanos son bloques enormes que se redibujan en cada cascada que tocan (~1.500
+##   draws y 0,9-1,5 ms de GPU medidos al hacer el parche). Consola: 'terrain shadowlod <lod>|all'.
+const TERRAIN_SHADOW_MAX_LOD := 6
+## - Histéresis de las cajas de LOD del terreno, en fracción del bloque de cada LOD: para que una caja se
+##   mueva hay que pasar su borde medio bloque (16 m en el LOD 0), y lo mismo para volver. Sin ella, ir y
+##   volver sobre un borde descargaba y volvía a mallar una franja entera cada vez (30-140 tareas de
+##   mallado y 1-3 s a 40-50 fps), lo que en la plaza de una villa pasaba a cada paseo.
 const LOD_HYSTERESIS := 0.5
 
 
 func _apply_streaming_budgets() -> void:
+	if "shadow_casting_max_lod" in voxel_terrain:
+		voxel_terrain.set("shadow_casting_max_lod", TERRAIN_SHADOW_MAX_LOD)
 	if "deferred_collision_min_lod" in voxel_terrain:
 		voxel_terrain.set("deferred_collision_min_lod", DEFERRED_COLLISION_MIN_LOD)
 		voxel_terrain.set("collision_build_budget_usec", COLLISION_BUILD_BUDGET_USEC)
-	if "shadow_casting_max_lod" in voxel_terrain:
-		voxel_terrain.set("shadow_casting_max_lod", SHADOW_CASTING_MAX_LOD)
+	elif voxel_terrain.mesh_block_size != UNPATCHED_MESH_BLOCK_SIZE:
+		voxel_terrain.mesh_block_size = UNPATCHED_MESH_BLOCK_SIZE
+		print("PlanetLoader: módulo de vóxeles sin parchear (docs/engine_build.md); terreno en bloques de %d m." % UNPATCHED_MESH_BLOCK_SIZE)
 	if "lod_hysteresis" in voxel_terrain:
 		voxel_terrain.set("lod_hysteresis", LOD_HYSTERESIS)
+
+
+## Descarte por horizonte del terreno (módulo parcheado): los bloques que quedan enteros detrás de la
+## curvatura del planeta, vistos desde la cámara, no se dibujan ni proyectan sombra. El recorte por
+## frustum no lo hace: los LOD lejanos del otro lado del planeta suelen caer dentro del encuadre.
+## La esfera que tapa es la de roca maciza garantizada: el radio en el que el generador da sólido en
+## todas las direcciones. Se busca horneando el SDF sobre esferas (bake_sphere_bumpmap, en C++).
+const HORIZON_BAKE_SIZE := Vector2i(512, 256)
+## Holgura bajo el punto más hondo muestreado: una fosa más estrecha que un téxel (~370 m de ecuador
+## en la Tierra) puede quedar entre muestras.
+const HORIZON_MARGIN := 100.0
+const HORIZON_MAX_TRIES := 6
+const HORIZON_CAVE_TOLERANCE := 25.0
+
+
+func _setup_horizon_culling() -> void:
+	if not "horizon_culling_enabled" in voxel_terrain:
+		return
+	var generator = voxel_terrain.generator
+	if generator == null or not generator.has_method("bake_sphere_bumpmap") \
+			or _method_arg_count(generator, "bake_sphere_bumpmap") < 4:
+		return
+	var t_start := Time.get_ticks_usec()
+	var img := Image.create(HORIZON_BAKE_SIZE.x, HORIZON_BAKE_SIZE.y, false, Image.FORMAT_RF)
+	# Con sdf_min 0 y sdf_max 1 cada píxel es -sdf: positivo dentro de la roca. Al radio nominal da la
+	# altura aproximada del terreno; el más negativo, el fondo más hondo.
+	generator.bake_sphere_bumpmap(img, planet.radius, 0.0, 1.0)
+	var depth := maxf(-_image_min(img), 0.0) + HORIZON_MARGIN
+	# El SDF no tiene por qué ser una distancia exacta (terrazas): se comprueba que a ese radio todo
+	# sea roca y, si no, se baja más. Las cuevas dan huecos sueltos a cualquier profundidad (en la
+	# Tierra, -6,5 a 1 y 2 km bajo el nominal); están cerradas y no dejan ver a través, así que se
+	# toleran valores poco negativos.
+	var tries := 0
+	while tries < HORIZON_MAX_TRIES:
+		generator.bake_sphere_bumpmap(img, planet.radius - depth, 0.0, 1.0)
+		var deepest := _image_min(img)
+		if deepest > -HORIZON_CAVE_TOLERANCE:
+			break
+		depth += maxf(-deepest, 0.0) + HORIZON_MARGIN
+		tries += 1
+	if tries == HORIZON_MAX_TRIES or depth >= planet.radius * 0.5:
+		print("PlanetLoader: sin descarte por horizonte en '%s' (no hay un radio macizo claro)." % name)
+		return
+	voxel_terrain.set("horizon_occluder_radius", planet.radius - depth)
+	voxel_terrain.set("horizon_culling_enabled", true)
+	print("PlanetLoader: descarte por horizonte en '%s', esfera maciza de radio %.0f (%.0f m bajo el nominal), %d ms." % [
+		name, planet.radius - depth, depth, (Time.get_ticks_usec() - t_start) / 1000])
+
+
+static func _image_min(img: Image) -> float:
+	var data := img.get_data().to_float32_array()
+	var m := INF
+	for v in data:
+		m = minf(m, v)
+	return m
+
+
+static func _method_arg_count(obj: Object, method: String) -> int:
+	for m in obj.get_method_list():
+		if m.name == method:
+			return m.args.size()
+	return -1
 
 
 func save_voxel_data() -> VoxelSaveCompletionTracker:

@@ -9,6 +9,11 @@ class_name Villager extends Node3D
 ## saluda; a él y a los demás los esquiva al andar; si una fiera ataca cerca corre a su casa y no sale
 ## hasta que acaba (SettlementVillage.danger).
 ##
+## Encaja los golpes (Hurtbox, con una salud que se rellena: no muere): se dobla y, si se lo ha dado el
+## jugador, el poblado se lo apunta (SettlementVillage.struck) y corre a esconderse un rato a su casa; el
+## guardia, en cambio, se revuelve. Con el poblado hostil (SettlementRelations.hostile) la guardia va a por
+## el jugador como a por una fiera, y los demás se esconden.
+##
 ## Va por los sitios de su poblado (SettlementVillage) en línea recta y sin física: sigue el suelo con
 ## un rayo y abre y cierra las puertas al cruzarlas. Un collider lo hace sólido para el jugador. Su
 ## sitio va en el marco del terreno (el del plano), y su pose en el mundo sale de él en cada paso: así
@@ -147,7 +152,17 @@ enum Light { NONE, BUILDING, READY, FAILED }
 ## Hablando con el jugador: lo que dura cada frase (s).
 const SAY_TIME := 2.6
 
-enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT}
+## Encajar un golpe: la animación del jugador (combat/hit_react), lo que dura (s) y lo que se queda
+## escondido en casa después (s). La salud solo está para que los golpes lleguen: es enorme y se rellena
+## tras cada uno, así que nunca se acaba.
+const ANIM_HIT := &"combat/hit_react"
+const FLINCH_TIME := 0.6
+const SCARED_TIME := 45.0
+const HEALTH := 1.0e6
+## Peleando con el jugador: su radio y a qué altura le da (m).
+const PLAYER_RADIUS := 0.35
+const PLAYER_HIT_HEIGHT := 1.2
+enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT, FLINCH}
 
 ## SettlementPopulation.residents: "name", "home", "bed", "job"...
 var resident: Dictionary
@@ -193,6 +208,10 @@ var _eyeing := false
 var _say_left := 0.0
 var _rng := RandomNumberGenerator.new()
 var _model: Node3D
+var health: HealthComponent
+var _hurtbox: Hurtbox
+## Lo que le queda de miedo tras un golpe del jugador (s): mientras, no sale de casa.
+var _scared_left := 0.0
 ## Acostarse, dormir y levantarse (las animaciones encadenadas).
 var _sleep_routine: SleepRoutine
 ## Lo que falta para volver a apoyarse en el lecho, dormido y quieto (s).
@@ -253,6 +272,8 @@ static func build_model(who: Dictionary, pieces: Array, tool := "") -> Node3D:
 		hold(model, tool)
 	var player := model.get_node("AnimationPlayer") as AnimationPlayer
 	player.add_animation_library(&"village", load(ANIMS))
+	if ResourceLoader.exists(PlayerCombat.COMBAT_LIBRARY):
+		player.add_animation_library(&"combat", load(PlayerCombat.COMBAT_LIBRARY))
 	return model
 
 
@@ -317,6 +338,14 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	shape.position = Vector3(0.0, BODY_HEIGHT * 0.5, 0.0)
 	_body.add_child(shape)
 	add_child(_body)
+	health = HealthComponent.new()
+	health.name = "HealthComponent"
+	health.max_health = HEALTH
+	health.fall_damage_enabled = false
+	health.hit_received.connect(_on_hit)
+	add_child(health)
+	_hurtbox = Hurtbox.attach(self, self, capsule, shape.transform, &"body")
+	_hurtbox.health = health
 	_frame = _rng.randi() % 8
 	_greet_left = _rng.randf() * GREET_COOLDOWN * 0.3
 	var h := village.hour()
@@ -532,6 +561,7 @@ func weather_turned() -> void:
 
 func _physics_process(delta: float) -> void:
 	_greet_left -= delta
+	_scared_left -= delta
 	_look_left -= delta
 	if _look_left <= 0.0:
 		_look_left = LOOK_INTERVAL
@@ -551,6 +581,8 @@ func _physics_process(delta: float) -> void:
 			_tick(delta, _decide)
 		Act.FIGHT:
 			_fight(delta)
+		Act.FLINCH:
+			_tick(delta, _decide)
 		Act.WAVE:
 			var at := village.player_local()
 			if at.is_finite():
@@ -567,7 +599,7 @@ func _physics_process(delta: float) -> void:
 					_play(ANIM_IDLE)
 		Act.HIDE:
 			_tick(delta, func() -> void:
-				if village.danger:
+				if village.danger or _scared_left > 0.0:
 					_left = HIDE_CHECK
 				else:
 					_decide())
@@ -784,8 +816,8 @@ func _decide() -> void:
 	_striking = false
 	_show_tool(false)
 	_drop_partner()
-	if village.danger:
-		if is_guard() and _alive(village.threat):
+	if village.danger or (_scared_left > 0.0 and not is_guard()):
+		if is_guard() and village.target() != null:
 			_defend()
 		else:
 			_flee()
@@ -907,7 +939,33 @@ static func _alive(creature: NPCController) -> bool:
 	return creature != null and is_instance_valid(creature) and not creature.is_dead
 
 
-## Una fiera ataca el poblado: el guardia va a por ella con la lanza en la mano (_fight).
+## Le llega un golpe (Hurtbox): no le quita nada (la salud se rellena), pero se dobla; si se lo ha dado el
+## jugador, el poblado se lo apunta (SettlementVillage.struck) y se asusta: corre a casa, o el guardia
+## se revuelve.
+func _on_hit(info: DamageInfo, _applied: float) -> void:
+	# hit_received va antes de descontar el golpe: se rellena después.
+	health.heal.call_deferred(HEALTH)
+	var by_player := info.source != null and is_instance_valid(info.source) and info.source.is_in_group(&"player")
+	if by_player:
+		village.struck(self)
+		if not is_guard():
+			_scared_left = SCARED_TIME
+	if act == Act.SLEEP or act == Act.FLINCH:
+		if act == Act.SLEEP:
+			_decide()
+		return
+	_abort_leg()
+	_drop_partner()
+	_waiting = false
+	_striking = false
+	_hit_left = INF
+	act = Act.FLINCH
+	_left = FLINCH_TIME
+	_play(ANIM_HIT, 1.0, 0.05)
+
+
+## Una fiera ataca el poblado, o el jugador con el poblado hostil (SettlementVillage.target): el guardia va
+## a por él con la lanza en la mano (_fight).
 func _defend() -> void:
 	act = Act.FIGHT
 	_show_tool(true)
@@ -916,17 +974,17 @@ func _defend() -> void:
 	_play(ANIM_RUN, RUN_SPEED / RUN_CLIP_SPEED)
 
 
-## Pelea con la fiera del poblado: corre hasta tenerla a tiro, la encara y le da con la lanza; cuando
-## cae o se va, vuelve a lo suyo.
+## Pelea con la fiera del poblado o con el jugador (SettlementVillage.target): corre hasta tenerlo a tiro,
+## lo encara y le da con la lanza; cuando cae o se va, vuelve a lo suyo.
 func _fight(delta: float) -> void:
-	var target := village.threat
-	if not _alive(target):
+	var target := village.target()
+	if target == null:
 		_decide()
 		return
 	var at := village.frame().affine_inverse() * target.global_position
 	var to := _tangent_raw(at - _pos, _pos)
 	var distance := to.length()
-	var reach := FIGHT_REACH + _body_radius(target)
+	var reach := FIGHT_REACH + _target_radius(target)
 	_face(to, delta)
 	if _hit_left != INF:
 		_hit_left -= delta
@@ -954,6 +1012,11 @@ func _fight(delta: float) -> void:
 		_play(ANIM_IDLE)
 
 
+## El radio en el suelo de lo que pelea (una fiera o el jugador).
+static func _target_radius(target: Node3D) -> float:
+	return _body_radius(target as NPCController) if target is NPCController else PLAYER_RADIUS
+
+
 ## El radio del cuerpo de [creature] en el suelo (m).
 static func _body_radius(creature: NPCController) -> float:
 	var capsule := creature.collision_shape.shape as CapsuleShape3D if creature.collision_shape != null else null
@@ -962,18 +1025,31 @@ static func _body_radius(creature: NPCController) -> float:
 	return capsule.radius * creature.collision_shape.global_basis.get_scale().x
 
 
-## El lanzazo llega: si la fiera sigue a tiro (en la dirección [to]), le da.
-func _land_hit(target: NPCController, to: Vector3) -> void:
-	if target.hurtboxes.is_empty() or to.length() > FIGHT_REACH + _body_radius(target) + 0.6:
+## El lanzazo llega: si la fiera o el jugador sigue a tiro (en la dirección [to]), le da.
+func _land_hit(target: Node3D, to: Vector3) -> void:
+	if to.length() > FIGHT_REACH + _target_radius(target) + 0.6:
 		return
+	var box: Hurtbox
+	var point: Vector3
+	if target is NPCController:
+		var creature := target as NPCController
+		if creature.hurtboxes.is_empty():
+			return
+		box = creature.hurtboxes[0]
+		point = creature.get_lock_point()
+	else:
+		var combat: Variant = target.get("combat")
+		box = combat.get("hurtbox") as Hurtbox if combat != null else null
+		if box == null:
+			return
+		point = target.global_position + village.frame().basis * (_pos.normalized() * PLAYER_HIT_HEIGHT)
 	var weapon: ItemData = ItemCatalog.get_item(StringName(resident.get("job", {}).get("tool", &"")))
 	var damage := maxf(float(weapon.damage) if weapon != null else 0.0, FIGHT_DAMAGE)
 	var dir := (village.frame().basis * to).normalized()
-	var point := target.get_lock_point()
 	var info := DamageInfo.create(damage, self, point, dir, damage * 0.6)
 	info.kind = weapon.damage_kind if weapon != null else ItemData.DamageKind.PIERCE
 	info.knockback = 0.2
-	if target.hurtboxes[0].receive(info) > 0.0:
+	if box.receive(info) > 0.0:
 		CombatFx.blood(target, point, dir, info.kind, info.amount)
 		CombatFx.impact(self, point, info.kind, true)
 
@@ -1103,7 +1179,7 @@ func _partner_lost() -> bool:
 func _watch_player() -> void:
 	_eyeing = false
 	var at := village.player_local()
-	if not at.is_finite() or village.danger:
+	if not at.is_finite() or village.danger or village.closed():
 		return
 	var distance := _tangent_raw(at - _pos, _pos).length()
 	if distance > GREET or distance < 0.8:

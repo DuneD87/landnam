@@ -23,6 +23,7 @@ const POOLS := {
 	&"QUEST_HAGGLE_YES": 3, &"QUEST_HAGGLE_NO": 3, &"QUEST_LATER": 3, &"QUEST_ERRAND_GOT": 3,
 	&"WARD_FOUND": 3, &"WARD_FOLLOW": 3, &"WARD_WAIT": 2, &"WARD_HOME": 3, &"ESCORT_ARRIVED": 3,
 	&"CALL": 4, &"QUEST_LATE": 2,
+	&"STRUCK": 4, &"THIEF": 3, &"CLOSED": 4,
 }
 ## El montón de cada nivel de confianza (SettlementRelations.TIERS).
 const TIER_POOLS: Array[StringName] = [&"WARY", &"CAUTIOUS", &"FRIENDLY", &"FRIENDS", &"KIN"]

@@ -361,8 +361,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
-	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
-		func() -> PackedStringArray: return PackedStringArray(["tp", "trust"])))
+	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | grudge <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
+		func() -> PackedStringArray: return PackedStringArray(["tp", "trust", "grudge"])))
 	_add(ConsoleCommand.new("settler", "settler [amount] [kit]", "CON_HELP_SETTLER", _cmd_settler, 0,
 		func() -> PackedStringArray: return PackedStringArray(["kit"])))
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
@@ -704,6 +704,11 @@ func _cmd_village(args: PackedStringArray) -> String:
 		var relations := manager.relations
 		relations.add(nearest, clampf(float(args[1]), 0.0, SettlementRelations.MAX_TRUST) - relations.trust(nearest))
 		return _paint(COLOR_OK, tr("CON_VILLAGE_TRUST_DONE") % roundi(relations.trust(nearest)))
+	if args.size() > 1 and args[0] == "grudge" and manager != null:
+		# El rencor del poblado más cercano: desde 10 no hablan, desde 25 la guardia va a por el jugador.
+		var relations := manager.relations
+		relations.offend(nearest, clampf(float(args[1]), 0.0, SettlementRelations.GRUDGE_MAX) - relations.grudge(nearest), 0.0)
+		return _paint(COLOR_OK, tr("CON_VILLAGE_GRUDGE_DONE") % roundi(relations.grudge(nearest)))
 	if args.size() > 1 and args[0] == "quest" and manager != null:
 		return _village_quest(manager, nearest, player as Node3D, args[1].to_lower())
 	var template := SettlementField.template(plan.template)

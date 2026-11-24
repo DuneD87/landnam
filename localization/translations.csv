@@ -2305,3 +2305,19 @@ VILLAGER_JOB_GUARD_F,Guard,Guardia,aldeanos
 VTALK_GUARD_1,"Nothing gets past this gate without me seeing it. Not even you.","Por esta puerta no pasa nada sin que yo lo vea. Ni tú.",aldeanos
 VTALK_GUARD_2,"Wolves came down from the hills last winter. We were ready.","El invierno pasado bajaron lobos del monte. Estábamos preparados.",aldeanos
 VTALK_GUARD_3,"Keep your weapon low inside the walls, traveller.","Dentro de la empalizada, el arma baja, forastero.",aldeanos
+VTALK_STRUCK_1,"Ow! What are you doing?","¡Ay! ¿Qué haces?",aldeanos
+VTALK_STRUCK_2,"Help! Guards!","¡Socorro! ¡La guardia!",aldeanos
+VTALK_STRUCK_3,"Keep your hands off me!","¡Quita las manos de encima!",aldeanos
+VTALK_STRUCK_4,"Have you gone mad?","¿Te has vuelto loco?",aldeanos
+VTALK_THIEF_1,"Thief! Stop, thief!","¡Al ladrón! ¡Al ladrón!",aldeanos
+VTALK_THIEF_2,"That's not yours! Put it back!","¡Eso no es tuyo! ¡Déjalo!",aldeanos
+VTALK_THIEF_3,"I saw that! Guards!","¡Te he visto! ¡Guardia!",aldeanos
+VTALK_CLOSED_1,"I've nothing to say to you.","No tengo nada que hablar contigo.",aldeanos
+VTALK_CLOSED_2,"Get away from me.","Apártate de mí.",aldeanos
+VTALK_CLOSED_3,"After what you did? Leave.","¿Después de lo que hiciste? Vete.",aldeanos
+VTALK_CLOSED_4,"We don't deal with your kind here.","Aquí no tratamos con gente como tú.",aldeanos
+VILLAGE_STASH_CHEST,Chest,Arcón,poblados: arcón de una casa
+VILLAGE_STASH_CRATE,Crate,Caja,poblados: caja de una casa
+VILLAGE_STASH_BARREL,Barrel,Barril,poblados: barril de una casa
+VILLAGE_STASH_SACK,Sack,Saco,poblados: saco de una casa
+CON_VILLAGE_GRUDGE_DONE,Nearest village grudge: %d (10: they won't talk; 25: the guards attack).,Rencor del poblado más cercano: %d (10: no hablan; 25: la guardia ataca).,consola

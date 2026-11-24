@@ -21,7 +21,7 @@ cuadrado/triángulo.
 | Cruceta izquierda / derecha | Objeto anterior / siguiente de la barra rápida. |
 | Cruceta arriba | Sacar / guardar arma; con el martillo, menú de construcción. |
 | Cruceta abajo | Fabricación. |
-| View / Select | Mapa. |
+| View / Select (o Guide) | Mapa. Guide sirve donde no hay View, como en Moonlight. |
 | Menu / Start | Pausa o cerrar la ventana actual. |
 
 El arma principal permanece equipada al seleccionar una herramienta. Cruceta arriba la saca o
@@ -33,6 +33,11 @@ En las ventanas, el stick izquierdo mueve el cursor, A hace clic izquierdo y X c
 Mayús+clic para transferir objetos o tomar la mitad según el contenedor. El stick derecho
 desplaza las listas; arriba/abajo en la cruceta también desplazan. B vuelve o cierra la ventana;
 Y alterna el inventario. El ratón físico sigue disponible.
+
+En el mapa, si lo último que se ha tocado es el mando (y no el teclado), mover el ratón sin pulsar
+arrastra el mapa: así el trackpad del mando, que por Moonlight llega como ratón, lo desplaza con el dedo.
+Cerca del borde de la pantalla el cursor vuelve al centro para poder seguir arrastrando. El cursor del
+stick izquierdo no arrastra. Al tocar el teclado, el ratón vuelve a mover solo el cursor.
 
 Con el martillo, LT abre la rueda. Se apunta con el stick derecho y se elige al soltar LT o
 pulsar RT. Un toque corto sin apuntar deja la rueda abierta. Start la cierra sin elegir.
