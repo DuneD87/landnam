@@ -67,7 +67,7 @@ antes que los demás. Al volver a su puesto, cuatro de cada diez veces hacen ant
 ocho puntos de la cerca por dentro, en un sentido al azar. Si ataca una fiera (la alarma del poblado), no
 huyen: corren hasta ella con la lanza (`Villager._fight`), la encaran y le dan lanzazos (`DamageInfo` contra
 su hurtbox, 14 como poco o lo de su lanza) hasta que cae o se va, y vuelven a lo suyo. La fiera, al
-recibir, va a por ellos; no tienen salud ni hurtbox, así que no caen.
+recibir, va a por ellos y los puede dejar malheridos (ver **Lo que el jugador les hace**).
 
 Talar y picar son solo gesto: no producen nada. La herramienta cuelga del hueso del dedo corazón con
 el marco de agarre del jugador (`CombatPose.RIGHT_GRIP`). La mano no se cierra sobre el mango, así que
@@ -187,7 +187,13 @@ con lluvia se apaga. El tiempo cambia la rutina de día (ver Reacciones).
   vivo y despierto **atacando** (en pelea, `CreatureCombatState`, contra el jugador, el compañero u
   otro animal) a menos de 25 m de lo más lejano del poblado. Si lo hay, todos corren a su casa,
   entran, cierran y se quedan dentro, de pie a los pies de su lecho, y no aceptan regalos. Salen 15 s
-  después de que ninguna ataque. Una fiera que solo ronda, come o avisa no asusta: si asustara, con
+  después de que ninguna ataque. **Le plantan cara** la guardia (siempre) y quien tiene herramienta de
+  su oficio (hacha, azada, martillo) si está fuera de casa y la fiera le queda a menos de 15 m o va a
+  por uno de los suyos (`Villager._should_fight`, `SettlementVillage.beast_for`): corre hasta ella y le
+  da con la herramienta como la guardia con la lanza; ya peleando, la sigue hasta 30 m. El poblado lo
+  vuelve a mirar cada segundo (`Villager.rally`), así que quien iba hacia casa se da la vuelta si se le
+  acerca. Los de dentro de casa y los que no tienen herramienta (tenderos, vendedores, sin oficio) se
+  esconden. Las fieras no van a por los aldeanos por su cuenta: solo a por quien les pega. Una fiera que solo ronda, come o avisa no asusta: si asustara, con
   tanta fauna el poblado se pasaría el día escondido de algo que ni se ve. Tampoco cuenta una dormida
   por la fauna (lejos del jugador y fuera de cámara se queda parada y oculta). La consola `village`
   dice de qué se esconden y a cuánto de la plaza.
@@ -349,11 +355,16 @@ en su `get_save_data`).
 
 ## Lo que el jugador les hace
 
-**Pegarles.** Los aldeanos encajan los golpes (`Hurtbox`, con una salud enorme que se rellena: no mueren).
-Se doblan (`combat/hit_react`) y, si el golpe es del jugador, el poblado se lo apunta
+**Pegarles.** Los aldeanos encajan los golpes (`Hurtbox`) y se doblan (`combat/hit_react`). Los del jugador
+no les quitan vida (se les devuelve lo que se les iba a quitar), pero el poblado se los apunta
 (`SettlementVillage.struck`): sube su rencor y baja la confianza. El golpeado corre a esconderse a su casa
-45 s; el guardia, en cambio, se queda. Un combo contra el mismo vecino cuenta una vez (1,5 s). Las fieras
-también les pegan, sin que cuente.
+45 s; el guardia, en cambio, se queda. Un combo contra el mismo vecino cuenta una vez (1,5 s).
+
+**Las fieras sí les quitan vida** (100, sin armadura). Sin ella **caen malheridos** (`Villager._on_down`,
+`combat/death`): 25 s en el suelo, sin cuerpo sólido ni hurtbox y sin que se les pueda hablar; la fiera los
+deja, porque su vida está a cero. Luego se levantan con toda la vida y se van andando a casa, donde se
+quedan 45 s (también el guardia), sin plantar cara a nada. No mueren. Fuera de pelea, a los 10 s del último
+mordisco recuperan 2 por segundo.
 
 **Robar.** Los arcones, cajas, barriles y sacos de las casas (`SettlementStash`, los `SettlementProp` de
 esas clases) se abren con E como un botín. Tienen lo que les toca hoy (`SettlementTrade.STASH`, sorteado
@@ -584,6 +595,17 @@ esquiva) y no vuelve a esquivar hasta 1 s después.
 la pieza del morral que más protege y, si no hay ninguna, la de su poblado; al quitársela vuelve a la
 suya. Lo que lleva puesto sigue en el morral (ocupa su hueco y se guarda con él), y al ponérselo se le
 ajusta al cuerpo como al jugador (`CharacterAppearanceRig.dress`).
+
+**Las fieras van a por él como a por el jugador** (`Perception._scan`): las que cazan al jugador miran
+también a sus compañeros (los que siguen, los que esperan y los colonos de la base) con la misma vista y el
+mismo oído, y van a por el más cercano que perciban. Al que ya tienen lo siguen mientras lo perciban, salvo
+que otro del grupo esté a menos del 60 % de su distancia (`Perception.SWITCH_RATIO`); así una manada se
+reparte entre el jugador y los suyos. Antes de atacarle le avisan como al jugador (la amenaza del
+`CreatureCombatState`). No lo miran malherido, trepando, sentado en una bancada ni volviendo a casa
+(`Companion.is_prey`). **Siguiendo al jugador a menos de 25 m y sin pelear se le oye y se le ve como a él**
+(`Companion.get_noise`, `get_visibility`): si el jugador va agachado, el grupo pasa desapercibido aunque
+no se agache; si no, como el jugador a paso normal. Las presas que dejan acercarse al jugador
+(`lets_player_approach`) le dejan acercarse igual.
 
 **Le pegan**: tiene 100 de vida (`HealthComponent`, con la protección de lo que lleva puesto sumada por 0,4) y un
 `Hurtbox`, así que las zarpas y los dientes le dan. La criatura a la que golpea se le revuelve
@@ -996,10 +1018,15 @@ física dados a mano, comprueba que:
 - dos se juntan a charlar;
 - lejos se van.
 
-`tests/world/test_reputation.tscn` (sin mundo ni gente vestida): el rencor (cerrar la puerta, hostil,
+`tests/world/test_reputation.tscn` (sin mundo): el rencor (cerrar la puerta, hostil,
 enfriarse, guardarse), lo recibido en el género (revenderlo, la mitad al día siguiente, guardarse), los
-arcones (lo del jugador no cuenta, lo suyo se apunta y se repone al día siguiente) y los golpes (un combo
-cuenta una vez, el guardia pone hostil al poblado, lejos lo dejan, sin testigos no hay robo).
+arcones (lo del jugador no cuenta, lo suyo se apunta y se repone al día siguiente), los golpes (un combo
+cuenta una vez, el guardia pone hostil al poblado, lejos lo dejan, sin testigos no hay robo) y las fieras
+con dos aldeanos vestidos y un lobo (el jugador no les quita vida y la fiera sí; malherido y a casa; quién
+planta cara: de cerca o si va a por uno de los suyos, con herramienta y fuera de casa).
+
+`tests/combat/test_creature_combat.tscn`, `_check_party_target`: la fiera elige entre el jugador y un
+compañero de pega (el más cercano, no cambia por poco, ignora al caído).
 
 La consola `village` dice cuántos hay cerca y cuántos quedan por vestir, de qué fiera se esconden (si se
 esconden) y los encargos abiertos con cómo van. `village trust <0-100>` pone la confianza del poblado
@@ -1021,8 +1048,10 @@ puerta, 25 lo pone hostil), y `spawn <animal>` saca fieras para pelear o cazar.
   buscan camino: si en 12 s no llegan, aparecen en su sitio. El jugador no se sienta en las bancadas
   ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
-- Ante una fiera los aldeanos solo huyen, menos la guardia. Se les puede pegar, pero no mueren ni caen:
-  encajan y huyen. El compañero pelea: para con el
+- Ante una fiera, quien no es de la guardia pelea solo con lo de su oficio: va derecho a la fiera (sin
+  caminos, como la guardia), no para ni esquiva, y desde dentro de casa no sale. Ni las fieras ni el
+  jugador los matan: las fieras los dejan malheridos y el jugador no les quita vida. El compañero no
+  ayuda a los aldeanos: pelea por el jugador y por los suyos. El compañero pelea: para con el
   escudo o con un arma a dos manos y, si no, esquiva hacia atrás (no rueda); no usa hondas ni lanzas
   arrojadizas. La armadura le protege toda sumada, no por partes como al
   jugador, y la ropa no le abriga.
@@ -1037,8 +1066,8 @@ puerta, 25 lo pone hostil), y `spawn <animal>` saca fieras para pelear o cazar.
   llegar a una fiera) ni baja trepando: baja saltando o por un camino.
 - Los caminos (`GroundPath`) llegan a 35 m: lo que queda más lejos detrás de una pared lo alcanza por
   tramos, y si aun así no sale, aparece detrás del jugador. En el agua va derecho: no bucea, no rodea
-  rocas sumergidas y bajo la banquisa nada como en agua abierta. Las fieras solo van a por él si les
-  pega; las que no, siguen con el jugador.
+  rocas sumergidas y bajo la banquisa nada como en agua abierta. No se agacha: siguiendo al jugador
+  agachado pasa desapercibido igual, aunque ande erguido.
 - Las fieras de un encargo de caza no se marcan: valen cualesquiera de esa especie cerca del poblado. El
   perdido no cojea ni se tumba: espera de pie. Escoltado o perdido, cuando el jugador se aleja mucho
   aparece detrás de él como cualquier compañero. La fiera con nombre que se deja atrás se quita y vuelve

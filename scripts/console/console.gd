@@ -729,11 +729,51 @@ func _cmd_village(args: PackedStringArray) -> String:
 				if threat != null else NAN
 			text += "\n" + tr("CON_VILLAGE_DANGER") % [String(village.threat_kind),
 				("%.0f m" % away) if is_finite(away) else "?"]
+		if village != null:
+			text += "\n" + _village_fight_report(village)
 		# Los encargos abiertos, estén donde estén.
 		for quest: Dictionary in manager.quests.open_list():
 			text += "\n" + tr("CON_VILLAGE_QUEST") % [quest.name, quest.village_name, VillagerTalk.quest_status(quest,
 				player.get("inventory") as Inventory)]
 	return _paint(COLOR_INFO, text)
+
+
+## Cómo va la pelea en [village]: cuántos de sus aldeanos pelean, se esconden, están malheridos o a lo suyo,
+## y la fiera de las que asustan (SettlementVillage.THREATS) más cercana a la plaza: su estado y a por quién va.
+func _village_fight_report(village: SettlementVillage) -> String:
+	var counts := [0, 0, 0, 0]
+	for v in village.villagers:
+		if not is_instance_valid(v):
+			continue
+		match v.act:
+			Villager.Act.FIGHT:
+				counts[0] += 1
+			Villager.Act.HIDE:
+				counts[1] += 1
+			Villager.Act.DOWN:
+				counts[2] += 1
+			_:
+				counts[3] += 1
+	var text := tr("CON_VILLAGE_FIGHT") % counts
+	var to_local := village.frame().affine_inverse()
+	var best: NPCController
+	var best_d := INF
+	for node in get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
+		var creature := node as NPCController
+		if creature == null or creature.is_dead or creature.npc_type not in SettlementVillage.THREATS:
+			continue
+		var d := (to_local * creature.global_position).distance_to(village.center)
+		if d < best_d:
+			best = creature
+			best_d = d
+	if best == null:
+		return text + "\n" + tr("CON_VILLAGE_NO_BEAST")
+	var ai := best.ai_controller
+	var target: Node3D = ai.target if ai != null and is_instance_valid(ai.target) else null
+	return text + "\n" + tr("CON_VILLAGE_BEAST") % [String(best.npc_type), best_d,
+		float(village.plan.get("extent", village.plaza_radius)) + SettlementVillage.DANGER_REACH,
+		String(ai.get_current_state()) if ai != null else "?", "%s/%s" % [best.active, best.dormant],
+		String(target.name) if target != null else "-"]
 
 
 ## El aldeano más cercano al jugador del poblado [v] pide ahora un encargo de [kind] (para probarlos).

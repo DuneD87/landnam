@@ -7,11 +7,13 @@ class_name Villager extends Node3D
 ## horas, pasea por la plaza, se queda de pie, se sienta en el suelo o se junta con otro a charlar; al
 ## atardecer se sienta en corro junto a la hoguera. Al jugador lo mira si está cerca y a veces lo
 ## saluda; a él y a los demás los esquiva al andar; si una fiera ataca cerca corre a su casa y no sale
-## hasta que acaba (SettlementVillage.danger).
+## hasta que acaba (SettlementVillage.danger), salvo la guardia y quien tiene herramienta y la tiene
+## cerca, que le plantan cara (_should_fight).
 ##
-## Encaja los golpes (Hurtbox, con una salud que se rellena: no muere): se dobla y, si se lo ha dado el
-## jugador, el poblado se lo apunta (SettlementVillage.struck) y corre a esconderse un rato a su casa; el
-## guardia, en cambio, se revuelve. Con el poblado hostil (SettlementRelations.hostile) la guardia va a por
+## Encaja los golpes (Hurtbox): se dobla y, si se lo ha dado el jugador, el poblado se lo apunta
+## (SettlementVillage.struck) y corre a esconderse un rato a su casa; el guardia, en cambio, se revuelve.
+## Solo las fieras le quitan vida: sin ella cae malherido un rato (no muere) y luego se va a casa. Con el
+## poblado hostil (SettlementRelations.hostile) la guardia va a por
 ## el jugador como a por una fiera, y los demás se esconden.
 ##
 ## Va por los sitios de su poblado (SettlementVillage) en línea recta y sin física: sigue el suelo con
@@ -153,16 +155,26 @@ enum Light { NONE, BUILDING, READY, FAILED }
 const SAY_TIME := 2.6
 
 ## Encajar un golpe: la animación del jugador (combat/hit_react), lo que dura (s) y lo que se queda
-## escondido en casa después (s). La salud solo está para que los golpes lleguen: es enorme y se rellena
-## tras cada uno, así que nunca se acaba.
+## escondido en casa después (s), tras un golpe del jugador o tras levantarse malherido.
 const ANIM_HIT := &"combat/hit_react"
 const FLINCH_TIME := 0.6
 const SCARED_TIME := 45.0
-const HEALTH := 1.0e6
+## Su vida: solo la gastan las fieras (los golpes del jugador llegan, pero no quitan nada). Sin ella cae
+## malherido (ANIM_DOWN) DOWN_TIME s; luego se levanta con toda y se va a casa (SCARED_TIME). Fuera de
+## pelea, a los REGEN_AFTER s del último golpe recupera REGEN por segundo.
+const HEALTH := 100.0
+const DOWN_TIME := 25.0
+const ANIM_DOWN := &"combat/death"
+const REGEN_AFTER := 10.0
+const REGEN := 2.0
+## Quien tiene herramienta (no la guardia, que va siempre) planta cara a la fiera que ataca el poblado si
+## está fuera de casa y la tiene a menos de esto (m), o si la fiera va a por uno de los suyos; ya peleando,
+## la sigue hasta el doble.
+const DEFEND_REACH := 15.0
 ## Peleando con el jugador: su radio y a qué altura le da (m).
 const PLAYER_RADIUS := 0.35
 const PLAYER_HIT_HEIGHT := 1.2
-enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT, FLINCH}
+enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT, FLINCH, DOWN}
 
 ## SettlementPopulation.residents: "name", "home", "bed", "job"...
 var resident: Dictionary
@@ -212,6 +224,8 @@ var health: HealthComponent
 var _hurtbox: Hurtbox
 ## Lo que le queda de miedo tras un golpe del jugador (s): mientras, no sale de casa.
 var _scared_left := 0.0
+## Segundos desde el último golpe que le ha quitado vida (para recuperarla: REGEN_AFTER).
+var _since_hit := INF
 ## Acostarse, dormir y levantarse (las animaciones encadenadas).
 var _sleep_routine: SleepRoutine
 ## Lo que falta para volver a apoyarse en el lecho, dormido y quieto (s).
@@ -343,6 +357,7 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	health.max_health = HEALTH
 	health.fall_damage_enabled = false
 	health.hit_received.connect(_on_hit)
+	health.died.connect(_on_down)
 	add_child(health)
 	_hurtbox = Hurtbox.attach(self, self, capsule, shape.transform, &"body")
 	_hurtbox.health = health
@@ -465,7 +480,7 @@ static func nearest(tree: SceneTree, group: StringName, at: Vector3, look: Vecto
 
 ## Si se le puede hablar ahora (dormido no).
 func can_chat() -> bool:
-	return act != Act.SLEEP
+	return act != Act.SLEEP and act != Act.DOWN
 
 
 ## El jugador le habla: deja lo que haga, se para y lo mira hasta end_chat. Falso si no puede.
@@ -535,7 +550,16 @@ func leave_with_player() -> Node3D:
 
 ## Ataca una fiera (SettlementVillage): deja lo que haga y corre a casa.
 func alarm() -> void:
-	if act != Act.SLEEP and act != Act.HIDE:
+	if act != Act.SLEEP and act != Act.HIDE and act != Act.DOWN:
+		_decide()
+
+
+## La fiera sigue atacando el poblado (SettlementVillage, cada segundo): quien tiene herramienta y no está
+## ya peleando va a por ella si ahora le toca (_should_fight: se le ha acercado o va a por uno de los suyos).
+func rally() -> void:
+	if is_guard() or act in [Act.FIGHT, Act.FLINCH, Act.DOWN, Act.SLEEP, Act.CHAT]:
+		return
+	if _should_fight():
 		_decide()
 
 
@@ -543,7 +567,7 @@ func alarm() -> void:
 ## empieza a nevar, quien esté sentado fuera se levanta; si escampa, los de casa salen al poco.
 func weather_turned() -> void:
 	match act:
-		Act.SLEEP, Act.HIDE, Act.CHAT:
+		Act.SLEEP, Act.HIDE, Act.CHAT, Act.DOWN:
 			pass
 		Act.SHELTER:
 			if not village.raining:
@@ -562,6 +586,10 @@ func weather_turned() -> void:
 func _physics_process(delta: float) -> void:
 	_greet_left -= delta
 	_scared_left -= delta
+	_since_hit += delta
+	if act != Act.DOWN and _since_hit >= REGEN_AFTER and health.health < health.max_health \
+			and not health.is_dead:
+		health.heal(REGEN * delta)
 	_look_left -= delta
 	if _look_left <= 0.0:
 		_look_left = LOOK_INTERVAL
@@ -583,6 +611,8 @@ func _physics_process(delta: float) -> void:
 			_fight(delta)
 		Act.FLINCH:
 			_tick(delta, _decide)
+		Act.DOWN:
+			_tick(delta, _rise)
 		Act.WAVE:
 			var at := village.player_local()
 			if at.is_finite():
@@ -823,8 +853,8 @@ func _decide() -> void:
 	_striking = false
 	_show_tool(false)
 	_drop_partner()
-	if village.danger or (_scared_left > 0.0 and not is_guard()):
-		if is_guard() and village.target() != null:
+	if village.danger or _scared_left > 0.0:
+		if _should_fight():
 			_defend()
 		else:
 			_flee()
@@ -946,12 +976,15 @@ static func _alive(creature: NPCController) -> bool:
 	return creature != null and is_instance_valid(creature) and not creature.is_dead
 
 
-## Le llega un golpe (Hurtbox): no le quita nada (la salud se rellena), pero se dobla; si se lo ha dado el
-## jugador, el poblado se lo apunta (SettlementVillage.struck) y se asusta: corre a casa, o el guardia
-## se revuelve.
+## Le llega un golpe (Hurtbox): se dobla. Solo el de una fiera le quita vida (sin ella cae: _on_down); si
+## se lo ha dado el jugador, el poblado se lo apunta (SettlementVillage.struck) y se asusta: corre a casa, o
+## el guardia se revuelve.
 func _on_hit(info: DamageInfo, _applied: float) -> void:
-	# hit_received va antes de descontar el golpe: se rellena después.
-	health.heal.call_deferred(HEALTH)
+	if info.source is NPCController:
+		_since_hit = 0.0
+	else:
+		# hit_received va antes de descontar el golpe: se le devuelve lo que se le va a quitar.
+		health.health += info.mitigated
 	var by_player := info.source != null and is_instance_valid(info.source) and info.source.is_in_group(&"player")
 	if by_player:
 		village.struck(self)
@@ -971,8 +1004,60 @@ func _on_hit(info: DamageInfo, _applied: float) -> void:
 	_play(ANIM_HIT, 1.0, 0.05)
 
 
+## Sin vida (se la ha quitado una fiera): cae y se queda en el suelo DOWN_TIME s. Las fieras lo dejan
+## (CreatureCombatState: su vida está a cero) y no se le puede hablar.
+func _on_down() -> void:
+	_abort_leg()
+	_drop_partner()
+	_waiting = false
+	_striking = false
+	_hit_left = INF
+	_before_wave = []
+	_show_tool(false)
+	_hurtbox.set_enabled(false)
+	_set_solid(false)
+	act = Act.DOWN
+	_left = DOWN_TIME
+	_play(ANIM_DOWN, 1.0, 0.15)
+
+
+## Se levanta de malherido con toda su vida y se va a casa, andando, a quedarse un rato (SCARED_TIME).
+func _rise() -> void:
+	health.revive()
+	_hurtbox.set_enabled(true)
+	_set_solid(true)
+	_since_hit = 0.0
+	_scared_left = SCARED_TIME
+	var b: int = resident.home
+	_go_to(village.bed_foot(b, resident.bed), b, _hide)
+
+
+## Si planta cara (_defend) en vez de correr a casa: no asustado (por el jugador o tras caer malherido) y, la
+## guardia, con alguien a quien ir (SettlementVillage.target); los demás, con herramienta, fuera de casa y
+## con la fiera a su alcance (_foe).
+func _should_fight() -> bool:
+	if _scared_left > 0.0 or act == Act.DOWN or health.is_dead:
+		return false
+	if is_guard():
+		return village.target() != null
+	return _inside < 0 and _armed() and _foe() != null
+
+
+## Si tiene una herramienta con la que golpear (su oficio la tiene: hacha, azada, martillo, lanza).
+func _armed() -> bool:
+	return String(resident.get("job", {}).get("tool", "")) != ""
+
+
+## A quién va peleando: la guardia, a quien diga el poblado (la fiera o el jugador hostil); los demás, solo
+## a la fiera, si la tienen a menos de DEFEND_REACH (el doble si ya pelean) o va a por uno de los suyos.
+func _foe() -> Node3D:
+	if is_guard():
+		return village.target()
+	return village.beast_for(_pos, DEFEND_REACH * (2.0 if act == Act.FIGHT else 1.0))
+
+
 ## Una fiera ataca el poblado, o el jugador con el poblado hostil (SettlementVillage.target): el guardia va
-## a por él con la lanza en la mano (_fight).
+## a por él con la lanza en la mano (_fight), y quien tiene herramienta, a por la fiera si la tiene cerca.
 func _defend() -> void:
 	act = Act.FIGHT
 	_show_tool(true)
@@ -981,10 +1066,10 @@ func _defend() -> void:
 	_play(ANIM_RUN, RUN_SPEED / RUN_CLIP_SPEED)
 
 
-## Pelea con la fiera del poblado o con el jugador (SettlementVillage.target): corre hasta tenerlo a tiro,
-## lo encara y le da con la lanza; cuando cae o se va, vuelve a lo suyo.
+## Pelea con la fiera del poblado o con el jugador (_foe): corre hasta tenerlo a tiro, lo encara y le da con
+## la lanza o la herramienta; cuando cae o se va, vuelve a lo suyo.
 func _fight(delta: float) -> void:
-	var target := village.target()
+	var target := _foe()
 	if target == null:
 		_decide()
 		return

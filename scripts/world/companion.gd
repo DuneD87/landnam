@@ -111,6 +111,8 @@ const FLINCH_TIME := 0.45
 ## Sin vida cae malherido: se levanta a los DOWN_TIME s con RISE_HEALTH de su vida.
 const DOWN_TIME := 25.0
 const RISE_HEALTH := 0.4
+## Siguiendo al jugador a menos de esto (m), las fieras lo oyen y lo ven como a él (get_noise).
+const STEALTH_REACH := 25.0
 ## Fuera de pelea, a los REGEN_AFTER s del último golpe recupera REGEN por segundo; y por debajo de
 ## EAT_BELOW de su vida come, cada EAT_EVERY s, algo de lo que lleva: lo asado cura HEAL_FOOD, un remedio
 ## HEAL_REMEDY.
@@ -616,6 +618,37 @@ func is_field_working() -> bool:
 ## Si está malherido en el suelo (se levanta al rato).
 func is_down() -> bool:
 	return _down_left > 0.0
+
+
+## Si las fieras pueden ir a por él (Perception, como al jugador): no malherido, ni trepando, ni sentado
+## en una bancada, ni yéndose a casa.
+func is_prey() -> bool:
+	return not dead and _down_left <= 0.0 and not _climbing and not _seated and mode != Mode.LEAVE \
+		and not health.is_dead
+
+
+## Lo que se le oye (Perception lo multiplica por su oído): siguiendo al jugador de cerca y sin pelear, lo
+## mismo que a él (si va agachado, el grupo pasa desapercibido aunque no se agache); si no, como el jugador
+## a paso normal.
+func get_noise() -> float:
+	var lead := _stealth_lead()
+	return float(lead.call(&"get_noise")) if lead != null else 1.0
+
+
+## Lo que se le ve (Perception lo multiplica por su vista), con la misma regla que get_noise.
+func get_visibility() -> float:
+	var lead := _stealth_lead()
+	return float(lead.call(&"get_visibility")) if lead != null else 1.0
+
+
+## El jugador, si el compañero va con él (siguiéndolo a menos de STEALTH_REACH m) y no pelea; null si no.
+func _stealth_lead() -> Node3D:
+	if mode != Mode.FOLLOW or _target != null or _player == null or not is_instance_valid(_player) \
+			or not _player.has_method(&"get_noise") or not _player.has_method(&"get_visibility"):
+		return null
+	if global_position.distance_to(_player.global_position) > STEALTH_REACH:
+		return null
+	return _player
 
 
 ## Si va de camino a un sitio (go_to).

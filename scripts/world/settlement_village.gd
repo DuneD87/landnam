@@ -73,7 +73,8 @@ var villagers: Array[Villager] = []
 var homes := {}
 var player: Node3D
 var fire: SettlementFire
-## Ataca una fiera (THREATS): todo el mundo a casa.
+## Ataca una fiera (THREATS): todo el mundo a casa, menos la guardia y quien tiene herramienta y la tiene
+## cerca (Villager._should_fight).
 var danger := false
 ## La fiera de la última vez que se miró (para la consola), o null; y su especie.
 var threat: NPCController
@@ -175,6 +176,11 @@ func update(delta: float) -> void:
 			for v in villagers:
 				if is_instance_valid(v):
 					v.alarm()
+		elif threat != null:
+			# Quien tiene herramienta y no peleaba se suma si la fiera se le acerca o va a por uno de los suyos.
+			for v in villagers:
+				if is_instance_valid(v):
+					v.rally()
 	elif danger and _calm >= CALM_TIME:
 		danger = false
 
@@ -198,6 +204,20 @@ func target() -> Node3D:
 		return threat
 	if hostile and _hostile_now():
 		return player
+	return null
+
+
+## La fiera que ataca el poblado (threat) si un vecino en [at] (marco del terreno) le planta cara: la tiene a
+## menos de [reach] m o va a por uno de los de aquí (Villager._foe). null si no.
+func beast_for(at: Vector3, reach: float) -> NPCController:
+	if threat == null or not is_instance_valid(threat) or threat.is_dead:
+		return null
+	var ai := threat.ai_controller
+	var prey: Villager = ai.target as Villager if ai != null and is_instance_valid(ai.target) else null
+	if prey != null and prey.village == self:
+		return threat
+	if (frame().affine_inverse() * threat.global_position).distance_to(at) < reach:
+		return threat
 	return null
 
 

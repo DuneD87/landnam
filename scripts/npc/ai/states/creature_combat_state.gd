@@ -142,8 +142,10 @@ func _in_hit_window() -> bool:
 	return false
 
 
+## Si va a por el jugador o uno de sus compañeros (a ellos les avisa antes: THREATEN).
 func _target_is_player() -> bool:
-	return controller.target != null and controller.target.is_in_group("player")
+	return controller.target != null and (controller.target.is_in_group("player")
+		or controller.target.is_in_group(Companion.GROUP))
 
 
 func _set_phase(next: Phase, length: float = 0.0) -> void:

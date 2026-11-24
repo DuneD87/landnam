@@ -3,7 +3,9 @@ extends Node
 ## Lo que el jugador les hace a los poblados, sin mundo ni gente vestida: el rencor (SettlementRelations:
 ## cerrar la puerta, la guardia hostil, enfriarse, guardarse), lo que se les da pasa a su género y se gasta
 ## (SettlementTrade.receive), lo de los arcones (stash) y robarlo (SettlementStash), y los golpes y la
-## hostilidad del poblado (SettlementVillage.struck, target). Ver con la gente de verdad, en juego.
+## hostilidad del poblado (SettlementVillage.struck, target); y las fieras: solo ellas quitan vida a un aldeano,
+## que sin ella cae malherido y luego se va a casa, y quién les planta cara (Villager._should_fight,
+## SettlementVillage.beast_for). Ver con la gente de verdad, en juego.
 ##   godot --headless --path . --audio-driver Dummy res://tests/world/test_reputation.tscn
 
 var failures := 0
@@ -28,6 +30,7 @@ func _run() -> void:
 	_check_received()
 	_check_stash()
 	_check_village()
+	_check_beasts()
 
 
 func _check_grudge() -> void:
@@ -149,5 +152,72 @@ func _check_village() -> void:
 		"sin testigos, robar no se apunta")
 	guard.free()
 	farmer.free()
+	player.queue_free()
+	terrain.queue_free()
+
+
+func _check_beasts() -> void:
+	var plan := {"center": Vector3.UP, "ground": 1000.0, "template": &"aldea", "buildings": [], "extent": 30.0}
+	var terrain := Node3D.new()
+	add_child(terrain)
+	var village := SettlementVillage.new(1, plan, {}, terrain)
+	village.relations = SettlementRelations.new()
+	village.hour_override = 12.5
+	var home := village.center + Vector3(6.0, 0.0, 0.0)
+	village.homes = {0: {"door": home, "out": Vector3.RIGHT, "inside": home, "outside": home,
+		"beds": [Transform3D(Basis.IDENTITY, home)], "work": []}}
+	var player := Node3D.new()
+	player.add_to_group(&"player")
+	add_child(player)
+	var who := {"id": "1:0:0", "name": "Leñador", "sex": &"male", "look": 7, "home": 0, "bed": 0,
+		"job": {"kind": &"woodpile", "tool": &"stone_axe_01"}}
+	var woodcutter := Villager.new()
+	woodcutter.setup(who, village, Villager.build_model(who, [], SettlementVillagers.tool_of(who)))
+	terrain.add_child(woodcutter)
+	village.villagers.append(woodcutter)
+	var seller_who := {"id": "1:0:1", "name": "Tendero", "sex": &"female", "look": 8, "home": 0, "bed": 0, "job": {}}
+	var seller := Villager.new()
+	seller.setup(seller_who, village, Villager.build_model(seller_who, []))
+	terrain.add_child(seller)
+	village.villagers.append(seller)
+	var wolf := (load("res://scenes/animals/Wolf.tscn") as PackedScene).instantiate() as NPCController
+	add_child(wolf)
+	wolf.set_physics_process(false)
+	wolf.perception.set_physics_process(false)
+	wolf.global_position = woodcutter.global_position + Vector3(40.0, 0.0, 0.0)
+	var health := woodcutter.health
+	var hit := func(source: Node3D, amount: float) -> void:
+		health.receive_hit(DamageInfo.create(amount, source, woodcutter.global_position, Vector3.FORWARD))
+	hit.call(player, 30.0)
+	check(is_equal_approx(health.health, Villager.HEALTH) and village.relations.grudge(1) > 0.0,
+		"el golpe del jugador no le quita vida (pero cuenta para el rencor)")
+	village.relations = SettlementRelations.new()
+	hit.call(wolf, 60.0)
+	check(is_equal_approx(health.health, Villager.HEALTH - 60.0) and woodcutter.act == Villager.Act.FLINCH,
+		"la dentellada de una fiera sí: se dobla y le queda %.0f" % health.health)
+	hit.call(wolf, 60.0)
+	check(woodcutter.act == Villager.Act.DOWN and health.is_dead and woodcutter._hurtbox.collision_layer == 0
+		and not woodcutter.can_chat(), "sin vida cae malherido: no encaja más golpes ni se le puede hablar")
+	woodcutter._physics_process(Villager.DOWN_TIME + 0.1)
+	check(woodcutter.act == Villager.Act.WALK and not health.is_dead and is_equal_approx(health.health, Villager.HEALTH)
+		and woodcutter._scared_left > 0.0 and woodcutter._path[woodcutter._path.size() - 1].is_equal_approx(village.bed_foot(0, 0)),
+		"a los %.0f s se levanta con toda su vida y se va a casa" % Villager.DOWN_TIME)
+	check(not woodcutter._should_fight(), "y, asustado, no planta cara")
+	woodcutter._scared_left = 0.0
+	village.threat = wolf
+	check(not woodcutter._should_fight(), "a la fiera que ataca lejos (40 m) no va")
+	wolf.global_position = woodcutter.global_position + Vector3(10.0, 0.0, 0.0)
+	check(woodcutter._should_fight() and not seller._should_fight(),
+		"a la de 10 m va quien tiene herramienta; quien no, se esconde")
+	wolf.global_position = woodcutter.global_position + Vector3(40.0, 0.0, 0.0)
+	wolf.ai_controller.target = seller
+	check(woodcutter._should_fight(), "y a la que va a por uno de los suyos, aunque esté lejos")
+	wolf.ai_controller.target = null
+	woodcutter._inside = 0
+	wolf.global_position = woodcutter.global_position + Vector3(5.0, 0.0, 0.0)
+	check(not woodcutter._should_fight(), "dentro de casa no sale")
+	wolf.queue_free()
+	woodcutter.queue_free()
+	seller.queue_free()
 	player.queue_free()
 	terrain.queue_free()

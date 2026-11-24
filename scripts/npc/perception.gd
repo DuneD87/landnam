@@ -41,6 +41,10 @@ signal target_lost()
 ## Si es false, el jugador no es detectado como amenaza.
 @export var detect_player: bool = true
 
+## Para cambiar de objetivo entre el jugador y sus compañeros, el otro tiene que estar a menos de esta
+## parte de la distancia al que ya tiene.
+const SWITCH_RATIO := 0.6
+
 var npc: CharacterBody3D
 var controller: AIController
 
@@ -102,20 +106,38 @@ func forget() -> void:
 
 
 func _scan() -> Node3D:
-	# Al compañero del jugador que le ha herido (Companion) lo sigue viendo mientras lo tenga a tiro,
-	# aunque el jugador ande cerca: si no, se volvería siempre hacia el jugador.
+	# El jugador y sus compañeros (Companion) cuentan igual: va a por el más cercano que perciba. Al que
+	# ya tiene lo sigue mientras lo perciba, salvo que otro del grupo esté mucho más cerca (SWITCH_RATIO):
+	# si no, cambiaría de uno a otro a cada paso. Al compañero que le ha herido lo sigue aunque no
+	# detecte al jugador (detect_player).
+	var best: Node3D = null
+	var best_dist: float = INF
 	var current := controller.target
-	if current != null and is_instance_valid(current) and current != _player_cache \
-			and current.is_in_group(Companion.GROUP) and _can_detect(current):
-		return current
-	if detect_player and is_instance_valid(_player_cache) and _can_detect(_player_cache):
-		return _player_cache
+	if current != null and is_instance_valid(current) and _is_party(current) \
+			and (detect_player or current != _player_cache) and _can_detect(current):
+		best = current
+		best_dist = npc.global_position.distance_to(current.global_position) * SWITCH_RATIO
+	if detect_player:
+		# Lo más lejos que puede percibir a alguien (_can_detect: el oído crece con el ruido).
+		var reach := maxf(vision_range, hearing_range * 1.5)
+		if is_instance_valid(_player_cache) and _player_cache != best:
+			var dist := npc.global_position.distance_to(_player_cache.global_position)
+			if dist < best_dist and dist <= reach and _can_detect(_player_cache):
+				best = _player_cache
+				best_dist = dist
+		for node in get_tree().get_nodes_in_group(Companion.GROUP):
+			var companion := node as Companion
+			if companion == null or companion == best or not companion.is_prey():
+				continue
+			var dist := npc.global_position.distance_to(companion.global_position)
+			if dist < best_dist and dist <= reach and _can_detect(companion):
+				best = companion
+				best_dist = dist
+	if best != null:
+		return best
 
 	if hostile_npc_types.is_empty():
 		return null
-
-	var best: Node3D = null
-	var best_dist: float = INF
 	# Solo las criaturas en juego de las celdas cercanas (CreatureGrid), no el grupo "npc" entero.
 	for other in CreatureGrid.near(npc.global_position, vision_range):
 		if other == npc or other.is_dead or other.npc_type not in hostile_npc_types:
@@ -127,6 +149,14 @@ func _scan() -> Node3D:
 			best = other
 			best_dist = dist
 	return best
+
+
+## Si [node] es el jugador o uno de sus compañeros (los que se cazan como a él).
+func _is_party(node: Node3D) -> bool:
+	if node == _player_cache:
+		return true
+	var companion := node as Companion
+	return companion != null and companion.is_prey()
 
 
 func _can_detect(target: Node3D) -> bool:

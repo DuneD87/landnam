@@ -41,6 +41,7 @@ func _run() -> void:
 	_check_player_voice()
 	await _check_parried()
 	await _check_perception()
+	await _check_party_target()
 	await _check_memory()
 	await _check_turns()
 	await _check_flank()
@@ -562,6 +563,63 @@ func _check_perception() -> void:
 	bear.queue_free()
 	ahead.body.queue_free()
 	behind.body.queue_free()
+
+
+## Un compañero de pega: sin humano ni IA, solo un cuerpo que las fieras pueden cazar (is_prey).
+class FakeCompanion extends Companion:
+	var prey := true
+
+	func _ready() -> void:
+		pass
+
+	func _physics_process(_delta: float) -> void:
+		pass
+
+	func _process(_delta: float) -> void:
+		pass
+
+	func _exit_tree() -> void:
+		pass
+
+	func is_prey() -> bool:
+		return prey
+
+
+## El jugador y sus compañeros cuentan igual (Perception._scan): va a por el más cercano que ve; al que
+## tiene lo sigue salvo que otro esté mucho más cerca (SWITCH_RATIO); al caído (is_prey) no lo mira.
+func _check_party_target() -> void:
+	var bear := _spawn_bear()
+	var perception := bear.perception
+	perception.set_physics_process(false)
+	var ctl := bear.ai_controller
+	var player := _target(Vector3(0, 0, 20))
+	perception._player_cache = player.body
+	var companion := FakeCompanion.new()
+	companion.add_to_group(Companion.GROUP)
+	add_child(companion)
+	companion.global_position = Vector3(1, 0, 8)
+	await get_tree().physics_frame
+	perception._physics_step(perception.check_interval)
+	check(ctl.target == companion, "entre el jugador (20 m) y su compañero (8 m), va a por el compañero")
+	player.body.global_position = Vector3(0, 0, 6)
+	perception._physics_step(perception.check_interval)
+	check(ctl.target == companion, "con el jugador algo más cerca (6 m) sigue con el compañero")
+	player.body.global_position = Vector3(0, 0, 3)
+	perception._physics_step(perception.check_interval)
+	check(ctl.target == player.body, "con el jugador mucho más cerca (3 m), cambia a él")
+	player.body.global_position = Vector3(0, 0, 12)
+	companion.global_position = Vector3(1, 0, 2)
+	companion.prey = false
+	perception._physics_step(perception.check_interval)
+	check(ctl.target == player.body, "al compañero caído no lo mira: sigue con el jugador")
+	companion.prey = true
+	perception._player_cache = null
+	ctl.target = null
+	perception._physics_step(perception.check_interval)
+	check(ctl.target == companion, "sin jugador a la vista, encuentra al compañero")
+	bear.queue_free()
+	companion.queue_free()
+	player.body.queue_free()
 
 
 ## Con memoria, al perderlo de vista no lo suelta: sabe dónde lo vio y hacia dónde iba, deja de
