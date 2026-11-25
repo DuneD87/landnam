@@ -774,7 +774,18 @@ func _check_death() -> void:
 	var settler_id := String(settler.resident.id)
 	_kill(settler, wolf)
 	check(settler.dead and not settler.is_down(), "el colono en la base muere sin más")
+	var feast: NpcDevouring
+	for node in get_tree().current_scene.get_children():
+		if node is NpcDevouring and (node as NpcDevouring)._victim == settler:
+			feast = node
 	await _wait(NpcDevouring.BODY_DELAY + Devouring.POSE_TIMEOUT + 1.0)
+	var remains := feast.remains if feast != null and is_instance_valid(feast) else null
+	var head := INF
+	if remains != null and is_instance_valid(remains) and remains.built:
+		var up := (remains.global_position - _terrain.global_position).normalized()
+		head = (remains.head_point() - remains.global_position).dot(up)
+	check(head < 0.6,
+		"sus restos se montan ya tumbados, no de pie aunque la fiera coma antes (cabeza a %.2f m)" % head)
 	check(not is_instance_valid(settler) and _companions._returning.has(settler_id) and not _companions.is_dead(settler_id)
 		and _companions.has(settler_id) and _companions.settler_count() >= 1,
 		"y se va, pero vuelve a la base: cuenta como colono y su poblado no lo saca")

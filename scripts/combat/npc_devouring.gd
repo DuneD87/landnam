@@ -6,16 +6,18 @@ extends Devouring
 ## sus gritos (con su voz: la de mujer si lo es) y el gore según SettingsManager.gore_level. Lo que
 ## cambia:
 ##   - sin cámara de cine, sin cartel ni saltarlo, y sin muñeco de trapo: el cuerpo cae con su animación
-##     de muerte y, pasados BODY_DELAY s (o en cuanto la fiera llega a comer), sus restos (PlayerRemains,
-##     npc) se copian de la pose en que ha quedado; en ese momento [on_built] le dice al que muere que
-##     se esconda (el nodo se va después: los restos ya no lo necesitan);
+##     de muerte y, pasados BODY_DELAY s (ya en el suelo), sus restos (PlayerRemains, npc) se copian de
+##     la pose en que ha quedado; en ese momento [on_built] le dice al que muere que se esconda (el nodo
+##     se va después: los restos ya no lo necesitan);
 ##   - sin fiera que se lo coma (killer null, o una que no come carne) los restos se quedan igual, sin
 ##     despiece;
 ##   - acabado, a los SEAL_AFTER s los restos se quedan quietos para siempre y esto se va. Los restos no
 ##     se guardan en la partida (PlayerRemains.npc).
 
-## Lo que tarda el cuerpo en quedarse en el suelo con la animación de muerte (s).
-const BODY_DELAY := 1.6
+## Lo que tarda el cuerpo en quedarse en el suelo con la animación de muerte (s): en combat/death la
+## cadera sigue a la altura de estar de pie hasta 1,4 s y toca el suelo a 2,6 s. Antes de eso los restos
+## se copiarían de pie.
+const BODY_DELAY := 2.8
 ## Acabado de comer, lo que tarda en dejar los restos quietos (s): las fieras comen un rato más.
 const SEAL_AFTER := 20.0
 
@@ -124,7 +126,9 @@ func _await_body(delta: float) -> void:
 		cancel()
 		return
 	if not _pose_requested:
-		if _body_wait < BODY_DELAY and remains.eating().is_empty():
+		# No antes aunque la fiera ya coma: la que lo mata está al lado y empieza a los pocos fotogramas,
+		# con el cuerpo aún de pie (mientras, muerde donde cae).
+		if _body_wait < BODY_DELAY:
 			return
 		_pose_requested = true
 		_pose_wait = 0.0
