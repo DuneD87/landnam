@@ -18,7 +18,12 @@ var desired_facing: Vector3 = Vector3.ZERO
 ## Giro máximo hacia desired_facing, en grados/s. 0 = el giro normal del cuerpo.
 var turn_rate: float = 0.0
 ## A quién va (o de quién huye). Ponerlo cuenta como verlo: sabe dónde está en ese momento.
+## Si lo liberan (un compañero que se pierde, unos restos), se lee null: un `as`/`is` sobre un objeto
+## liberado peta, y se lee desde fuera (NPCController, Companion._hostile, SettlementVillage) en
+## cualquier momento del frame.
 var target: Node3D = null:
+	get:
+		return target if is_instance_valid(target) else null
 	set(value):
 		target = value
 		target_seen = true
