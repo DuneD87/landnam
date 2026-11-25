@@ -41,6 +41,10 @@ const MIX := {
 	&"player_gurgle": {"bus": "Voice", "volume": -2.0, "pitch_jitter": 0.04, "max": 25.0, "unit": 3.0, "voices": 1, "cooldown": 0.5},
 	&"player_gurgle_female": {"clips": &"player_gurgle", "bus": "Voice", "volume": -2.0, "pitch": 1.2, "pitch_jitter": 0.04, "max": 25.0, "unit": 3.0, "voices": 1, "cooldown": 0.5},
 	&"devour_bite": {"volume": -1.0, "pitch_jitter": 0.08, "max": 25.0, "unit": 3.0, "voices": 3, "cooldown": 0.1},
+	# Entre bocados, más bajo que el bocado: se oye de cerca.
+	&"devour_chew": {"volume": -5.0, "pitch_jitter": 0.1, "max": 18.0, "unit": 2.0, "voices": 3, "cooldown": 0.15},
+	&"devour_gulp": {"volume": -6.0, "pitch": 0.8, "pitch_jitter": 0.08, "max": 15.0, "unit": 2.0, "voices": 2, "cooldown": 0.4},
+	&"rib_crunch": {"volume": 0.0, "pitch_jitter": 0.06, "max": 25.0, "unit": 2.5, "voices": 2, "cooldown": 0.15},
 	&"bear_growl": {"volume": -2.0, "pitch_jitter": 0.06, "max": 60.0, "unit": 6.0, "voices": 3, "cooldown": 0.5},
 	&"bear_roar": {"volume": 2.0, "pitch_jitter": 0.05, "max": 90.0, "unit": 8.0, "voices": 2, "cooldown": 1.0},
 	&"bear_huff": {"volume": -2.0, "pitch_jitter": 0.06, "max": 40.0, "unit": 5.0, "voices": 2, "cooldown": 0.3},

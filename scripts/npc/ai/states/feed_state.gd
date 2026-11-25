@@ -11,6 +11,8 @@ class_name FeedState
 ##   - BiteReach lleva la boca al punto exacto (gira cuello y cabeza), y a cada bocado (bite) la
 ##     cabeza entra y tira hacia atrás.
 ##   - Lo que arranca se lo lleva en la boca (hold): levanta la cabeza, lo sacude y lo suelta.
+##   - Entre bocado y bocado mastica (devour_chew) y de vez en cuando traga (devour_gulp); al gruñir
+##     sigue masticando, con la boca llena.
 ## Mientras come, Devouring despieza el cuerpo; acabado (food.devoured), sigue feed_time segundos y
 ## vuelve a IdleState. Lo monta NPCController.feed_on la primera vez. Comiendo está absorto: ver u oír a
 ## alguien, o que lo llame su manada, no lo saca de aquí (NPCController.is_feeding); solo que le hieran,
@@ -42,6 +44,10 @@ const BITE_PULL := Vector2(0.14, 0.07)
 const HOLD_LIFT := 0.15
 const HOLD_SHAKE := 0.14
 const HOLD_SHAKE_RATE := 15.0
+## Cada cuánto mastica (s), las veces que traga en vez de masticar, y lo que calla tras un bocado (s).
+const CHEW_EVERY := Vector2(0.45, 1.0)
+const GULP_CHANCE := 0.18
+const CHEW_AFTER_BITE := 0.25
 
 @export var profile: CreatureCombatProfile
 
@@ -51,6 +57,7 @@ var _eating := false
 var _anim := &""
 var _clip_left := 0.0
 var _next_growl := 0.0
+var _next_chew := 0.0
 ## Lo que le queda comiendo una vez despiezado el cuerpo (s); se sortea al acabar el despiece.
 var _after := -1.0
 ## La comida de la que es _after: si vuelve a la misma tras una pelea, sigue lo que le quedaba.
@@ -77,6 +84,7 @@ func enter() -> void:
 		_after_food = food
 	_bite_time = INF
 	_next_growl = randf_range(profile.feed_growl.x, profile.feed_growl.y) * 0.5
+	_next_chew = randf_range(CHEW_EVERY.x, CHEW_EVERY.y)
 	_original_speed = controller.movement.speed
 	controller.target = null
 	controller.is_attacking = false
@@ -118,10 +126,16 @@ func mouth_transform() -> Transform3D:
 	return Transform3D(npc().global_basis, npc().global_position)
 
 
+## Dónde está la boca en la pose de la animación (mundo), o INF si no se sabe (MuzzleBlood).
+func mouth_point() -> Vector3:
+	return _reach.animal_mouth() if _reach != null else Vector3.INF
+
+
 ## Un bocado (lo marca Devouring): la cabeza entra en la carne y tira hacia [pull] (mundo).
 func bite(pull: Vector3) -> void:
 	_bite_time = 0.0
 	_bite_pull = pull
+	_next_chew = maxf(_next_chew, CHEW_AFTER_BITE)
 
 
 ## Se lleva [limb] (SeveredLimb) en la boca [seconds] segundos, sacudiéndolo, y lo suelta.
@@ -291,6 +305,23 @@ func _eat(delta: float, point: Vector3, up: Vector3) -> void:
 		if sound != &"":
 			CombatFx.play(sound, body.global_position,
 				{"pitch": profile.voice_pitch * body.voice_pitch * randf_range(0.92, 1.05), "volume_offset_db": -3.0})
+			_next_chew = 0.0
+	_chew(delta)
+
+
+## Mastica entre bocado y bocado y a veces traga; con algo en la boca, más flojo.
+func _chew(delta: float) -> void:
+	_next_chew -= delta
+	if _next_chew > 0.0 or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
+		return
+	_next_chew = randf_range(CHEW_EVERY.x, CHEW_EVERY.y)
+	var body := npc()
+	var at := mouth_transform().origin
+	var pitch := randf_range(0.88, 1.08) / sqrt(maxf(body.body_size, 0.3))
+	if _held == null and randf() < GULP_CHANCE:
+		CombatFx.play(&"devour_gulp", at, {"pitch": pitch})
+	else:
+		CombatFx.play(&"devour_chew", at, {"pitch": pitch, "volume_offset_db": -3.0 if _held != null else 0.0})
 
 
 ## El bocado en curso: la cabeza entra un poco en la carne y luego tira hacia atrás y arriba.

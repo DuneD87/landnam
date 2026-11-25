@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_x1s17"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_01.ogg" id="2_y62m7"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_02.ogg" id="3_dsfpa"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_03.ogg" id="4_st7n4"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_04.ogg" id="5_nwbco"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_05.ogg" id="6_agyco"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_06.ogg" id="7_pftfu"]
+[ext_resource type="AudioStream" path="res://audio/combat/rib_crunch/rib_crunch_07.ogg" id="8_p0l4i"]
+
+[resource]
+script = ExtResource("1_x1s17")
+event_id = &"combat_rib_crunch"
+streams = Array[AudioStream]([ExtResource("2_y62m7"), ExtResource("3_dsfpa"), ExtResource("4_st7n4"), ExtResource("5_nwbco"), ExtResource("6_agyco"), ExtResource("7_pftfu"), ExtResource("8_p0l4i")])
+volume_jitter_db = 1.5
+pitch_jitter = 0.06
+max_distance = 25.0
+unit_size = 2.5
+max_voices = 2
+cooldown = 0.15

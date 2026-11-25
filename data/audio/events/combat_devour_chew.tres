@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_a01ku"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_01.ogg" id="2_6c5l5"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_02.ogg" id="3_q87w5"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_03.ogg" id="4_otemb"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_04.ogg" id="5_63l3o"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_05.ogg" id="6_nk300"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_chew/devour_chew_06.ogg" id="7_7hbx2"]
+
+[resource]
+script = ExtResource("1_a01ku")
+event_id = &"combat_devour_chew"
+streams = Array[AudioStream]([ExtResource("2_6c5l5"), ExtResource("3_q87w5"), ExtResource("4_otemb"), ExtResource("5_63l3o"), ExtResource("6_nk300"), ExtResource("7_7hbx2")])
+volume_db = -5.0
+volume_jitter_db = 1.5
+pitch_jitter = 0.1
+max_distance = 18.0
+unit_size = 2.0
+max_voices = 3
+cooldown = 0.15

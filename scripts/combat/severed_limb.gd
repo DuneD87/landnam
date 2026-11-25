@@ -123,6 +123,14 @@ static func spawn(host: Node, source: Skeleton3D, frame_node: Node3D, parts: Arr
 	return limb
 
 
+## Dónde está ahora el centro del corte (mundo): con el segmento que lo lleva o, ya quieto, en su hueso.
+func cut_point() -> Vector3:
+	if _cut_body != null and is_instance_valid(_cut_body):
+		return _cut_body.global_transform * _cut_point
+	var bone := skeleton.find_bone(cut_bone) if skeleton != null else -1
+	return skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin if bone >= 0 else global_position
+
+
 ## Lo lleva una fiera en la boca por el corte: [holder] da cada fotograma dónde está la boca
 ## (mundo). El segmento del corte va con ella (cinemático: llega en HOLD_SNAP) y lo demás cuelga
 ## del muñeco. release() lo suelta.

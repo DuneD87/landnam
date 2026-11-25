@@ -78,6 +78,12 @@ EVENTS = {
     "player_gurgle": {"mode": "segments", "dur": (0.6, 2.5), "sources": [(826999, 2), (654044, 1), (476437, 2),
         (830016, 3)]},
     "devour_bite": {"mode": "segments", "dur": (0.35, 1.4), "sources": [(234237, 4), (260880, 3), (264280, 2)]},
+    # Entre bocado y bocado: masticar húmedo (un perro con comida muy mojada, qubodup; una criatura
+    # comiendo, Nightflame; un zombi royendo huesos, Breviceps), el tragar y las costillas que crujen
+    # al abrir el pecho (tendones y huesos, qubodup; huesos rotos, sillygrizzlies; apio aplastado).
+    "devour_chew": {"mode": "segments", "dur": (0.4, 1.6), "sources": [(741034, 4), (397598, 3), (445987, 3)]},
+    "devour_gulp": {"mode": "whole", "max_dur": 1.0, "sources": [531755, 368711, 829847]},
+    "rib_crunch": {"mode": "segments", "dur": (0.3, 1.5), "sources": [(211621, 3), (635043, 2), (574751, 2)]},
     # Osos de verdad: grizzlis de Yellowstone (NPS), un oso negro en Whistler (celldroid) y la
     # librería antigua de craigsmith.
     "bear_growl": {"mode": "segments", "dur": (0.6, 3.0), "sources": [(763026, 3), (519599, 4), (519596, 1)]},
@@ -174,6 +180,8 @@ NAMES = {
     "player_agony": "Agonía del jugador devorado", "player_agony_female": "Agonía de la jugadora devorada",
     "player_gurgle": "Estertor del jugador o la jugadora devorados",
     "devour_bite": "Fiera comiendo carne (desgarrar, masticar, roer)",
+    "devour_chew": "Fiera masticando entre bocados", "devour_gulp": "Fiera tragando",
+    "rib_crunch": "Costillas que crujen al abrir el pecho",
     "bear_growl": "Gruñido de oso", "bear_roar": "Rugido de oso", "bear_huff": "Resoplido de oso",
     "bear_hurt": "Oso herido", "bear_death": "Muerte del oso", "lion_roar": "Rugido de león",
     "lion_growl": "Gruñido de león", "lion_hurt": "León herido", "lion_death": "Muerte del león",

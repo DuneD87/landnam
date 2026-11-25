@@ -863,6 +863,7 @@ func activate(point: Vector3, environment: AmbientFaunaHabitat,
 	butcher_progress = 0.0
 	inventory.clear()
 	BloodStains.clear(self)
+	MuzzleBlood.clear(self)
 	Carcass.clear(self)
 	if wounds != null:
 		wounds.restore()

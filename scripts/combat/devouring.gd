@@ -7,17 +7,23 @@ extends Node
 ## comérselo (NPCController.feed_on, FeedState). Mientras comen (EAT_TIME, más deprisa cuantas más
 ## son) lo descuartizan:
 ##   - cada bocado (BITE_EVERY) desgarra y salpica, mancha el cuerpo y le da un tirón hacia la fiera;
+##     muchos se llevan la carne (PlayerRemains.bite: el hueco y el cráter, WOUND_CHANCE), y al tirar
+##     la cabeza hacia atrás se estiran hebras de carne entre la boca y el cuerpo hasta romperse
+##     (FleshStrand). La fiera se mancha el morro y el pecho (BloodStains) y le gotea el hocico un buen
+##     rato (MuzzleBlood);
 ##   - le arrancan uno tras otro los brazos y las piernas que le queden (entre TEARS), empezando por
 ##     el que tienen más cerca; lo arrancado cae y se queda;
-##   - a media comida le abren el vientre y el pecho (la canal: PlayerRemains.open_torso) y le sacan
-##     las vísceras (GUTS_AT);
+##   - a media comida le abren el vientre y el pecho (la canal: PlayerRemains.open_torso), con las
+##     costillas crujiendo (rib_crunch, también al comer luego de dentro), y le sacan las vísceras
+##     (GUTS_AT);
 ##   - mientras vive grita (player_agony, y entre medias quejidos), cada vez más débil (SCREAM_EVERY),
 ##     hasta su estertor (player_gurgle, DEATH_AT).
 ## La cámara lo mira todo de cine (CameraController.cinematic), girando despacio alrededor.
 ## El tiempo solo corre mientras alguna come: si no llega ninguna, o dejan de comer, en GIVE_UP
 ## segundos se queda como esté. Saltarlo (skip) lo acaba de golpe, a oscuras: lo que faltaba por
-## arrancar ya se lo han comido. Con menos gore (SettingsManager.gore_level) no hay despiece
-## (GORE_BLOOD), ni sangre ni desgarros (GORE_OFF): la fiera comiendo y los gritos.
+## arrancar ya se lo han comido. Con menos gore (SettingsManager.gore_level) no hay despiece, ni
+## bocados que se lleven la carne, ni hebras (GORE_BLOOD), ni sangre ni desgarros (GORE_OFF): la fiera
+## comiendo y los gritos.
 
 const EAT_TIME := Vector2(6.0, 9.0)
 const BITE_EVERY := Vector2(0.55, 1.1)
@@ -39,6 +45,16 @@ const PACK_RADIUS := 25.0
 const UPPER_CHANCE := 0.7
 ## Si en este rato (s) no llega la pose del esqueleto, los restos se montan con la que haya.
 const POSE_TIMEOUT := 1.0
+## Los bocados que se llevan la carne (PlayerRemains.bite; hay un máximo, MAX_BITES).
+const WOUND_CHANCE := 0.65
+## Hebras de carne a cada bocado: cuántas, su grosor (m), lo que se estiran antes de romperse (m) y lo
+## que duran como mucho (s).
+const STRANDS := Vector2i(1, 3)
+const STRAND_RADIUS := Vector2(0.003, 0.007)
+const STRAND_STRETCH := Vector2(0.05, 0.16)
+const STRAND_LIFE := 1.0
+## Cada cuántos bocados se mancha también el pecho la fiera.
+const CHEST_EVERY := 3
 
 var remains: PlayerRemains
 
@@ -295,19 +311,66 @@ func _bite(state: FeedState) -> void:
 	var up := _up()
 	var pull := _pull(state.npc(), point)
 	state.bite(pull)
+	var bone := remains.bite_bone(state)
+	# Abierto en canal, el tronco se come por dentro: entre las costillas.
+	var ribs := bone == PlayerRemains.TORSO_BONE and not remains.wound.is_empty()
 	if _gore() != SettingsManager.GORE_OFF:
 		CombatFx.play(&"devour_bite", point, {"pitch": randf_range(0.85, 1.1) / sqrt(maxf(state.npc().body_size, 0.3))})
 		if _bites % 3 == 1:
 			CombatFx.play(&"skin_tear", point, {"pitch": randf_range(0.8, 1.05), "volume_offset_db": -4.0})
-		if _bites % 3 == 0:
+		if ribs and _bites % 2 == 0:
+			CombatFx.play(&"rib_crunch", point, {"pitch": randf_range(0.9, 1.1), "volume_offset_db": -3.0})
+		elif _bites % 3 == 0:
 			CombatFx.play(&"bone_snap", point, {"pitch": randf_range(0.85, 1.15), "volume_offset_db": -4.0})
 		CombatFx.spurt(remains, point, (up + pull * 0.6).normalized(), randf_range(0.35, 0.8))
 		# Hacia abajo: gotea al suelo y la mancha queda en lo que mira arriba.
 		if _bites % 2 == 1:
 			CombatFx.blood(remains, point, -(up * 0.8 + pull * 0.2).normalized(), ItemData.DamageKind.SLASH,
 				randf_range(12.0, 22.0))
-	remains.tug(remains.bite_bone(state), pull, randf_range(8.0, 16.0), randf_range(0.03, 0.07))
+		_bloody(state, point)
+	if _gore() == SettingsManager.GORE_FULL:
+		if not ribs and randf() < WOUND_CHANCE:
+			var side := pull.cross(up).normalized() * randf_range(-0.4, 0.4)
+			remains.bite(bone, point, (up + pull * 0.8 + side).normalized())
+		_strands(state, bone)
+	remains.tug(bone, pull, randf_range(8.0, 16.0), randf_range(0.03, 0.07))
 	remains.tug(PlayerRemains.CHEST_BONE, pull, randf_range(3.0, 6.0))
+
+
+## Hebras de carne de la boca de [state] al sitio de [bone] donde muerde, que se estiran al tirar.
+func _strands(state: FeedState, bone_name: StringName) -> void:
+	var skeleton := remains.skeleton
+	var bone := skeleton.find_bone(bone_name) if skeleton != null else -1
+	if bone < 0:
+		return
+	var mouth := state.mouth_transform().origin
+	var flesh := remains.bite_surface(state, mouth)
+	for i in randi_range(STRANDS.x, STRANDS.y):
+		var from := FleshStrand.on_bone(skeleton, bone, flesh + _jitter(0.025))
+		var to := FleshStrand.on_frame(state.mouth_transform, mouth + _jitter(0.02))
+		FleshStrand.spawn(remains, from, to, randf_range(STRAND_RADIUS.x, STRAND_RADIUS.y),
+			randf_range(STRAND_STRETCH.x, STRAND_STRETCH.y), STRAND_LIFE)
+
+
+## La fiera de [state] se mancha comiendo en [point]: el morro a cada bocado, el pecho de vez en cuando,
+## y le gotea el hocico (MuzzleBlood).
+func _bloody(state: FeedState, point: Vector3) -> void:
+	var npc := state.npc()
+	if not is_instance_valid(npc):
+		return
+	var mouth := state.mouth_transform().origin
+	var up := _up()
+	var size := clampf(npc.body_size, 0.6, 1.6)
+	# Hacia delante: de la fiera a su boca, por el suelo.
+	var forward := (mouth - npc.global_position).slide(up)
+	forward = forward.normalized() if forward.length_squared() > 1e-6 else npc.global_basis.z.normalized()
+	var side := up.cross(forward).normalized() * randf_range(-1.0, 1.0)
+	var out := (up * 0.8 + side + (mouth - point).normalized() * 0.3).normalized()
+	BloodStains.stain(npc, mouth + _jitter(0.02), -out, randf_range(0.8, 1.1) * size)
+	if _bites % CHEST_EVERY == 0:
+		var chest := mouth.lerp(npc.global_position + up * 0.4 * npc.body_size, 0.5)
+		BloodStains.stain(npc, chest, -(forward * 0.8 - up * 0.2).normalized(), randf_range(0.9, 1.2) * size)
+	MuzzleBlood.soak(npc, state.mouth_point)
 
 
 ## Le arranca un miembro [state] (que se lo lleva en la boca): crujen los huesos, se desgarra la
@@ -338,6 +401,7 @@ func _spill_guts(state: FeedState) -> void:
 	var side := _pull(state.npc() if state != null else null, point)
 	remains.open_torso()
 	remains.spill_guts(side)
+	CombatFx.play(&"rib_crunch", point, {"pitch": randf_range(0.85, 0.95), "volume_offset_db": 3.0})
 	CombatFx.play(&"skin_squelch", point, {"pitch": randf_range(0.75, 0.85), "volume_offset_db": 4.0})
 	CombatFx.play(&"skin_tear", point, {"pitch": randf_range(0.75, 0.85), "volume_offset_db": 2.0})
 	CombatFx.blood(remains, point, -_up(), ItemData.DamageKind.BLUNT, 40.0)

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_5csqm"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_gulp/devour_gulp_01.ogg" id="2_tumlb"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_gulp/devour_gulp_02.ogg" id="3_my0xu"]
+[ext_resource type="AudioStream" path="res://audio/combat/devour_gulp/devour_gulp_03.ogg" id="4_8d6jt"]
+
+[resource]
+script = ExtResource("1_5csqm")
+event_id = &"combat_devour_gulp"
+streams = Array[AudioStream]([ExtResource("2_tumlb"), ExtResource("3_my0xu"), ExtResource("4_8d6jt")])
+volume_db = -6.0
+volume_jitter_db = 1.5
+pitch = 0.8
+pitch_jitter = 0.08
+max_distance = 15.0
+unit_size = 2.0
+max_voices = 2
+cooldown = 0.4

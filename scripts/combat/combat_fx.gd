@@ -149,6 +149,15 @@ static func spurt(target: Node, point: Vector3, direction: Vector3, strength: fl
 		Vector2(2.0, 3.0), 1.0)
 
 
+## Unas pocas gotas ([amount]) que caen sin fuerza desde [point]: el hocico de una fiera que acaba de
+## comer, una hebra de carne que se rompe.
+static func drip(target: Node, point: Vector3, amount: int) -> void:
+	var host := _host(target)
+	if host == null or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
+		return
+	_droplets(host, point, _down(), amount, 25.0, Vector2(0.05, 0.4), Vector2(0.6, 1.3), 0.9)
+
+
 ## Golpe contra algo: sonido según el tipo de golpe y, si no es carne, polvo.
 static func impact(node: Node, point: Vector3, kind: ItemData.DamageKind, flesh: bool) -> void:
 	if flesh:

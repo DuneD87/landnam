@@ -1724,6 +1724,92 @@
     "source": 264280,
     "dur": 1.68
    }
+  ],
+  "devour_chew": [
+   {
+    "file": "audio/combat/devour_chew/devour_chew_01.ogg",
+    "source": 741034,
+    "dur": 0.78
+   },
+   {
+    "file": "audio/combat/devour_chew/devour_chew_02.ogg",
+    "source": 741034,
+    "dur": 0.79
+   },
+   {
+    "file": "audio/combat/devour_chew/devour_chew_03.ogg",
+    "source": 741034,
+    "dur": 0.8
+   },
+   {
+    "file": "audio/combat/devour_chew/devour_chew_04.ogg",
+    "source": 741034,
+    "dur": 0.83
+   },
+   {
+    "file": "audio/combat/devour_chew/devour_chew_05.ogg",
+    "source": 397598,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/devour_chew/devour_chew_06.ogg",
+    "source": 445987,
+    "dur": 0.51
+   }
+  ],
+  "devour_gulp": [
+   {
+    "file": "audio/combat/devour_gulp/devour_gulp_01.ogg",
+    "source": 531755,
+    "dur": 0.56
+   },
+   {
+    "file": "audio/combat/devour_gulp/devour_gulp_02.ogg",
+    "source": 368711,
+    "dur": 1.0
+   },
+   {
+    "file": "audio/combat/devour_gulp/devour_gulp_03.ogg",
+    "source": 829847,
+    "dur": 0.46
+   }
+  ],
+  "rib_crunch": [
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_01.ogg",
+    "source": 211621,
+    "dur": 1.77
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_02.ogg",
+    "source": 211621,
+    "dur": 0.75
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_03.ogg",
+    "source": 211621,
+    "dur": 0.76
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_04.ogg",
+    "source": 635043,
+    "dur": 0.62
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_05.ogg",
+    "source": 635043,
+    "dur": 0.5
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_06.ogg",
+    "source": 574751,
+    "dur": 0.57
+   },
+   {
+    "file": "audio/combat/rib_crunch/rib_crunch_07.ogg",
+    "source": 574751,
+    "dur": 0.6
+   }
   ]
  },
  "sources": {
@@ -2854,6 +2940,60 @@
    "author": "Moss___6",
    "license": "http://creativecommons.org/publicdomain/zero/1.0/",
    "url": "https://freesound.org/s/830016/"
+  },
+  "741034": {
+   "title": "Dog Eating Very Wet Food",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/741034/"
+  },
+  "397598": {
+   "title": "Creature Eating",
+   "author": "Nightflame",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/397598/"
+  },
+  "445987": {
+   "title": "Horror / Zombie - Biting on bones",
+   "author": "Breviceps",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/445987/"
+  },
+  "531755": {
+   "title": "Gulp - Hard Swallow",
+   "author": "magnuswaker",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/531755/"
+  },
+  "368711": {
+   "title": "heavy_swallow.wav",
+   "author": "Mikes-MultiMedia",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/368711/"
+  },
+  "829847": {
+   "title": "Swallow Gulp Sound",
+   "author": "haus.the.child",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/829847/"
+  },
+  "211621": {
+   "title": "Tearing Sinews, Breaking Bones",
+   "author": "qubodup",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/211621/"
+  },
+  "635043": {
+   "title": "Breaking Bones",
+   "author": "sillygrizzlies",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/635043/"
+  },
+  "574751": {
+   "title": "Bones Crushing (celery crushed in hand)",
+   "author": "ericnorcross81",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/574751/"
   }
  }
 }

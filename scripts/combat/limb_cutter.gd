@@ -78,8 +78,11 @@ static func build(surfaces: Array, blend_names: PackedStringArray, blend_mode: i
 ## Vacía de [surface] (una de source() o de un corte anterior) lo que cae en la región de [spec]
 ## ({to_body: Transform3D que lleva la malla al espacio del cuerpo (el de la piel del cuerpo: metros,
 ## +Y arriba, +Z delante), center, radii (en ese espacio)}): un cilindro elíptico de frente, de
-## radios radii.x y radii.y, por delante de center. Se van los triángulos con al menos dos vértices
-## dentro. No parte triángulos: el borde lo tapa lo que se pone en el hueco (HumanCarcass).
+## radios radii.x y radii.y, por delante de center (y, con depth, solo hasta esa distancia por delante:
+## un bocado no atraviesa el cuerpo hasta lo que haya detrás). Se van los triángulos con al menos dos
+## vértices dentro y, con centroid (un hueco pequeño al lado de los triángulos: un bocado), también los
+## que tengan el centro dentro. No parte triángulos: el borde lo tapa lo que se pone en el hueco
+## (HumanCarcass, BiteWound).
 ## Devuelve {touched}; si quita algo, además kept.
 static func carve(surface: Dictionary, spec: Dictionary) -> Dictionary:
 	var arrays: Array = surface.arrays
@@ -90,13 +93,20 @@ static func carve(surface: Dictionary, spec: Dictionary) -> Dictionary:
 	var to_body: Transform3D = spec.to_body
 	var center: Vector3 = spec.center
 	var radii: Vector3 = spec.radii
+	var depth: float = spec.get("depth", INF)
+	var centroid: bool = spec.get("centroid", false)
 	var inside := PackedByteArray()
 	inside.resize(verts.size())
+	var locals := PackedVector3Array()
+	if centroid:
+		locals.resize(verts.size())
 	for i in verts.size():
 		var local := to_body * verts[i] - center
 		var qx := local.x / radii.x
 		var qy := local.y / radii.y
-		inside[i] = 1 if qx * qx + qy * qy <= 1.0 and local.z > 0.0 else 0
+		inside[i] = 1 if qx * qx + qy * qy <= 1.0 and local.z > 0.0 and local.z < depth else 0
+		if centroid:
+			locals[i] = local
 	var kept_indices := PackedInt32Array()
 	kept_indices.resize(indices.size())
 	var count := 0
@@ -104,8 +114,15 @@ static func carve(surface: Dictionary, spec: Dictionary) -> Dictionary:
 		var a := indices[t]
 		var b := indices[t + 1]
 		var c := indices[t + 2]
-		if inside[a] + inside[b] + inside[c] >= 2:
+		var hits := inside[a] + inside[b] + inside[c]
+		if hits >= 2:
 			continue
+		if centroid and hits == 1:
+			var mid := (locals[a] + locals[b] + locals[c]) / 3.0
+			var mx := mid.x / radii.x
+			var my := mid.y / radii.y
+			if mx * mx + my * my <= 1.0 and mid.z > 0.0 and mid.z < depth:
+				continue
 		kept_indices[count] = a
 		kept_indices[count + 1] = b
 		kept_indices[count + 2] = c

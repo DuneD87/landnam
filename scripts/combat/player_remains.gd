@@ -10,16 +10,18 @@ extends Node3D
 ##     (SeveredLimb.keep), y el muñón echa sangre a borbotones un rato;
 ##   - open_torso(): se le abre el vientre y el pecho (la canal: HumanCarcass);
 ##   - spill_guts(): las vísceras salen al suelo (GutPile);
-##   - tug(): el cuerpo da un tirón hacia la fiera a cada bocado y vuelve.
+##   - tug(): el cuerpo da un tirón hacia la fiera a cada bocado y vuelve;
+##   - bite(): un bocado se lleva la carne (BiteWound): el hueco y dentro el cráter, que si se arranca
+##     el miembro se va con él; al arrancarlo, unos tendones lo unen un momento al muñón (FleshStrand).
 ## seal() lo deja quieto para siempre (sin Dismemberment, que cada fotograma mira las mallas).
 ## Antes de build() es solo un ancla: feed_point() sigue al muñeco del jugador, para que la fiera
 ## vaya hacia él mientras cae. Va con el origen flotante, y caben MAX_ALIVE: al pasar, se va el más
 ## viejo con lo que se le arrancó.
 ##
 ## Se guarda en la partida (save_category "remains"): no las mallas, sino cómo rehacerlas. Su aspecto
-## y lo que llevaba puesto, la pose, los cortes (los de antes y los de la fiera), si está abierto en
-## canal, las vísceras y dónde quedó cada miembro arrancado. Al cargar se rehace (_rebuild) con un
-## cuerpo de personaje que se viste igual, se copia y se tira. Los que se hicieron después de guardar
+## y lo que llevaba puesto, la pose, los cortes (los de antes y los de la fiera), los bocados, si está
+## abierto en canal, las vísceras y dónde quedó cada miembro arrancado. Al cargar se rehace (_rebuild)
+## con un cuerpo de personaje que se viste igual, se copia y se tira. Los que se hicieron después de guardar
 ## se van al cargar (discard_on_load).
 
 const GROUP := &"player_remains"
@@ -54,6 +56,13 @@ const STUMP_STOP := 0.08
 const STUMP_POOL := Vector2(0.5, 3.0)
 ## Las vísceras, a la medida de un cuerpo de este radio (m; GutPile).
 const GUTS_RADIUS := 0.28
+## Bocados que se llevan carne (BiteWound), como mucho: cada uno vuelve a vaciar todas las mallas.
+const MAX_BITES := 7
+## Tendones entre el muñón y lo arrancado: cuántos, su grosor (m) y lo que se estiran antes de romperse
+## (m, además de lo que ya medían).
+const TENDONS := Vector2i(2, 4)
+const TENDON_RADIUS := Vector2(0.004, 0.009)
+const TENDON_STRETCH := Vector2(0.25, 0.7)
 
 static var _alive: Array[PlayerRemains] = []
 static var _alive_npc: Array[PlayerRemains] = []
@@ -67,6 +76,8 @@ var devoured := false
 var limbs: Array = []
 ## Abierto en canal (open_torso): el hueco (HumanCarcass.wound). Vacío si no.
 var wound := {}
+## Los bocados que se han llevado carne (BiteWound.region).
+var bites: Array[Dictionary] = []
 ## Para la partida guardada (GameManager).
 var entity_id := ""
 var save_category := "remains"
@@ -94,6 +105,12 @@ var _feeders: Array = []
 var _lost := {}
 ## Hueso que se está arrancando → la FeedState que se lo llevará en la boca al caer.
 var _grippers := {}
+## Huesos arrancados a la vista (no a oscuras): al caer, tendones hasta el muñón.
+var _torn := {}
+## El grosor de cada parte que se muerde (BiteWound.measure, en un hilo): la tarea, y lo medido.
+var _measure := {}
+var _measure_task := -1
+var _thickness := {}
 ## Para rehacerlo al cargar: su aspecto y lo puesto ({appearance, armor: [{scene, head}]}), los
 ## cortes de antes de morir y los de la fiera ({name, t, origin, normal, drop}).
 var _look := {}
@@ -134,6 +151,9 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
+		if _measure_task >= 0:
+			WorkerThreadPool.wait_for_task_completion(_measure_task)
+			_measure_task = -1
 		for limb in limbs:
 			if is_instance_valid(limb):
 				(limb as Node).queue_free()
@@ -199,6 +219,43 @@ func build(source: Skeleton3D, pose: Array[Transform3D], frame: Node3D, cutter: 
 	dismemberment.limb_dropped.connect(_on_limb_dropped)
 	add_child(dismemberment)
 	_bind_planet_materials()
+	if _restoring.is_empty():
+		_start_measure(body)
+
+
+## Mide en un hilo el grosor de cada parte que se muerde (BiteWound.measure), de la malla de [body].
+## Las superficies, las que ya leyó Dismemberment (las comparte con el del jugador): leerlas las trae de
+## la GPU y frena el fotograma. Si aún no las tiene, se leen aquí (el hilo no puede pedírselas al
+## servidor de render) y se le dejan para cuando corte.
+func _start_measure(body: MeshInstance3D) -> void:
+	if body == null or body.skin == null or not (body.mesh is ArrayMesh):
+		return
+	var parts := {}
+	for part_name: StringName in BiteWound.PARTS:
+		var spec := BiteWound.part_spec(skeleton, body.skin, part_name)
+		if not spec.is_empty():
+			parts[part_name] = spec
+	if parts.is_empty():
+		return
+	var mesh := body.mesh as ArrayMesh
+	if not dismemberment._sources.has(mesh):
+		dismemberment._sources[mesh] = LimbCutter.source(mesh, body)
+	var surfaces := []
+	for surface: Dictionary in dismemberment._sources[mesh].surfaces:
+		surfaces.append(surface.arrays)
+	_measure = {parts = parts, surfaces = surfaces, skin = body.skin}
+	var job := _measure
+	_measure_task = WorkerThreadPool.add_task(func() -> void: BiteWound.measure(job), false, "BiteWound")
+
+
+## Lo medido, si ya está.
+func _measured() -> bool:
+	if _measure_task >= 0 and WorkerThreadPool.is_task_completed(_measure_task):
+		WorkerThreadPool.wait_for_task_completion(_measure_task)
+		_measure_task = -1
+		_thickness = _measure.get("result", {})
+		_measure.surfaces = []
+	return not _thickness.is_empty()
 
 
 ## Se ve (ella y lo que hay entre ella y el esqueleto [source]; el cuerpo entero puede estar escondido).
@@ -555,6 +612,7 @@ func sever(zone: StringName, upper: bool, pull: Vector3, fling: Vector3, quiet :
 		_grippers[bone] = gripper
 	if quiet:
 		return true
+	_torn[bone] = true
 	var ends := dismemberment.stump(c)
 	CombatFx.sever_burst(self, ends[0], ends[1])
 	BloodPool.spawn(self, ends[0], _gravity, STUMP_POOL.x * randf_range(0.8, 1.2), STUMP_POOL.y,
@@ -577,6 +635,35 @@ func open_torso() -> bool:
 	dismemberment.carve(wound)
 	HumanCarcass.cavity(skeleton, wound)
 	return true
+
+
+## Un bocado en [part_name] (la parte que se muerde: el tronco o un brazo o una pierna por arriba;
+## bite_bone) por [point] (mundo), entrando desde [outward]: se lleva la piel y lo puesto y deja el
+## cráter (BiteWound). Devuelve false si no se puede (aún sin medir, ya son MAX_BITES, sin ese
+## miembro, el tronco ya abierto en canal).
+func bite(part_name: StringName, point: Vector3, outward: Vector3) -> bool:
+	if not built or dismemberment == null or bites.size() >= MAX_BITES or not _measured():
+		return false
+	if not _thickness.has(part_name) or (part_name == TORSO_BONE and not wound.is_empty()):
+		return false
+	var bone := skeleton.find_bone(part_name)
+	if bone < 0 or dismemberment.is_lost(bone):
+		return false
+	var body := skeleton.get_node_or_null(^"Mesh_0") as MeshInstance3D
+	if body == null or body.skin != _measure.get("skin"):
+		return false
+	var region := BiteWound.region(skeleton, body, part_name, _measure.parts[part_name], _thickness[part_name],
+		point, outward)
+	if region.is_empty():
+		return false
+	_add_bite(region)
+	return true
+
+
+func _add_bite(region: Dictionary) -> void:
+	bites.append(region)
+	dismemberment.carve(region)
+	BiteWound.crater(skeleton, region)
 
 
 ## Le saca las vísceras al suelo, por el lado de [side] (horizontal, mundo).
@@ -610,12 +697,16 @@ func tug(bone_name: StringName, toward: Vector3, degrees: float, shift := 0.0) -
 
 
 func _on_limb_dropped(cut: Dictionary, limb: Node3D) -> void:
+	_carry_bites(cut, limb)
 	if not _restoring.is_empty():
 		_place_restored(cut, limb)
 		return
 	if limb.has_method(&"keep"):
 		limb.keep()
 	limbs.append(limb)
+	if _torn.has(cut.bone):
+		_torn.erase(cut.bone)
+		_tendons(cut, limb)
 	var gripper: Variant = _grippers.get(cut.bone)
 	_grippers.erase(cut.bone)
 	if gripper != null and is_instance_valid(gripper) and (gripper as FeedState).is_eating():
@@ -646,6 +737,48 @@ func _process(delta: float) -> void:
 	_stumps = _stumps.filter(func(stump: Dictionary) -> bool: return stump.strength > STUMP_STOP)
 	if _tugs.is_empty() and _shove.is_empty() and _stumps.is_empty():
 		set_process(false)
+
+
+## Los cráteres de los bocados de lo arrancado por [cut] (más allá del corte en su hueso, o en los que
+## cuelgan de él) se van con ello ([limb]): a su esqueleto, en el mismo hueso (la malla arrancada ya va
+## vaciada: Dismemberment).
+func _carry_bites(cut: Dictionary, limb: Node3D) -> void:
+	var limb_skeleton: Variant = limb.get(&"skeleton")
+	if not (limb_skeleton is Skeleton3D):
+		return
+	var bone: int = cut.bone
+	for node in skeleton.get_children():
+		var attachment := node as BoneAttachment3D
+		if attachment == null or not attachment.has_meta(BiteWound.META):
+			continue
+		var at := attachment.bone_idx
+		while at >= 0 and at != bone:
+			at = skeleton.get_bone_parent(at)
+		if at != bone:
+			continue
+		# En el hueso del corte: solo si queda del lado de la punta (el plano, en el marco del hueso).
+		var region: Dictionary = attachment.get_meta(BiteWound.META)
+		var in_bone := (region.body_bind as Transform3D) * (region.frame as Transform3D).origin
+		if attachment.bone_idx == bone and (in_bone - (cut.origin as Vector3)).dot(cut.normal) < 0.0:
+			continue
+		attachment.reparent(limb_skeleton, false)
+		attachment.bone_idx = (limb_skeleton as Skeleton3D).find_bone(skeleton.get_bone_name(attachment.bone_idx))
+		attachment.on_skeleton_update()
+
+
+## Unos tendones del muñón de [cut] a lo arrancado ([limb]), que se estiran mientras la fiera tira de él y
+## se rompen uno tras otro (FleshStrand).
+func _tendons(cut: Dictionary, limb: Node3D) -> void:
+	if not limb.has_method(&"cut_point") or dismemberment == null:
+		return
+	var ends := dismemberment.stump(cut)
+	var stump_bone: int = cut.bone
+	for i in randi_range(TENDONS.x, TENDONS.y):
+		var jitter := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.025
+		var from := FleshStrand.on_bone(skeleton, stump_bone, (ends[0] as Vector3) + jitter)
+		var to := FleshStrand.on_node(limb, (limb.call(&"cut_point") as Vector3) + jitter)
+		FleshStrand.spawn(self, from, to, randf_range(TENDON_RADIUS.x, TENDON_RADIUS.y),
+			randf_range(TENDON_STRETCH.x, TENDON_STRETCH.y), 3.0)
 
 
 ## Cuánto del tirón se ve [time] segundos después: de golpe y luego vuelve despacio.
@@ -702,6 +835,7 @@ func get_save_data() -> Dictionary:
 		"gravity": _vec(_gravity), "pose": pose, "look": _look, "cuts": _cuts, "limbs": kept,
 		"lost": _lost.keys().map(func(zone: StringName) -> String: return String(zone)),
 		"open": not wound.is_empty(), "guts": _xform(guts.transform) if guts != null else [],
+		"bites": bites.map(func(bite_region: Dictionary) -> Dictionary: return BiteWound.to_save(bite_region)),
 		"devoured": devoured,
 	}
 
@@ -772,6 +906,12 @@ func _rebuild() -> void:
 		places[String(limb.get("cut", ""))] = limb.get("pose", {})
 	_restoring = data.duplicate()
 	_restoring.places = places
+	# Los bocados antes que los cortes: lo arrancado sale ya vaciado.
+	var body := skeleton.get_node_or_null(^"Mesh_0") as MeshInstance3D
+	for saved: Dictionary in data.get("bites", []):
+		var region := BiteWound.from_save(skeleton, body, saved)
+		if not region.is_empty():
+			_add_bite(region)
 	for c: Dictionary in data.get("cuts", []):
 		var drop := bool(c.get("drop", false)) and places.has(String(c.get("name", "")))
 		dismemberment.add_saved(StringName(c.get("name", "")), float(c.get("t", 0.5)), _to_vec(c.get("origin", [])),

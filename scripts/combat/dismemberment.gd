@@ -59,7 +59,9 @@ var exclude_body: PhysicsBody3D
 
 var _cuts: Array[Dictionary] = []
 ## Vaciados (carve): {bone (el hueso común con el que se lleva cada malla al espacio del cuerpo),
-## body_bind (el bind de ese hueso en la piel del cuerpo), center, radii (ver LimbCutter.carve)}.
+## body_bind (el bind de ese hueso en la piel del cuerpo), center, radii, depth (ver LimbCutter.carve)
+## y, si no va de frente sino en otra dirección, frame (su marco en el espacio del cuerpo: el cilindro
+## va por su +Z; BiteWound)}.
 var _carves: Array[Dictionary] = []
 ## MeshInstance3D → {source (la malla sin cortar), result (la que dejó puesta), pending (cortes en
 ## marcha), stale (hay que volver a cortarla cuando acaben)}.
@@ -168,8 +170,8 @@ func cuts() -> Array[Dictionary]:
 
 
 ## Vacía de todas las mallas lo que cae en la región [region] (el vientre abierto del jugador
-## devorado: HumanCarcass.wound). Como los cortes, se rehace solo si una malla cambia, y se quita con
-## restore().
+## devorado: HumanCarcass.wound; un bocado: BiteWound). Como los cortes, se rehace solo si una malla
+## cambia, y se quita con restore(). Lo que se corta después se va con lo vaciado que le toque.
 func carve(region: Dictionary) -> void:
 	if skeleton == null or region.is_empty():
 		return
@@ -406,8 +408,11 @@ func _carve_spec(skin: Skin, region: Dictionary) -> Dictionary:
 		var bind_name := skin.get_bind_name(b)
 		var bone := skeleton.find_bone(bind_name) if bind_name != &"" else skin.get_bind_bone(b)
 		if bone == region.bone:
-			return {to_body = (region.body_bind as Transform3D).affine_inverse() * skin.get_bind_pose(b),
-				center = region.center, radii = region.radii}
+			var to_body := (region.body_bind as Transform3D).affine_inverse() * skin.get_bind_pose(b)
+			if region.has("frame"):
+				to_body = (region.frame as Transform3D).affine_inverse() * to_body
+			return {to_body = to_body, center = region.center, radii = region.radii,
+				depth = region.get("depth", INF), centroid = region.get("centroid", false)}
 	return {}
 
 
@@ -453,7 +458,8 @@ func _run(job: Dictionary) -> void:
 					cap = r.cap_kept
 			surfaces = next
 			caps.append(cap)
-		# Lo vaciado, después de los cortes: lo de los miembros ya se ha ido.
+		# Lo vaciado, después de los cortes: lo de los miembros ya se ha ido. Lo que cae ahora se lleva
+		# lo suyo (un bocado en el muslo arrancado).
 		for carve_spec: Dictionary in item.carves:
 			var carved := []
 			for surface: Dictionary in surfaces:
@@ -461,6 +467,9 @@ func _run(job: Dictionary) -> void:
 				carved.append(r.kept if r.touched else surface)
 				touched = touched or r.touched
 			surfaces = carved
+			severed = severed.map(func(surface: Dictionary) -> Dictionary:
+				var r := LimbCutter.carve(surface, carve_spec)
+				return r.kept if r.touched else surface)
 		var pose: Array[Transform3D] = []
 		pose.assign(item.pose)
 		if not pose.is_empty():

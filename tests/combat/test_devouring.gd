@@ -4,7 +4,9 @@ extends Node
 ## el cuerpo real en la pose en que ha caído el muñeco, se les arrancan los cuatro miembros (que
 ## caen y se quedan), sueltan las vísceras y dan tirones que vuelven a la pose; un lobo de verdad
 ## va a comérselos (FeedState) con su clip de comer y se va cuando están despiezados; y sellados se
-## quedan quietos para siempre.
+## quedan quietos para siempre. Los bocados se llevan la carne (BiteWound) y su cráter se va con el
+## miembro arrancado; al morder, hebras de carne que se rompen (FleshStrand), y la fiera se mancha el
+## morro y gotea (MuzzleBlood).
 ##   godot --headless --path . res://tests/combat/test_devouring.tscn
 
 const MODEL := "res://scenes/character/character_model.tscn"
@@ -89,6 +91,7 @@ func _run() -> void:
 	var back := rad_to_deg(copy.get_bone_pose_rotation(spine).angle_to(rest))
 	check(pulled > 5.0 and back < 0.1, "un tirón de %.1f° que vuelve a la pose (%.2f°)" % [pulled, back])
 
+	await _check_bites(remains, body)
 	await _check_species(remains)
 
 	# Un lobo se los come: la boca sobre lo que muerde, y el brazo que arranca, en la boca.
@@ -115,6 +118,12 @@ func _run() -> void:
 	var kept := remains.limbs.filter(func(limb: Node) -> bool:
 		return is_instance_valid(limb) and limb is SeveredLimb and (limb as SeveredLimb)._kept).size()
 	check(kept == 4, "los cuatro miembros caen y se quedan (%d)" % kept)
+	var on_body := _craters(copy).size()
+	var on_limbs := 0
+	for limb in remains.limbs:
+		on_limbs += _craters((limb as SeveredLimb).skeleton).size()
+	check(on_body + on_limbs == remains.bites.size() and on_limbs >= 1,
+		"los cráteres de lo arrancado se van con ello (%d en los miembros, %d en el cuerpo)" % [on_limbs, on_body])
 
 	remains.spill_guts(Vector3.RIGHT)
 	check(remains.get_node_or_null(^"GutPile") != null, "las vísceras salen al suelo")
@@ -305,6 +314,11 @@ func _check_save(remains: PlayerRemains) -> void:
 	check(at.distance_to(was) < 0.01, "en su sitio y su pose (la pelvis a %.3f m)" % at.distance_to(was))
 	check(copy.skeleton.get_node_or_null(^"TorsoCavity/Cavity") != null and copy.get_node_or_null(^"GutPile") != null,
 		"abierto en canal y con las vísceras al lado")
+	var craters := _craters(copy.skeleton).size()
+	for limb in copy.limbs:
+		craters += _craters((limb as SeveredLimb).skeleton).size()
+	check(copy.bites.size() == remains.bites.size() and craters == remains.bites.size(),
+		"con sus %d bocados y sus cráteres (%d)" % [remains.bites.size(), craters])
 	var worst := 0.0
 	var placed := 0
 	for limb in copy.limbs:
@@ -389,6 +403,7 @@ func _feeding_wolf(remains: PlayerRemains) -> NPCController:
 		"come con la boca en la carne (fuera %.2f m como mucho)" % worst)
 	check(state._anim == &"Idle_Eating" and wolf.get_action_channel().is_playing(),
 		"con su clip de comer (%s)" % state._anim)
+	await _check_real_bites(remains, wolf, state)
 
 	# Le arranca el brazo izquierdo y se lo lleva en la boca.
 	var dropped := [null]
@@ -412,6 +427,111 @@ func _feeding_wolf(remains: PlayerRemains) -> NPCController:
 	await _wait(PlayerRemains.HOLD_TIME.y + 0.3)
 	check(limb != null and not limb._holding and state.is_eating(), "luego lo suelta y sigue comiendo")
 	return wolf
+
+
+## Bocados que se llevan la carne: el grosor de cada parte se mide en un hilo; en el muslo y en el
+## tronco se va la piel (lo de detrás no) y queda el cráter en su sitio.
+func _check_bites(remains: PlayerRemains, body: MeshInstance3D) -> void:
+	var frames := 0
+	while not remains._measured() and frames < 300:
+		await get_tree().process_frame
+		frames += 1
+	check(remains._measured() and remains._thickness.size() == BiteWound.PARTS.size(),
+		"el grosor de lo que se muerde se mide en un hilo (%d fotogramas)" % frames)
+	var before := _triangles(body.mesh)
+	var thigh := PlayerRemains.limb_bone(&"left_leg", true)
+	var started := Time.get_ticks_usec()
+	var on_thigh := remains.bite(thigh, remains.limb_point(&"left_leg", true), Vector3.UP)
+	var on_torso := remains.bite(PlayerRemains.TORSO_BONE, remains.torso_point(), Vector3.UP)
+	var spent := (Time.get_ticks_usec() - started) / 2000.0
+	check(on_thigh and on_torso and remains.bites.size() == 2,
+		"un bocado en el muslo y otro en el tronco (%.2f ms cada uno)" % spent)
+	if remains.bites.size() < 2:
+		return
+	var leg: Dictionary = remains.bites[0]
+	var trunk: Dictionary = remains.bites[1]
+	check(leg.thick > 0.03 and leg.thick < 0.15 and trunk.thick > 0.06 and trunk.thick < 0.3,
+		"a la medida del cuerpo: muslo de %.3f m de radio, tronco de %.3f" % [leg.thick, trunk.thick])
+	# Sin cortes aún, el vaciado se encola en el siguiente _process de Dismemberment.
+	frames = 0
+	while not remains.dismemberment.is_busy() and frames < 5:
+		await get_tree().process_frame
+		frames += 1
+	while remains.dismemberment.is_busy() and frames < 900:
+		await get_tree().process_frame
+		frames += 1
+	await get_tree().process_frame
+	var after := _triangles(body.mesh)
+	var left := _in_bite(body.mesh, leg) + _in_bite(body.mesh, trunk)
+	check(after < before and left == 0, "se llevan la piel (%d triángulos menos, %d en los huecos)" % [before - after, left])
+	var craters := _craters(remains.skeleton)
+	var placed := 0
+	for attachment in craters:
+		var region: Dictionary = attachment.get_meta(BiteWound.META)
+		var crater := attachment.get_node(^"Crater") as MeshInstance3D
+		var hole := remains.skeleton.global_transform * (remains.skeleton.get_bone_global_pose(region.bone)
+			* (region.body_bind as Transform3D) * ((region.frame as Transform3D) * Vector3(0, 0, region.thick * 0.8)))
+		if crater.mesh.get_surface_count() >= 2 and (crater.global_transform * crater.mesh.get_aabb()).grow(0.02).has_point(hole):
+			placed += 1
+	check(craters.size() == 2 and placed == 2, "y en cada hueco, su cráter de carne (%d de %d)" % [placed, craters.size()])
+
+
+## Bocados de verdad (Devouring._bite, con NpcDevouring): se llevan carne, estiran hebras que se rompen
+## y se van, y el lobo se mancha el morro y gotea.
+func _check_real_bites(remains: PlayerRemains, wolf: NPCController, state: FeedState) -> void:
+	var feast := NpcDevouring.new()
+	feast.remains = remains
+	add_child(feast)
+	feast.set_process(false)
+	var had := remains.bites.size()
+	var most := 0
+	for i in 6:
+		feast._bite(state)
+		await get_tree().process_frame
+		most = maxi(most, _strands())
+		await _wait(0.12)
+	check(remains.bites.size() > had, "los bocados se llevan carne (%d de 6)" % (remains.bites.size() - had))
+	check(most > 0, "al morder se estiran hebras de carne (%d a la vez)" % most)
+	await _wait(Devouring.STRAND_LIFE + FleshStrand.RETRACT + 0.3)
+	check(_strands() == 0, "que se rompen y se van")
+	var stains: Array = BloodStains._skeleton(wolf).get_meta(BloodStains.META_STAINS, [])
+	check(stains.size() >= 6, "el lobo se mancha el morro y el pecho (%d manchas)" % stains.size())
+	var drip := wolf.get_node_or_null(NodePath(MuzzleBlood.NODE_NAME)) as MuzzleBlood
+	check(drip != null and drip._left > 0.0 and state.mouth_point() != Vector3.INF, "y le gotea el hocico")
+	check(CombatFx.has_sound(&"devour_chew") and CombatFx.has_sound(&"devour_gulp") and CombatFx.has_sound(&"rib_crunch"),
+		"mastica, traga y crujen las costillas, con clips de verdad")
+	feast.queue_free()
+	while remains.dismemberment.is_busy():
+		await get_tree().process_frame
+
+
+func _strands() -> int:
+	return get_tree().current_scene.get_children().filter(func(node: Node) -> bool: return node is FleshStrand).size()
+
+
+func _craters(skeleton: Skeleton3D) -> Array:
+	if skeleton == null:
+		return []
+	return skeleton.get_children().filter(func(node: Node) -> bool: return node.has_meta(BiteWound.META))
+
+
+## Triángulos de [mesh] (en el espacio de la piel del cuerpo) con el centro en el hueco del bocado [region].
+func _in_bite(mesh: Mesh, region: Dictionary) -> int:
+	var to_local := (region.frame as Transform3D).affine_inverse()
+	var center: Vector3 = region.center
+	var radii: Vector3 = region.radii
+	var count := 0
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for t in range(0, indices.size(), 3):
+			var c := to_local * ((verts[indices[t]] + verts[indices[t + 1]] + verts[indices[t + 2]]) / 3.0) - center
+			var qx := c.x / radii.x
+			var qy := c.y / radii.y
+			if qx * qx + qy * qy <= 0.6 and c.z > 0.02 and c.z < region.depth:
+				count += 1
+	return count
 
 
 func _wait(seconds: float) -> void:

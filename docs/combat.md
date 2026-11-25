@@ -799,10 +799,19 @@ hiena y caimán.
    primera trabaja la parte que toca arrancar y las demás muerden otra cada una (`bite_point`).
 3. Mientras comen, entre 6 y 9 s (menos si son varias):
    - cada bocado (`devour_bite`) desgarra, salpica, mancha el cuerpo y le da un tirón hacia la
-     fiera, y la cabeza de esta entra en la carne y tira;
+     fiera, y la cabeza de esta entra en la carne y tira. Dos de cada tres se llevan la carne
+     (**bocados**, hasta 7) y, al tirar, se estiran hebras de carne entre la boca y el cuerpo que se
+     rompen (`FleshStrand`);
+   - la fiera se mancha el morro a cada bocado y el pecho cada tres (`BloodStains`), y el hocico le
+     gotea mientras come y unos 45 s después, cada vez menos (`MuzzleBlood`). Las manchas se secan
+     y se quedan hasta que la criatura vuelve al pool;
+   - entre bocados mastica (`devour_chew`) y a veces traga (`devour_gulp`); al gruñir sigue
+     masticando;
    - le arrancan uno a uno los brazos y las piernas que le queden. Quien lo arranca se lo lleva
-     colgando de la boca por el corte, lo sacude y lo suelta, y se queda junto al cuerpo;
-   - a media comida le abren el vientre y el pecho (la canal) y le sacan las vísceras;
+     colgando de la boca por el corte, lo sacude y lo suelta, y se queda junto al cuerpo. Entre el
+     muñón y lo arrancado se estiran unos tendones que se rompen uno tras otro;
+   - a media comida le abren el vientre y el pecho (la canal), con las costillas crujiendo
+     (`rib_crunch`, también al comer luego de dentro), y le sacan las vísceras;
    - grita (`player_agony`, con quejidos entre medias) cada vez más débil, hasta el estertor
      (`player_gurgle`), hacia el 70 % de la comida.
 4. La cámara lo mira todo de cine: se separa, lo mira desde arriba y gira despacio alrededor
@@ -836,16 +845,30 @@ su malla). Se vacía de la piel y de lo que lleve puesto con `Dismemberment.carv
 como los cortes si la malla cambia. Dentro, una cavidad de carne con sangre encharcada, la columna y
 las costillas rotas, pegada al hueso del tronco.
 
+**Los bocados** (`BiteWound`): un hueco corto que entra por donde muerde la fiera hacia el hueso
+(`Dismemberment.carve` con su propio marco y una hondura máxima, para no atravesar el cuerpo), y
+dentro un cráter de carne con el borde empapado de sangre y, si es hondo, el hueso asomando. Muerden
+el tronco (hasta que se abre en canal) y los brazos y muslos. El borde del cráter sigue la piel de
+verdad: al montarse los restos se mide en un hilo, de la malla del cuerpo, lo más cerca del eje que
+pasa la piel de cada parte en tramos y sectores (`BiteWound.measure`). Como no se parten triángulos,
+el hueco sale en estrella (se van también los triángulos con el centro dentro) y el borde del
+cráter, más ancho y algo hundido bajo la piel, asoma entre las puntas como piel desgarrada. Si se
+arranca el miembro, la malla arrancada sale ya vaciada y el cráter se va con ella (solo el que queda
+del lado de la punta del corte). Cada bocado cuesta ~1 ms en el hilo principal, más volver a vaciar
+las mallas en un hilo.
+
 Los restos se quedan en el mundo y van con el origen flotante. Una vez sellados ya no cuestan nada
 cada fotograma: sin `Dismemberment`, y con los miembros arrancados quietos y sin muñeco
 (`SeveredLimb.keep` y `settle`). Caben 8; al pasar, se va el más viejo.
 
 **Se guardan en la partida** (categoría `remains`): su aspecto y lo que llevaba puesto, la pose, los
-cortes, la canal, las vísceras y dónde quedó cada miembro. Al cargar se rehacen igual con un cuerpo
-de personaje temporal. Los que salieron después de guardar se van al cargar (`discard_on_load`).
+cortes, los bocados, la canal, las vísceras y dónde quedó cada miembro. Al cargar se rehacen igual
+con un cuerpo de personaje temporal. Los que salieron después de guardar se van al cargar
+(`discard_on_load`).
 
-Con menos gore no hay despiece (solo sangre) o no hay sangre ni desgarros. Si no llega ninguna fiera,
-o dejan de comer 6 s, se queda como esté.
+Con menos gore no hay despiece, ni bocados que se lleven la carne, ni hebras (solo sangre, y la fiera
+manchada) o no hay sangre ni desgarros. Si no llega ninguna fiera, o dejan de comer 6 s, se queda
+como esté.
 
 ## Consola
 
