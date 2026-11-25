@@ -28,7 +28,7 @@ func setup(player: PlayerController) -> void:
 func can_control() -> bool:
 	var p := _player
 	return p.visible and p.input_enabled and p.mouse_captured and not p.free_flight_enabled \
-		and GameManager.current_state == GameManager.State.PLAYING and not OptionsScreen.is_open() \
+		and GameManager.current_state == GameManager.State.PLAYING and not OptionsScreen.is_open() and not SavesScreen.is_open() \
 		and not p.inventory_ui.visible and not p.world_map_ui.visible and not p.build_menu.visible \
 		and not p.grid_manipulator_menu.visible and not p.ship_spawn_menu.visible \
 		and not p.blueprint_placer.is_active() and not p.building_system.build_mode \

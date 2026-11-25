@@ -922,7 +922,7 @@ mapa de mechones, para dibujarlas recortadas por su alfa.
 
 ```sh
 godot --headless --path . --script res://tools/character/dump_dressed.gd -- $PWD/build/character/dressed/a.json \
-    --appearance=$HOME/.local/share/godot/app_userdata/VoxelTest/saves/main_save_player.json \
+    --appearance=$HOME/.local/share/godot/app_userdata/VoxelTest/saves/main_save/player.json \
     --armor=res://scenes/items/armor/stone_age/fur_mantle_equipable.tscn,... [--anim=running --time=0.25] [--play --frames=40]
 blender -b --factory-startup --python tools/character/blender/render_dressed.py -- \
     build/character/dressed/a.json build/character/dressed/a.png [b.json ...] [--views=front,three] [--zoom=1.7]

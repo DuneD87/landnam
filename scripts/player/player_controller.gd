@@ -796,7 +796,7 @@ func _ready():
 				if distance < nearest:
 					nearest = distance
 					_new_game_planet = candidate
-		GameManager.apply_saved_spawn_point(GameManager.MAIN_SLOT, spawn_point)
+		GameManager.apply_saved_spawn_point("", spawn_point)
 	if spawn_point and planets and planets.get_child_count() > 0:
 		var closest: Node3D = null
 		var closest_dist := INF
@@ -1381,8 +1381,8 @@ func _input(event):
 	# abriendo/cerrando el menú de pausa antes de llegar al suelo.
 	if GameManager.current_state in [GameManager.State.CHARACTER_CREATION, GameManager.State.CINEMATIC]:
 		return
-	# La pantalla de opciones se cierra con su propio Escape.
-	if OptionsScreen.is_open():
+	# Las pantallas de opciones y de partidas se cierran con su propio Escape.
+	if OptionsScreen.is_open() or SavesScreen.is_open():
 		return
 	# El trono lleva su entrada (ThroneView).
 	if throne_view != null and throne_view.is_open():

@@ -34,7 +34,7 @@ func _run() -> void:
 	var walk_dir := WALK_DIR
 	if "--save" in OS.get_cmdline_user_args():
 		# Donde está la partida guardada del usuario (posición canónica del origen flotante).
-		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("user://saves/main_save_player.json"))
+		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SaveSlots.file(GameManager.continue_slot, "player")))
 		var saved: Dictionary = data.player.data.position
 		var canonical := Vector3(saved.x, saved.y, saved.z)
 		var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin

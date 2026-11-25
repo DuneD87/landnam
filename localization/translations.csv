@@ -2330,3 +2330,37 @@ VILLAGE_STASH_CRATE,Crate,Caja,poblados: caja de una casa
 VILLAGE_STASH_BARREL,Barrel,Barril,poblados: barril de una casa
 VILLAGE_STASH_SACK,Sack,Saco,poblados: saco de una casa
 CON_VILLAGE_GRUDGE_DONE,Nearest village grudge: %d (10: they won't talk; 25: the guards attack).,Rencor del poblado más cercano: %d (10: no hablan; 25: la guardia ataca).,consola
+MENU_SAVES,Saved games,Partidas,menú: abre la pantalla de partidas
+MENU_SAVE_GAME_IN,Save «%s»,Guardar «%s»,menú: guardar encima de la partida en juego
+SAVES_TITLE,SAVED GAMES,PARTIDAS,pantalla de partidas
+SAVES_NAME_PLACEHOLDER,Name of the save,Nombre de la partida,pantalla de partidas
+SAVES_NOTE_PLACEHOLDER,Note (optional): what it is for,Nota (opcional): para qué es,pantalla de partidas
+SAVES_SAVE,Save,Guardar,pantalla de partidas
+SAVES_LOAD,Load,Cargar,pantalla de partidas
+SAVES_OVERWRITE,Overwrite,Sobrescribir,pantalla de partidas
+SAVES_PROTECT,Protect,Proteger,pantalla de partidas: solo se podrá cargar
+SAVES_UNPROTECT,Unprotect,Desproteger,pantalla de partidas
+SAVES_DELETE,Delete,Borrar,pantalla de partidas
+SAVES_CONFIRM,Sure?,¿Seguro?,pantalla de partidas: segunda pulsación para borrar o sobrescribir
+SAVES_EMPTY,There are no saved games.,No hay partidas guardadas.,pantalla de partidas
+SAVES_PROTECTED,protected,protegida,pantalla de partidas: estado
+SAVES_CURRENT,in play,en juego,pantalla de partidas: la partida cargada
+SAVES_SAVING,Saving…,Guardando…,pantalla de partidas
+SAVES_SAVED,Saved as «%s».,Guardada como «%s».,pantalla de partidas
+SAVES_SAVE_FAILED,Could not save «%s».,No se pudo guardar «%s».,pantalla de partidas
+SAVES_IS_PROTECTED,«%s» is protected: unprotect it to save over it or delete it.,«%s» está protegida: desprotégela para guardar encima o borrarla.,pantalla de partidas y consola
+SAVES_BAD_NAME,Write a name for the save.,Escribe un nombre para la partida.,pantalla de partidas
+SAVES_DELETED,«%s» deleted.,«%s» borrada.,pantalla de partidas y consola
+CON_HELP_SAVE,"Saves the game under a name (without one, over the game in play), with an optional note.","Guarda la partida con un nombre (sin él, encima de la que está en juego), con una nota opcional.",consola
+CON_HELP_LOAD,Loads a saved game by name.,Carga una partida guardada por su nombre.,consola
+CON_HELP_SAVES,"Lists the saved games, the most recent first.","Lista las partidas guardadas, la más reciente primero.",consola
+CON_HELP_DELSAVE,Deletes a saved game (not a protected one).,Borra una partida guardada (no una protegida).,consola
+CON_HELP_PROTECT,Protects a saved game so it can only be loaded (off: unprotects it).,Protege una partida para que solo se pueda cargar (off: la desprotege).,consola
+CON_SAVE_NO_SLOT,No game in play to save over: give it a name (save <name>).,No hay partida en juego sobre la que guardar: dale un nombre (save <nombre>).,consola
+CON_SAVE_STARTED,Saving «%s»…,Guardando «%s»…,consola
+CON_SAVE_NOT_FOUND,There is no saved game «%s». Use 'saves'.,No hay ninguna partida «%s». Usa 'saves'.,consola
+CON_LOAD_DONE,Loaded «%s».,Cargada «%s».,consola
+CON_LOAD_FAILED,Could not load «%s».,No se pudo cargar «%s».,consola
+CON_PROTECT_DONE,«%s»: %s.,«%s»: %s.,consola: nombre y protegida / sin proteger
+CON_PROTECT_OFF,not protected,sin proteger,consola
+CON_DELSAVE_FAILED,Could not delete «%s».,No se pudo borrar «%s».,consola

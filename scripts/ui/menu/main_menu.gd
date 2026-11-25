@@ -13,6 +13,7 @@ const COLUMN_WIDTH := 760.0
 
 var _save_button: Button
 var _load_button: Button
+var _saves_button: Button
 var _options_button: Button
 
 
@@ -29,6 +30,7 @@ func _ready() -> void:
 
 	_save_button = find_child("btnSaveGame")
 	_load_button = find_child("btnLoadGame")
+	_saves_button = find_child("btnSaves")
 	_options_button = find_child("btnOptions")
 	if _options_button:
 		_options_button.pressed.connect(_on_options_pressed)
@@ -38,11 +40,23 @@ func _ready() -> void:
 		_save_button.visible = false
 	if _load_button:
 		_load_button.pressed.connect(_on_load_pressed)
-		_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
+	if _saves_button:
+		_saves_button.pressed.connect(_open_saves)
+	_refresh_save_buttons()
 
 	GameManager.state_changed.connect(_on_game_state_changed)
 	visible = true
 	_prewarm_effects()
+	if GameManager.autoload_slot != "":
+		_autoload(GameManager.autoload_slot)
+
+
+## `godot -- --load=<nombre>`: entra en esa partida sin pasar por el menú, en cuanto la escena está
+## lista (como pulsar Continuar nada más arrancar).
+func _autoload(slot: String) -> void:
+	await get_tree().create_timer(0.5).timeout
+	if GameManager.current_state == GameManager.State.MENU:
+		_load_slot(slot)
 
 
 ## Con el menú delante, la sangre y las chispas compilan sus shaders una vez (CombatFx.prewarm):
@@ -137,25 +151,74 @@ func _on_quit_pressed() -> void:
 	get_tree().quit()
 
 
+## Guarda encima de la partida en juego. Sin partida (nueva, aún sin guardar) o si está protegida,
+## abre la pantalla de partidas con el cursor en el nombre.
 func _on_save_pressed() -> void:
+	var slot := GameManager.current_slot
+	if slot == "" or SaveSlots.is_protected(slot):
+		_open_saves(true)
+		return
 	_set_buttons_disabled(true)
-	var success := await GameManager.save_game(GameManager.MAIN_SLOT)
+	var success: bool = await GameManager.save_game(slot)
 	if success:
-		print("[MenuUI] Partida guardada en slot '%s'" % GameManager.MAIN_SLOT)
-		if _load_button:
-			_load_button.visible = true
+		print("[MenuUI] Partida guardada en '%s'" % slot)
 	else:
 		push_error("[MenuUI] Error al guardar partida")
 	_set_buttons_disabled(false)
+	_refresh_save_buttons()
 
 
+## En el menú, Continuar: la última partida. En partida, Cargar: vuelve a la última guardada de la
+## que está en juego.
 func _on_load_pressed() -> void:
+	var slot := GameManager.current_slot if _playing() and GameManager.has_save(GameManager.current_slot) \
+		else GameManager.continue_slot
+	_load_slot(slot)
+
+
+func _load_slot(slot: String) -> void:
 	fade_out()
 	await get_tree().create_timer(fade_duration).timeout
-	var success := GameManager.load_game(GameManager.MAIN_SLOT)
+	var success := GameManager.load_game(slot)
 	if not success:
-		push_error("[MenuUI] Error al cargar partida")
+		push_error("[MenuUI] Error al cargar la partida '%s'" % slot)
 		fade_in()
+
+
+## Pantalla de partidas encima del menú, que sigue debajo al cerrarla.
+func _open_saves(focus_name := false) -> void:
+	var screen := SavesScreen.new()
+	screen.focus_name = focus_name
+	screen.load_requested.connect(_load_slot)
+	screen.closed.connect(_refresh_save_buttons)
+	get_parent().add_child(screen)
+
+
+func _playing() -> bool:
+	return GameManager.current_state == GameManager.State.PLAYING
+
+
+## Qué botones de partida se ven y qué dicen: Continuar si hay a cuál, Partidas si hay alguna (en
+## partida siempre, para guardar con nombre) y Guardar con el nombre de la partida en juego.
+func _refresh_save_buttons() -> void:
+	var playing := _playing()
+	if _load_button:
+		if playing:
+			_load_button.text = "MENU_LOAD_GAME"
+			_load_button.visible = GameManager.has_save(GameManager.current_slot)
+		else:
+			_load_button.text = "MENU_CONTINUE"
+			_load_button.visible = GameManager.has_save(GameManager.continue_slot)
+	if _saves_button:
+		_saves_button.visible = playing or not SaveSlots.list().is_empty()
+	if _save_button:
+		var slot := GameManager.current_slot
+		if slot != "" and not SaveSlots.is_protected(slot):
+			_save_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+			_save_button.text = tr("MENU_SAVE_GAME_IN") % slot
+		else:
+			_save_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_INHERIT
+			_save_button.text = "MENU_SAVE_GAME"
 
 
 func _on_game_state_changed(new_state: GameManager.State) -> void:
@@ -167,18 +230,14 @@ func _on_game_state_changed(new_state: GameManager.State) -> void:
 				child.modulate.a = 1.0
 			if _save_button:
 				_save_button.visible = false
-			if _load_button:
-				_load_button.visible = GameManager.has_save(GameManager.MAIN_SLOT)
-				_load_button.text = "MENU_CONTINUE"
+			_refresh_save_buttons()
 		GameManager.State.CINEMATIC, GameManager.State.CHARACTER_CREATION:
 			visible = false
 		GameManager.State.PLAYING:
 			visible = false
 			if _save_button:
 				_save_button.visible = true
-			# En partida, cargar vuelve a la última guardada.
-			if _load_button:
-				_load_button.text = "MENU_LOAD_GAME"
+			_refresh_save_buttons()
 
 
 func _set_buttons_disabled(disabled: bool) -> void:
@@ -190,6 +249,8 @@ func _set_buttons_disabled(disabled: bool) -> void:
 		_save_button.disabled = disabled
 	if _load_button:
 		_load_button.disabled = disabled
+	if _saves_button:
+		_saves_button.disabled = disabled
 	if _options_button:
 		_options_button.disabled = disabled
 

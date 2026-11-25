@@ -629,7 +629,8 @@ func _ready() -> void:
 		voxel_terrain.stream = voxel_terrain.stream.duplicate()
 	
 	entity_id = "planet_%s" % name.to_lower()
-	voxel_terrain.stream.database_path = "user://saves/%s.sqlite" % [entity_id]
+	# El terreno vivo de la partida (GameManager lo prepara al arrancar y lo cambia al cargar).
+	voxel_terrain.stream.database_path = GameManager.live_terrain_path(entity_id)
 	# Con stream asignado, cada bloque de datos de cada LOD pasa por una tarea LoadBlockData antes de
 	# poder mallarse, y esas tareas corren EN SERIE (push_async_io_task las encola con serial=true,
 	# porque comparten recursos con lock). Sin esta caché cada una hace una consulta SQLite real,
@@ -639,11 +640,7 @@ func _ready() -> void:
 	# Con la caché, el stream carga las claves de los bloques que sí existen al abrir la conexión y
 	# un bloque no editado se resuelve en memoria. Viene desactivada por defecto y no sale en el
 	# inspector (no tiene ADD_PROPERTY): solo se puede activar por código.
-	var terrain_stream: VoxelStream = voxel_terrain.stream
-	if terrain_stream != null and terrain_stream.has_method("set_key_cache_enabled"):
-		terrain_stream.call("set_key_cache_enabled", true)
-	else:
-		push_warning("Planet: este build del módulo no trae la caché de claves del VoxelStreamSQLite.")
+	_enable_key_cache(voxel_terrain.stream)
 	add_to_group(GameManager.SAVEABLE_GROUP)
 	# Alcance y normalmaps del terreno según las opciones gráficas: antes de mallar nada.
 	SettingsManager.apply_terrain(voxel_terrain)
@@ -755,6 +752,40 @@ func save_voxel_data() -> VoxelSaveCompletionTracker:
 	if voxel_terrain and voxel_terrain.stream:
 		return voxel_terrain.save_modified_blocks()
 	return null
+
+
+static func _enable_key_cache(terrain_stream: VoxelStream) -> void:
+	if terrain_stream != null and terrain_stream.has_method("set_key_cache_enabled"):
+		terrain_stream.call("set_key_cache_enabled", true)
+	else:
+		push_warning("Planet: este build del módulo no trae la caché de claves del VoxelStreamSQLite.")
+
+
+## Copia el terreno vivo a [dst] (la carpeta de una partida). Va después de save_voxel_data: con los
+## bloques ya escritos, vacía la caché de escritura del stream a la base de datos y la copia.
+func snapshot_voxel_data(dst: String) -> bool:
+	var stream := voxel_terrain.stream as VoxelStreamSQLite if voxel_terrain else null
+	if stream == null:
+		return false
+	stream.flush()
+	if not FileAccess.file_exists(stream.database_path):
+		# Nada modificado nunca: la partida no lleva terreno y cargarla deja el generado.
+		if FileAccess.file_exists(dst):
+			DirAccess.remove_absolute(dst)
+		return true
+	return DirAccess.copy_absolute(stream.database_path, dst) == OK
+
+
+## Juega con el terreno de la base de datos [path] (cargar una partida, empezar otra): se vacía y se
+## vuelve a streamear de ella. Lo que no se hubiera guardado se pierde, como el resto de la partida.
+## Primero sin stream: al soltar sus bloques la vegetación guarda los que ha cambiado (árboles
+## talados) en el stream que tenga el terreno en ese momento, y no deben acabar en el nuevo.
+func swap_voxel_stream(path: String) -> void:
+	var stream := VoxelStreamSQLite.new()
+	stream.database_path = path
+	_enable_key_cache(stream)
+	voxel_terrain.stream = null
+	voxel_terrain.stream = stream
 
 func get_save_data() -> Dictionary:
 	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin

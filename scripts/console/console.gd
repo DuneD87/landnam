@@ -403,12 +403,91 @@ func _register_commands() -> void:
 		"CON_HELP_NEEDS", _cmd_needs, 0, _complete_needs))
 	_add(ConsoleCommand.new("xp", XP_USAGE, "CON_HELP_XP", _cmd_xp, 0, _complete_xp))
 	_add(ConsoleCommand.new("fps", "fps [n]", "CON_HELP_FPS", _cmd_fps))
+	_add(ConsoleCommand.new("save", "save [name] [note...]", "CON_HELP_SAVE", _cmd_save, 0, SaveSlots.names))
+	_add(ConsoleCommand.new("load", "load <name>", "CON_HELP_LOAD", _cmd_load, 1, SaveSlots.names))
+	_add(ConsoleCommand.new("saves", "saves", "CON_HELP_SAVES", _cmd_saves))
+	_add(ConsoleCommand.new("delsave", "delsave <name>", "CON_HELP_DELSAVE", _cmd_delsave, 1, SaveSlots.names))
+	_add(ConsoleCommand.new("protect", "protect <name> [on|off]", "CON_HELP_PROTECT", _cmd_protect, 1,
+		SaveSlots.names))
 
 
 const XP_USAGE := "xp [add <n> | level <n> | attr <name> <n> | respec]"
 const SEASON_USAGE := "season [spring|summer|autumn|winter|<day>] | season speed <x> | season perf [leaves|cold|meadow|none]"
 const TERRAIN_USAGE := "terrain [collision <lods>] [normalmap on|off] [blocks 16|32] [shadowlod <lod>|all] [horizon on|off]"
 const CUT_USAGE := "cut [arm|forearm|thigh|shin] [left|right]"
+
+
+# --- Partidas -----------------------------------------------------------------------------------
+
+## save [nombre] [nota...]: sin nombre, encima de la partida en juego. Guardar tarda unos fotogramas
+## (el terreno): contesta al empezar y avisa al acabar.
+func _cmd_save(args: PackedStringArray) -> String:
+	var slot := SaveSlots.sanitize(args[0]) if not args.is_empty() else GameManager.current_slot
+	if slot == "":
+		return _paint(COLOR_ERR, tr("CON_SAVE_NO_SLOT"))
+	if SaveSlots.is_protected(slot):
+		return _paint(COLOR_ERR, tr("SAVES_IS_PROTECTED") % slot)
+	var note := " ".join(args.slice(1)) if args.size() > 1 else ""
+	_save_async(slot, note)
+	return _paint(COLOR_MUTED, tr("CON_SAVE_STARTED") % slot)
+
+
+func _save_async(slot: String, note: String) -> void:
+	var ok: bool = await GameManager.save_game(slot, note)
+	if ok:
+		_print(_paint(COLOR_OK, tr("SAVES_SAVED") % slot))
+	else:
+		_err(tr("SAVES_SAVE_FAILED") % slot)
+
+
+func _cmd_load(args: PackedStringArray) -> String:
+	var slot := SaveSlots.sanitize(args[0])
+	if not SaveSlots.exists(slot):
+		return _paint(COLOR_ERR, tr("CON_SAVE_NOT_FOUND") % args[0])
+	if not GameManager.load_game(slot):
+		return _paint(COLOR_ERR, tr("CON_LOAD_FAILED") % slot)
+	return _paint(COLOR_OK, tr("CON_LOAD_DONE") % slot)
+
+
+## Una línea por partida: nombre (▶ la que está en juego), fecha, personaje, protegida y nota.
+func _cmd_saves(_args: PackedStringArray) -> String:
+	var saves := SaveSlots.list()
+	if saves.is_empty():
+		return _paint(COLOR_MUTED, tr("SAVES_EMPTY"))
+	var lines := PackedStringArray()
+	for meta in saves:
+		var slot: String = meta.slot
+		var line := ("▶ " if slot == GameManager.current_slot else "  ") + _paint(COLOR_INFO, slot)
+		var details := PackedStringArray([str(meta.get("timestamp", "")).replace("T", " ").left(16)])
+		if str(meta.get("character", "")) != "":
+			details.append(str(meta.character))
+		if bool(meta.get("protected", false)):
+			details.append(tr("SAVES_PROTECTED"))
+		line += "  " + _paint(COLOR_MUTED, " · ".join(details))
+		if str(meta.get("note", "")) != "":
+			line += "  " + str(meta.note)
+		lines.append(line)
+	return "\n".join(lines)
+
+
+func _cmd_delsave(args: PackedStringArray) -> String:
+	var slot := SaveSlots.sanitize(args[0])
+	if not SaveSlots.exists(slot):
+		return _paint(COLOR_ERR, tr("CON_SAVE_NOT_FOUND") % args[0])
+	if SaveSlots.is_protected(slot):
+		return _paint(COLOR_ERR, tr("SAVES_IS_PROTECTED") % slot)
+	if not GameManager.delete_save(slot):
+		return _paint(COLOR_ERR, tr("CON_DELSAVE_FAILED") % slot)
+	return _paint(COLOR_OK, tr("SAVES_DELETED") % slot)
+
+
+func _cmd_protect(args: PackedStringArray) -> String:
+	var slot := SaveSlots.sanitize(args[0])
+	if not SaveSlots.exists(slot):
+		return _paint(COLOR_ERR, tr("CON_SAVE_NOT_FOUND") % args[0])
+	var on := args.size() < 2 or args[1].to_lower() != "off"
+	SaveSlots.set_protected(slot, on)
+	return _paint(COLOR_OK, tr("CON_PROTECT_DONE") % [slot, tr("SAVES_PROTECTED") if on else tr("CON_PROTECT_OFF")])
 
 
 func _cmd_time(args: PackedStringArray) -> String:
