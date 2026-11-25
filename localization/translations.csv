@@ -1240,7 +1240,8 @@ CON_VILLAGE_NEAREST,"Nearest village (%s, %d buildings): %.0f m away, heading %.
 CON_VILLAGE_TP_DONE,In the square of the nearest village.,En la plaza del poblado más cercano.,
 CON_VILLAGE_PEOPLE,Villagers around: %d (%d more getting ready).,Aldeanos cerca: %d (%d más preparándose).,
 CON_VILLAGE_DANGER,"Hiding from: %s, %s from the square. They come out 15 s after losing sight of it.","Escondidos de: %s, a %s de la plaza. Salen 15 s después de dejar de verla.",
-CON_VILLAGE_FIGHT,"Villagers: %d fighting, %d hiding, %d down, %d going about their business.","Aldeanos: %d pelean, %d escondidos, %d malheridos, %d a lo suyo.",
+CON_VILLAGE_FIGHT,"Villagers: %d fighting, %d hiding, %d dead, %d going about their business.","Aldeanos: %d pelean, %d escondidos, %d muertos, %d a lo suyo.",
+CON_VILLAGE_BACK,(the first one is back in %.0f min),(el primero vuelve en %.0f min),
 CON_VILLAGE_BEAST,"Nearest beast: %s, %.0f m from the square (alarm within %.0f m), state %s, active/dormant %s, after %s.","Fiera más cercana: %s, a %.0f m de la plaza (alarma a menos de %.0f m), estado %s, activa/dormida %s, va a por %s.",
 CON_VILLAGE_NO_BEAST,"No beast that scares them nearby.","Ninguna fiera de las que asustan cerca.",
 CON_VILLAGE_QUEST,Errand for %s (%s): %s,Encargo para %s (%s): %s,
@@ -1819,7 +1820,6 @@ VILLAGER_PACK_THEIRS,They carry,Lleva,aldeanos
 VILLAGER_PACK_HINT,Click: hand over one · Shift+click: ten · Ctrl+click: half · Right click: all of them. They fight with the best weapon they carry (or their tool) and eat what's cooked when they need to.,Clic: pasa uno · Mayús+clic: diez · Ctrl+clic: la mitad · Clic derecho: todos. Pelea con la mejor arma que lleve (o con su herramienta) y come lo asado que lleve cuando le hace falta.,aldeanos
 VILLAGER_PACK_FULL,It won't fit in their pack.,No le cabe en el morral.,aldeanos
 VILLAGER_PACK_YOURS_FULL,It won't fit in your inventory.,No te cabe en el inventario.,aldeanos
-VILLAGER_DOWN,%s has fallen. They'll get up in a while.,%s ha caído. Se levantará en un rato.,aldeanos
 SETTLER_JOB_FELL,Woodcutter,Leñador,colonos
 SETTLER_JOB_MINE,Stonecutter,Cantero,colonos
 SETTLER_JOB_CLEAR,Clearing,Desbroce,colonos
@@ -1838,6 +1838,12 @@ SETTLER_CHEST_FULL,Idle: the base chests are full.,Parado: los cofres de la base
 SETTLER_NOTHING_LEFT,%s · nothing left to do nearby.,%s · no queda nada que hacer cerca.,colonos
 SETTLER_CLEAR_DONE,%s has finished clearing the area.,%s ha terminado de limpiar la zona.,colonos
 SETTLER_CRUSHED,%s was crushed by a falling tree.,A %s le ha aplastado un árbol.,colonos
+COMPANION_DOWN,%s has fallen! Kill or drive off the beast or it will finish them.,¡%s ha caído! Mata o espanta a la fiera o lo rematará.,compañeros
+COMPANION_DIED,%s is dead.,%s ha muerto.,compañeros
+SETTLER_DIED,%s is dead. They'll be back at the base in a while.,%s ha muerto. Volverá a la base en un rato.,colonos
+SETTLER_BACK,%s is back at the base.,%s ha vuelto a la base.,colonos
+DEATH_LOOT_COMPANION,[E] %s's pack,[E] Morral de %s,compañeros
+DEATH_LOOT_COMPANION_TITLE,%s's pack,Morral de %s,compañeros
 INV_STORAGE_JOBS,For settlers:,Para colonos:,colonos
 INV_STORAGE_JOBS_TIP,"Settlers with these jobs leave what they gather here; builders take their materials from here. With none marked: all of them.","Los colonos con estos oficios dejan aquí lo que sacan; los constructores cogen de aquí sus materiales. Sin ninguno marcado: todos.",colonos
 ITEM_THRONE,Log throne,Trono de troncos,colonos

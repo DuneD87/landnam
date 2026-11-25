@@ -141,7 +141,7 @@ func _stream(local: Vector3) -> void:
 				DRESSING:
 					people += 1
 				AWAY:
-					if _manager.get_companions().has(String(entry.who.id)):
+					if _manager.absent(String(entry.who.id)):
 						continue
 					var spot := Villager.spawn_point(entry.who, village)
 					var d := (spot.at as Vector3).distance_to(local)
@@ -182,7 +182,7 @@ func _rebuild_crowd(v: int) -> void:
 	var figures: Array = []
 	var signature := 0
 	for entry: Dictionary in _roster.get(v, []):
-		if int(entry.state) == OUT or _manager.get_companions().has(String(entry.who.id)):
+		if int(entry.state) == OUT or _manager.absent(String(entry.who.id)):
 			continue
 		var pose := Villager.spawn_pose(entry.who, village)
 		if pose.inside:
@@ -319,6 +319,7 @@ func _arrive(v: int) -> void:
 	village.relations = _manager.relations
 	village.trade = _manager.trade
 	village.quests = _manager.quests
+	village.deaths = _manager.deaths
 	village.neighbour = _neighbour(v, village.center)
 	_active[v] = village
 	var fire := SettlementFire.new()
@@ -457,7 +458,7 @@ func _spawn(job: Dictionary, model: Node3D) -> void:
 	var village: SettlementVillage = _active.get(job.village)
 	# El que se ha ido con el jugador mientras se vestía (o lo ha sacado la consola) ya no sale.
 	if village == null or int(job.generation) != int(_generation.get(job.village, 0)) \
-			or _manager.get_companions().has(String(job.resident.id)):
+			or _manager.absent(String(job.resident.id)):
 		model.free()
 		if job.has("entry"):
 			job.entry.state = AWAY

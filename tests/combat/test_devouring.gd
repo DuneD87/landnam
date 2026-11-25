@@ -120,14 +120,64 @@ func _run() -> void:
 	check(remains.get_node_or_null(^"GutPile") != null, "las vísceras salen al suelo")
 	await _check_open_torso(remains, skel, source)
 
+	# Comiendo está absorto: ni verlo ni la llamada de su manada lo sacan; los golpes, al cabo de unos, sí, y
+	# luego vuelve.
+	var someone := Node3D.new()
+	add_child(someone)
+	wolf._on_target_detected(someone)
+	check(wolf.is_feeding() and not wolf.answer_call(someone), "comiendo, ni ver a alguien ni la llamada de su manada lo distraen")
+	var tolerance := NPCController.MEAL_TOLERANCE * wolf.health_component.max_health
+	wolf._on_damaged(tolerance * 0.6, someone)
+	check(wolf.is_feeding() and wolf.ai_controller.target == null,
+		"un golpe no le hace soltar la comida: lo encaja y sigue comiendo")
+	wolf._on_damaged(tolerance * 0.6, someone)
+	check(not wolf.is_feeding() and wolf.ai_controller.target == someone and wolf.meal == remains,
+		"pero con %.0f%% de su vida perdida comiendo, va a por quien le pega" % (NPCController.MEAL_TOLERANCE * 100.0))
+	wolf.ai_controller.target = null
+	wolf.ai_controller.transition_to(&"IdleState")
+	wolf._back_to_meal()
+	check(not wolf.is_feeding(), "recién herido no vuelve a comer")
+	wolf._hurt_msec -= int(NPCController.MEAL_CALM * 1000.0) + 100
+	wolf._back_to_meal()
+	check(wolf.is_feeding(), "pasada la pelea, vuelve a su comida")
+	someone.queue_free()
+
+	# Otro que llega a comer no se le pone encima: rodea la comida hasta un lado libre.
+	await _wait(1.0)
+	var second := (load("res://scenes/animals/Wolf.tscn") as PackedScene).instantiate() as NPCController
+	add_child(second)
+	second.apply_variant(null)
+	second.perception.set_physics_process(false)
+	second.planet = wolf.planet
+	var point := remains.feed_point()
+	var up := -wolf.gravity_direction.normalized()
+	var from_first := (point - wolf.global_position).slide(up).normalized()
+	second.global_position = point - from_first * 3.0
+	second.feed_on(remains)
+	var second_state := second.ai_controller.get_node(^"FeedState") as FeedState
+	var side := second_state._free_side(point, from_first, up)
+	check(rad_to_deg(side.angle_to(from_first)) > 20.0, "por donde come el primero no se pone: rodea (%.0f°)"
+		% rad_to_deg(side.angle_to(from_first)))
+	await _wait(4.0)
+	var mine := FeedState._footprint(wolf)
+	var theirs := FeedState._footprint(second)
+	var t1 := wolf.global_transform.orthonormalized()
+	var t2 := second.global_transform.orthonormalized()
+	var closest := Geometry3D.get_closest_points_between_segments(t1 * (mine[0] as Vector3), t1 * (mine[1] as Vector3),
+		t2 * (theirs[0] as Vector3), t2 * (theirs[1] as Vector3))
+	var room := closest[0].distance_to(closest[1]) - float(mine[2]) - float(theirs[2])
+	var above := absf((second.global_position - wolf.global_position).dot(up))
+	check(room > -0.1 and above < 0.3, "comen los dos sin pisarse (holgura %.2f m, desnivel %.2f m)" % [room, above])
+	second.queue_free()
+
 	# Despiezado: el lobo come un rato más y se va.
 	var state := wolf.ai_controller.get_node(^"FeedState") as FeedState
 	state.profile = state.profile.duplicate()
 	state.profile.feed_time = Vector2(0.3, 0.3)
 	remains.devoured = true
 	await _wait(0.8)
-	check(wolf.ai_controller.get_current_state() != &"FeedState" and remains.eating().is_empty(),
-		"despiezado, come un rato y se va (%s)" % wolf.ai_controller.get_current_state())
+	check(wolf.ai_controller.get_current_state() != &"FeedState" and remains.eating().is_empty() and wolf.meal == null,
+		"despiezado, come un rato y se va, saciado (%s)" % wolf.ai_controller.get_current_state())
 	wolf.queue_free()
 
 	remains.seal()

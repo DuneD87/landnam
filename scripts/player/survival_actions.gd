@@ -234,7 +234,7 @@ func open_death_loot(loot: DeathLoot) -> void:
 		notify(tr("XP_RECOVERED") % roundi(xp))
 	if loot.inventory.get_free_slots() == loot.inventory.max_slots:
 		return
-	_player.inventory_ui.open_loot(loot.inventory, "DEATH_LOOT_TITLE")
+	_player.inventory_ui.open_loot(loot.inventory, loot.title())
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 

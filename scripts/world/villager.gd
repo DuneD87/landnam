@@ -159,12 +159,13 @@ const SAY_TIME := 2.6
 const ANIM_HIT := &"combat/hit_react"
 const FLINCH_TIME := 0.6
 const SCARED_TIME := 45.0
-## Su vida: solo la gastan las fieras (los golpes del jugador llegan, pero no quitan nada). Sin ella cae
-## malherido (ANIM_DOWN) DOWN_TIME s; luego se levanta con toda y se va a casa (SCARED_TIME). Fuera de
-## pelea, a los REGEN_AFTER s del último golpe recupera REGEN por segundo.
+## Su vida: solo la gastan las fieras (los golpes del jugador llegan, pero no quitan nada). Sin ella muere
+## (_die: ANIM_DOWN, y la fiera se lo come) y vuelve a su cama a los SettlementDeaths.RESPAWN_TIME s. Fuera
+## de pelea, a los REGEN_AFTER s del último golpe recupera REGEN por segundo.
 const HEALTH := 100.0
-const DOWN_TIME := 25.0
 const ANIM_DOWN := &"combat/death"
+## La gravedad con la que caen sus restos (m/s²).
+const GRAVITY := 9.8
 const REGEN_AFTER := 10.0
 const REGEN := 2.0
 ## Quien tiene herramienta (no la guardia, que va siempre) planta cara a la fiera que ataca el poblado si
@@ -174,7 +175,7 @@ const DEFEND_REACH := 15.0
 ## Peleando con el jugador: su radio y a qué altura le da (m).
 const PLAYER_RADIUS := 0.35
 const PLAYER_HIT_HEIGHT := 1.2
-enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT, FLINCH, DOWN}
+enum Act {STAND, WALK, SIT, TALK, SLEEP, WORK, WAVE, HIDE, CHAT, SHELTER, FIGHT, FLINCH, DEAD}
 
 ## SettlementPopulation.residents: "name", "home", "bed", "job"...
 var resident: Dictionary
@@ -357,7 +358,7 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	health.max_health = HEALTH
 	health.fall_damage_enabled = false
 	health.hit_received.connect(_on_hit)
-	health.died.connect(_on_down)
+	health.died.connect(_die)
 	add_child(health)
 	_hurtbox = Hurtbox.attach(self, self, capsule, shape.transform, &"body")
 	_hurtbox.health = health
@@ -366,7 +367,8 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 	var h := village.hour()
 	if _is_night(h):
 		_sleep(true)
-	elif village.danger:
+	elif (village.danger and not _spawns_to_fight(who, village, h)) or _back_from_dead(who, village):
+		# Escondido de la fiera, o de vuelta tras morir: a los pies de su lecho; sale cuando toque (HIDE).
 		_sleep()
 		_get_up()
 		_hide()
@@ -388,6 +390,11 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 		_pos = village.plaza_spot(_rng)
 		_forward = _tangent(village.center - _pos, _pos)
 		_stand(_rng.randf_range(1.0, STAND_TIME.y))
+	if village.deaths != null:
+		village.deaths.clear_back(String(who.get("id", "")))
+	if village.danger and act != Act.SLEEP and act != Act.HIDE:
+		# Sale con la alarma ya dada y le toca pelear (_spawns_to_fight): desde su sitio, a por ella.
+		_decide()
 
 
 ## Dónde y cómo aparecería [who] en [village] ahora (setup), para su figura de multitud mientras no
@@ -395,7 +402,8 @@ func setup(who: Dictionary, home_village: SettlementVillage, model: Node3D) -> v
 static func spawn_pose(who: Dictionary, village: SettlementVillage) -> Dictionary:
 	var h := village.hour()
 	var job: Dictionary = who.get("job", {})
-	if _is_night(h) or village.danger or village.raining:
+	if _is_night(h) or (village.danger and not _spawns_to_fight(who, village, h)) or village.raining \
+			or _back_from_dead(who, village):
 		return {"at": village.bed(who.home, who.bed).origin, "forward": Vector3.ZERO, "inside": true, "clip": ANIM_IDLE}
 	if not job.is_empty() and _work_hour(h):
 		var work := village.workplace(job)
@@ -417,7 +425,8 @@ static func spawn_pose(who: Dictionary, village: SettlementVillage) -> Dictionar
 static func spawn_point(who: Dictionary, village: SettlementVillage) -> Dictionary:
 	var h := village.hour()
 	var job: Dictionary = who.get("job", {})
-	if _is_night(h) or village.danger or village.raining:
+	if _is_night(h) or (village.danger and not _spawns_to_fight(who, village, h)) or village.raining \
+			or _back_from_dead(who, village):
 		return {"at": village.bed(who.home, who.bed).origin, "inside": true}
 	if not job.is_empty() and _work_hour(h):
 		var work := village.workplace(job)
@@ -480,7 +489,7 @@ static func nearest(tree: SceneTree, group: StringName, at: Vector3, look: Vecto
 
 ## Si se le puede hablar ahora (dormido no).
 func can_chat() -> bool:
-	return act != Act.SLEEP and act != Act.DOWN
+	return act != Act.SLEEP and act != Act.DEAD
 
 
 ## El jugador le habla: deja lo que haga, se para y lo mira hasta end_chat. Falso si no puede.
@@ -550,14 +559,15 @@ func leave_with_player() -> Node3D:
 
 ## Ataca una fiera (SettlementVillage): deja lo que haga y corre a casa.
 func alarm() -> void:
-	if act != Act.SLEEP and act != Act.HIDE and act != Act.DOWN:
+	if act != Act.SLEEP and act != Act.HIDE and act != Act.DEAD:
 		_decide()
 
 
-## La fiera sigue atacando el poblado (SettlementVillage, cada segundo): quien tiene herramienta y no está
-## ya peleando va a por ella si ahora le toca (_should_fight: se le ha acercado o va a por uno de los suyos).
+## La fiera sigue atacando el poblado (SettlementVillage, cada segundo): quien no está ya peleando va a por
+## una si ahora le toca (_should_fight): la guardia, en cuanto hay a quién ir (también si acabó con la suya y
+## se fue a casa); quien tiene herramienta, si se le ha acercado o va a por uno de los suyos.
 func rally() -> void:
-	if is_guard() or act in [Act.FIGHT, Act.FLINCH, Act.DOWN, Act.SLEEP, Act.CHAT]:
+	if act in [Act.FIGHT, Act.FLINCH, Act.DEAD, Act.SLEEP, Act.CHAT]:
 		return
 	if _should_fight():
 		_decide()
@@ -567,7 +577,7 @@ func rally() -> void:
 ## empieza a nevar, quien esté sentado fuera se levanta; si escampa, los de casa salen al poco.
 func weather_turned() -> void:
 	match act:
-		Act.SLEEP, Act.HIDE, Act.CHAT, Act.DOWN:
+		Act.SLEEP, Act.HIDE, Act.CHAT, Act.DEAD:
 			pass
 		Act.SHELTER:
 			if not village.raining:
@@ -587,7 +597,7 @@ func _physics_process(delta: float) -> void:
 	_greet_left -= delta
 	_scared_left -= delta
 	_since_hit += delta
-	if act != Act.DOWN and _since_hit >= REGEN_AFTER and health.health < health.max_health \
+	if act != Act.DEAD and _since_hit >= REGEN_AFTER and health.health < health.max_health \
 			and not health.is_dead:
 		health.heal(REGEN * delta)
 	_look_left -= delta
@@ -611,8 +621,8 @@ func _physics_process(delta: float) -> void:
 			_fight(delta)
 		Act.FLINCH:
 			_tick(delta, _decide)
-		Act.DOWN:
-			_tick(delta, _rise)
+		Act.DEAD:
+			pass
 		Act.WAVE:
 			var at := village.player_local()
 			if at.is_finite():
@@ -721,7 +731,7 @@ func _update_detail() -> void:
 ## Cómo le toca dibujarse a [d] m de la cámara. Dormido no va de multitud (sus clips no están en la
 ## textura y se apoya en el lecho con el esqueleto), ni hablando con el jugador.
 func _tier_for(d: float) -> Tier:
-	if _light != Light.READY:
+	if _light != Light.READY or act == Act.DEAD:
 		return Tier.FULL
 	if _crowd != null and act != Act.SLEEP and act != Act.CHAT and CrowdClips.has(_anim) \
 			and d > (SWING_REACH - TIER_MARGIN if _tier == Tier.CROWD else SWING_REACH):
@@ -976,7 +986,7 @@ static func _alive(creature: NPCController) -> bool:
 	return creature != null and is_instance_valid(creature) and not creature.is_dead
 
 
-## Le llega un golpe (Hurtbox): se dobla. Solo el de una fiera le quita vida (sin ella cae: _on_down); si
+## Le llega un golpe (Hurtbox): se dobla. Solo el de una fiera le quita vida (sin ella muere: _die); si
 ## se lo ha dado el jugador, el poblado se lo apunta (SettlementVillage.struck) y se asusta: corre a casa, o
 ## el guardia se revuelve.
 func _on_hit(info: DamageInfo, _applied: float) -> void:
@@ -1004,9 +1014,13 @@ func _on_hit(info: DamageInfo, _applied: float) -> void:
 	_play(ANIM_HIT, 1.0, 0.05)
 
 
-## Sin vida (se la ha quitado una fiera): cae y se queda en el suelo DOWN_TIME s. Las fieras lo dejan
-## (CreatureCombatState: su vida está a cero) y no se le puede hablar.
-func _on_down() -> void:
+## Sin vida (se la ha quitado una fiera): muere. Cae con su animación (entero, no de multitud), su poblado
+## lo apunta (SettlementVillage.died: vuelve a su cama a los SettlementDeaths.RESPAWN_TIME s de juego) y la
+## fiera que lo ha matado, si come carne, se lo come (NpcDevouring); si no, se queda como ha caído. En
+## cuanto sus restos ocupan su sitio, se va (_gone).
+func _die() -> void:
+	if act == Act.DEAD:
+		return
 	_abort_leg()
 	_drop_partner()
 	_waiting = false
@@ -1016,31 +1030,52 @@ func _on_down() -> void:
 	_show_tool(false)
 	_hurtbox.set_enabled(false)
 	_set_solid(false)
-	act = Act.DOWN
-	_left = DOWN_TIME
+	act = Act.DEAD
+	_left = INF
+	if _tier != Tier.FULL:
+		_set_tier(Tier.FULL)
 	_play(ANIM_DOWN, 1.0, 0.15)
+	village.died(self)
+	var up := (village.frame().basis * _pos).normalized()
+	NpcDevouring.begin(self, _skeleton, _model, health.last_attacker as NPCController, -up * GRAVITY,
+		StringName(resident.get("sex", &"")) == &"female", _gone)
 
 
-## Se levanta de malherido con toda su vida y se va a casa, andando, a quedarse un rato (SCARED_TIME).
-func _rise() -> void:
-	health.revive()
-	_hurtbox.set_enabled(true)
-	_set_solid(true)
-	_since_hit = 0.0
-	_scared_left = SCARED_TIME
-	var b: int = resident.home
-	_go_to(village.bed_foot(b, resident.bed), b, _hide)
+## Sus restos ya ocupan su sitio: se va (su poblado no lo vuelve a sacar hasta que le toque volver).
+func _gone() -> void:
+	village.villagers.erase(self)
+	queue_free()
 
 
-## Si planta cara (_defend) en vez de correr a casa: no asustado (por el jugador o tras caer malherido) y, la
+## Si planta cara (_defend) en vez de correr a casa: no asustado (por un golpe del jugador) y, la
 ## guardia, con alguien a quien ir (SettlementVillage.target); los demás, con herramienta, fuera de casa y
 ## con la fiera a su alcance (_foe).
 func _should_fight() -> bool:
-	if _scared_left > 0.0 or act == Act.DOWN or health.is_dead:
+	if _scared_left > 0.0 or act == Act.DEAD or health.is_dead:
 		return false
 	if is_guard():
-		return village.target() != null
+		return village.target(_pos) != null
 	return _inside < 0 and _armed() and _foe() != null
+
+
+## Si [who] vuelve tras morir (SettlementDeaths.is_back) y aún no ha salido: sale en su cama.
+static func _back_from_dead(who: Dictionary, village: SettlementVillage) -> bool:
+	return village.deaths != null and village.deaths.is_back(String(who.get("id", "")))
+
+
+## Si [who], al salir con la alarma ya dada (setup, spawn_point), aparece en su sitio de siempre para pelear
+## en vez de escondido en casa: la guardia, si hay a quién ir; quien tiene herramienta, en hora de trabajo, con el
+## puesto fuera de casa y una fiera a su alcance desde él (DEFEND_REACH).
+static func _spawns_to_fight(who: Dictionary, village: SettlementVillage, h: float) -> bool:
+	var job: Dictionary = who.get("job", {})
+	if StringName(job.get("kind", &"")) == &"guard":
+		return village.target() != null
+	if String(job.get("tool", "")) == "" or not _work_hour(h):
+		return false
+	var work := village.workplace(job)
+	if work.get("indoor", StringName(work.get("kind", &"")) == &"bench"):
+		return false
+	return village.beast_for((work.stands as PackedVector3Array)[job.stand], DEFEND_REACH) != null
 
 
 ## Si tiene una herramienta con la que golpear (su oficio la tiene: hacha, azada, martillo, lanza).
@@ -1052,7 +1087,7 @@ func _armed() -> bool:
 ## a la fiera, si la tienen a menos de DEFEND_REACH (el doble si ya pelean) o va a por uno de los suyos.
 func _foe() -> Node3D:
 	if is_guard():
-		return village.target()
+		return village.target(_pos)
 	return village.beast_for(_pos, DEFEND_REACH * (2.0 if act == Act.FIGHT else 1.0))
 
 

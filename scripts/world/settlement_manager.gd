@@ -70,6 +70,8 @@ var relations := SettlementRelations.new()
 var trade := SettlementTrade.new(relations, 1)
 ## Lo que piden los vecinos y lo que el jugador tiene entre manos: se guarda con la partida.
 var quests := SettlementQuests.new(relations, 1)
+## Los aldeanos muertos, hasta que vuelven (Villager._die).
+var deaths := SettlementDeaths.new()
 ## Lo que los encargos ponen en el mundo (el perdido, el escoltado, las emboscadas, la fiera con nombre).
 var director: QuestDirector
 
@@ -123,6 +125,8 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	relations.advance(WorldTime.hours_elapsed(delta))
+	if GameManager.current_state == GameManager.State.PLAYING:
+		deaths.advance(delta)
 	if _player == null or not is_instance_valid(_player) or _terrain == null:
 		return
 	_timer -= delta
@@ -502,6 +506,12 @@ func get_companions() -> SettlementCompanions:
 	return _companions
 
 
+## Si el vecino [id] no está en su poblado: va con el jugador (o se va, o ha muerto con él:
+## SettlementCompanions.has) o ha muerto y aún no ha vuelto (deaths).
+func absent(id: String) -> bool:
+	return deaths.has(id) or (_companions != null and _companions.has(id))
+
+
 ## El poblado [v] con su gente, si está a la vista (SettlementVillagers), o null.
 func village_of(v: int) -> SettlementVillage:
 	return _people.village(v) if _people != null else null
@@ -553,7 +563,7 @@ func creature_killed(creature: NPCController, killer: Object) -> void:
 
 func get_save_data() -> Dictionary:
 	return {"claimed": _claimed.keys(), "relations": relations.save_data(), "trade": trade.save_data(),
-		"quests": quests.save_data(), "known": _known.keys()}
+		"quests": quests.save_data(), "known": _known.keys(), "deaths": deaths.save_data()}
 
 
 ## Antes de cargar una partida: GridManager va a quitar todas las grids, y al vaciarse avisan; las del
@@ -590,4 +600,5 @@ func restore_save_data(data: Dictionary) -> void:
 	relations.restore(data.get("relations", {}))
 	trade.restore(data.get("trade", {}))
 	quests.restore(data.get("quests", {}))
+	deaths.restore(data.get("deaths", {}))
 	_timer = 0.0

@@ -108,9 +108,14 @@ const ATTACK_PAUSE := Vector2(0.4, 1.1)
 const ARMED_TIME := 5.0
 ## Lo que dura el respingo al encajar un golpe (s; a mitad de golpe no se inmuta).
 const FLINCH_TIME := 0.45
-## Sin vida cae malherido: se levanta a los DOWN_TIME s con RISE_HEALTH de su vida.
-const DOWN_TIME := 25.0
+## Sin vida, el que va con el jugador cae malherido: se levanta a los DOWN_TIME s con RISE_HEALTH de su vida,
+## salvo que la fiera que lo ha tumbado lo remate (_finisher): sigue viva, a menos de FINISH_REACH m y sin
+## huir; si además no pelea con nadie más, no espera al final, solo FINISH_AFTER s. El colono en la base
+## muere sin más (_die).
+const DOWN_TIME := 15.0
 const RISE_HEALTH := 0.4
+const FINISH_REACH := 12.0
+const FINISH_AFTER := 3.0
 ## Siguiendo al jugador a menos de esto (m), las fieras lo oyen y lo ven como a él (get_noise).
 const STEALTH_REACH := 25.0
 ## Fuera de pelea, a los REGEN_AFTER s del último golpe recupera REGEN por segundo; y por debajo de
@@ -153,7 +158,7 @@ const WALL_LOOK_HEIGHTS: Array[float] = [0.4, 1.5]
 const LOOK_EVERY := 0.25
 const DOOR_OPEN := 1.6
 const DOOR_CLOSE := 2.5
-## Aplastado por un árbol: se queda en el suelo GONE_TIME s y se va.
+## Muerto: si sus restos no llegan a montarse (NpcDevouring), se queda en el suelo GONE_TIME s y se va.
 const GONE_TIME := 60.0
 ## En formación (SettlementCompanions.slot_of): echa a andar a más de SLOT_START m de su hueco y se para a
 ## menos de SLOT_STOP con el jugador quieto. Va al paso del jugador y, si se queda atrás, más deprisa
@@ -319,9 +324,13 @@ var order_leash := ORDER_LEASH
 ## (return_to_base). Vector3.INF si no vivía en ninguna.
 var return_base := Vector3.INF
 var return_work := {}
-## Muerto (aplastado): no se guarda y se va a los GONE_TIME s.
+## Muerto (_die): no se guarda y se va en cuanto sus restos ocupan su sitio. El que va con el jugador se pierde;
+## el colono vuelve a la base al rato (SettlementCompanions: is_settler).
 var dead := false
 var _gone_left := 0.0
+## La fiera que lo ha tumbado (malherido) y cuánto lleva en el suelo (s).
+var _downed_by: NPCController
+var _down_for := 0.0
 
 var _terrain: Node3D
 var _player: Node3D
@@ -762,6 +771,9 @@ func get_lock_point() -> Vector3:
 
 ## Le cambia el morral: el arma, y se pone lo que lleve de ropa, armadura, escudo y arco (CompanionGear).
 func _on_pack_changed() -> void:
+	# Muerto, su morral se vacía en el saco (_die): lo que lleva puesto se queda en el cuerpo.
+	if dead:
+		return
 	refresh_weapon()
 	if gear.refresh(pack):
 		_apply_armor()
@@ -2095,8 +2107,15 @@ func _on_hit(info: DamageInfo, applied: float) -> void:
 		_play(ANIM_HIT, 0.05, true)
 
 
-## Sin vida: cae y se queda en el suelo DOWN_TIME s (las fieras lo dejan: su vida está a cero).
+## Sin vida. El colono en la base muere (_die); el que va con el jugador cae y se queda en el suelo DOWN_TIME
+## s (las fieras lo dejan: su vida está a cero) a la espera de levantarse o de que lo rematen (_lie).
 func _on_down() -> void:
+	var killer := health.last_attacker as NPCController
+	if mode == Mode.SETTLE:
+		_die(killer)
+		return
+	_downed_by = killer
+	_down_for = 0.0
 	stand_up()
 	_end_climb(false)
 	_down_left = DOWN_TIME
@@ -2114,17 +2133,21 @@ func _on_down() -> void:
 	if _tool != null:
 		_tool.visible = false
 	_play(ANIM_DOWN, 0.15)
-	var hotbar: Node = _player.get("hotbar") if _player != null and is_instance_valid(_player) else null
-	if hotbar != null:
-		hotbar.notify(tr("VILLAGER_DOWN") % String(resident.get("name", "")))
+	notify(tr("COMPANION_DOWN") % String(resident.get("name", "")))
 
 
 func _lie(up: Vector3, delta: float) -> void:
 	_down_left -= delta
+	_down_for += delta
 	_move(Vector3.ZERO, 0.0, up, delta)
 	_pose(up)
+	var finisher := _finisher()
+	if finisher != null and (_down_left <= 0.0 or (_down_for >= FINISH_AFTER and _free_to_finish(finisher))):
+		_die(finisher)
+		return
 	if _down_left > 0.0:
 		return
+	_downed_by = null
 	health.revive()
 	health.health = MAX_HEALTH * RISE_HEALTH
 	health.health_changed.emit(health.health, health.max_health)
@@ -2645,11 +2668,45 @@ func _run_from_tree(delta: float) -> Array:
 	return [_tangent(to), SPRINT_SPEED]
 
 
-## Le cae un árbol encima (FallingTree): muere. Suelta lo que lleva y se va al rato.
+## La fiera que lo ha tumbado, si puede rematarlo: viva, a menos de FINISH_REACH m y sin huir. null si no
+## (la han matado, espantado o se ha ido lejos).
+func _finisher() -> NPCController:
+	var beast := _downed_by
+	if not _alive(beast) or not beast.active or beast.global_position.distance_to(global_position) > FINISH_REACH:
+		return null
+	var ai := beast.ai_controller
+	if ai != null and ai.get_current_state() == &"FleeState":
+		return null
+	return beast
+
+
+## Si [beast] no pelea con nadie más (ni con el jugador): entonces viene a rematarlo sin esperar.
+static func _free_to_finish(beast: NPCController) -> bool:
+	var ai := beast.ai_controller
+	if ai == null or ai.target == null or not is_instance_valid(ai.target):
+		return true
+	return not (ai.get_node_or_null(NodePath(ai.get_current_state())) is CreatureCombatState)
+
+
+## Le cae un árbol encima (FallingTree): muere.
 func crush() -> void:
+	_die(null, true)
+
+
+## Si al morir vuelve a la base al rato (SettlementCompanions): vive en ella o va con el jugador desde ella.
+func is_settler() -> bool:
+	return mode == Mode.SETTLE or return_base.is_finite()
+
+
+## Muere: a manos de [killer] (una fiera; si come carne, se lo come: NpcDevouring) o aplastado
+## ([crushed]). Lo que lleva en el morral queda en un saco junto a él (DeathLoot.spawn_for); lo puesto, en
+## el cuerpo. En cuanto sus restos ocupan su sitio, se va.
+func _die(killer: NPCController, crushed := false) -> void:
 	if dead:
 		return
 	dead = true
+	_downed_by = null
+	stand_up()
 	_end_climb(false)
 	work.stop()
 	_wake()
@@ -2667,13 +2724,24 @@ func crush() -> void:
 	if _tool != null:
 		_tool.visible = false
 	_gone_left = GONE_TIME
+	collision_layer = 0
 	_play(ANIM_DOWN, 0.1)
-	var up := up_direction
+	var who := String(resident.get("name", ""))
+	var content: Array[InventoryItem] = []
 	for item in pack.get_all_items():
 		if item != null:
-			DroppedItem.spawn_at(get_parent(), item.data, item.quantity, global_position + up * 0.8, -up)
+			content.append(item)
 	pack.clear()
-	notify(tr("SETTLER_CRUSHED") % String(resident.get("name", "")))
+	DeathLoot.spawn_for(get_tree().current_scene, who, content, global_transform)
+	var skeleton := _model.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
+	NpcDevouring.begin(self, skeleton, _model, killer, -up_direction * gravity,
+		StringName(resident.get("sex", &"")) == &"female", queue_free)
+	if crushed:
+		notify(tr("SETTLER_CRUSHED") % who)
+	elif is_settler():
+		notify(tr("SETTLER_DIED") % who)
+	else:
+		notify(tr("COMPANION_DIED") % who)
 
 
 ## La hora solar de la base (sin sol, mediodía).

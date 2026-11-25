@@ -4,7 +4,7 @@ extends Node
 ## cerrar la puerta, la guardia hostil, enfriarse, guardarse), lo que se les da pasa a su género y se gasta
 ## (SettlementTrade.receive), lo de los arcones (stash) y robarlo (SettlementStash), y los golpes y la
 ## hostilidad del poblado (SettlementVillage.struck, target); y las fieras: solo ellas quitan vida a un aldeano,
-## que sin ella cae malherido y luego se va a casa, y quién les planta cara (Villager._should_fight,
+## que sin ella muere (NpcDevouring) y vuelve a su cama al rato (SettlementDeaths), y quién les planta cara (Villager._should_fight,
 ## SettlementVillage.beast_for). Ver con la gente de verdad, en juego.
 ##   godot --headless --path . --audio-driver Dummy res://tests/world/test_reputation.tscn
 
@@ -195,16 +195,10 @@ func _check_beasts() -> void:
 	hit.call(wolf, 60.0)
 	check(is_equal_approx(health.health, Villager.HEALTH - 60.0) and woodcutter.act == Villager.Act.FLINCH,
 		"la dentellada de una fiera sí: se dobla y le queda %.0f" % health.health)
-	hit.call(wolf, 60.0)
-	check(woodcutter.act == Villager.Act.DOWN and health.is_dead and woodcutter._hurtbox.collision_layer == 0
-		and not woodcutter.can_chat(), "sin vida cae malherido: no encaja más golpes ni se le puede hablar")
-	woodcutter._physics_process(Villager.DOWN_TIME + 0.1)
-	check(woodcutter.act == Villager.Act.WALK and not health.is_dead and is_equal_approx(health.health, Villager.HEALTH)
-		and woodcutter._scared_left > 0.0 and woodcutter._path[woodcutter._path.size() - 1].is_equal_approx(village.bed_foot(0, 0)),
-		"a los %.0f s se levanta con toda su vida y se va a casa" % Villager.DOWN_TIME)
-	check(not woodcutter._should_fight(), "y, asustado, no planta cara")
+	check(not woodcutter._should_fight(), "y, asustado por el golpe del jugador, no planta cara")
 	woodcutter._scared_left = 0.0
-	village.threat = wolf
+	health.heal(Villager.HEALTH)
+	village.threats.assign([wolf])
 	check(not woodcutter._should_fight(), "a la fiera que ataca lejos (40 m) no va")
 	wolf.global_position = woodcutter.global_position + Vector3(10.0, 0.0, 0.0)
 	check(woodcutter._should_fight() and not seller._should_fight(),
@@ -216,6 +210,57 @@ func _check_beasts() -> void:
 	woodcutter._inside = 0
 	wolf.global_position = woodcutter.global_position + Vector3(5.0, 0.0, 0.0)
 	check(not woodcutter._should_fight(), "dentro de casa no sale")
+	woodcutter._inside = -1
+	# Varias a la vez, por el camino de verdad: el poblado las ve todas atacando (_threats_near) y cada uno va a
+	# por la suya.
+	var bear := (load("res://scenes/animals/Bear.tscn") as PackedScene).instantiate() as NPCController
+	add_child(bear)
+	bear.set_physics_process(false)
+	bear.perception.set_physics_process(false)
+	var to_world := village.frame()
+	wolf.global_position = to_world * (village.center + Vector3(0.0, 0.0, 25.0))
+	bear.global_position = woodcutter.global_position + Vector3(8.0, 0.0, 0.0)
+	for beast: NPCController in [wolf, bear]:
+		beast.ai_controller.target = player
+		beast.ai_controller._current_state_name = &"CombatState"
+	village.threats.assign(village._threats_near())
+	check(village.threats.size() == 2, "ve las dos fieras que atacan, no solo la primera (%d)" % village.threats.size())
+	check(woodcutter._foe() == bear, "con dos, quien tiene herramienta va a la que tiene cerca")
+	check(village.target(village.center + Vector3(0.0, 0.0, 20.0)) == wolf
+		and village.target(woodcutter.local_position()) == bear, "y cada guardia, a la más cercana a él")
+	bear.is_dead = true
+	check(village.target(woodcutter.local_position()) == wolf and woodcutter._foe() == null,
+		"muerta la suya, la guardia va a la otra; el leñador, que la tiene lejos, no")
+	village.danger = true
+	woodcutter.act = Villager.Act.HIDE
+	woodcutter._inside = 0
+	woodcutter.rally()
+	check(woodcutter.act == Villager.Act.HIDE, "escondido en casa sigue escondido")
+	# Muere: el poblado lo apunta y vuelve a su cama a su tiempo.
+	village.danger = false
+	village.deaths = SettlementDeaths.new()
+	hit.call(wolf, Villager.HEALTH + 1.0)
+	var id := String(who.id)
+	check(woodcutter.act == Villager.Act.DEAD and health.is_dead and woodcutter._hurtbox.collision_layer == 0
+		and not woodcutter.can_chat() and village.deaths.has(id),
+		"sin vida muere: no encaja más golpes, no se le puede hablar y su poblado lo apunta")
+	check(get_children().any(func(n: Node) -> bool: return n is NpcDevouring),
+		"y empieza su devorado (sus restos, con la fiera que lo ha matado)")
+	village.deaths.advance(SettlementDeaths.RESPAWN_TIME - 1.0)
+	check(village.deaths.has(id), "a los %.0f min aún no ha vuelto" % ((SettlementDeaths.RESPAWN_TIME - 1.0) / 60.0))
+	village.deaths.advance(2.0)
+	var spot := Villager.spawn_point(who, village)
+	check(not village.deaths.has(id) and spot.inside and (spot.at as Vector3).is_equal_approx(village.bed(0, 0).origin),
+		"a los %.0f min vuelve, en su cama" % (SettlementDeaths.RESPAWN_TIME / 60.0))
+	var saved := village.deaths.save_data()
+	village.deaths.add(id)
+	var restored := SettlementDeaths.new()
+	restored.restore(village.deaths.save_data())
+	check(saved.is_empty() and is_equal_approx(restored.left(id), SettlementDeaths.RESPAWN_TIME), "y se guarda")
+	for node in get_children():
+		if node is NpcDevouring:
+			(node as NpcDevouring).cancel()
+	bear.queue_free()
 	wolf.queue_free()
 	woodcutter.queue_free()
 	seller.queue_free()

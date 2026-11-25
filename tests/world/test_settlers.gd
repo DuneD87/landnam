@@ -153,6 +153,9 @@ func _run() -> void:
 	if _want("climb"):
 		print("SECTION _check_climb t=%.1f" % (Time.get_ticks_msec() / 1000.0))
 		await _check_climb()
+	if _want("death"):
+		print("SECTION _check_death t=%.1f" % (Time.get_ticks_msec() / 1000.0))
+		await _check_death()
 	if _want("meals"):
 		_check_meals()
 	if _want("hunter_away"):
@@ -224,7 +227,7 @@ func _spawn(at: Vector3, mode := Companion.Mode.FOLLOW, outfit: Array[StringName
 	c.setup(who, 0, "Prueba", null, Villager.build_model(who, SettlementVillagers.pieces_of(who)), _terrain, _player,
 		Vector3(0.0, RADIUS, 500.0))
 	c.mode = mode
-	_companions._list.append(c)
+	_companions.track(c)
 	_host.add_child(c)
 	c.global_position = at
 	c.reset_physics_interpolation()
@@ -716,6 +719,74 @@ func _check_guard() -> void:
 		and guard._chore != Companion.Chore.SLEEP, "de noche está en su puesto, despierto")
 	await _clear()
 	_player.global_position = Vector3(0.0, 0.05, 0.0)
+
+
+# --- La muerte -------------------------------------------------------------------------------------------
+
+## Una fiera quieta (sin física ni sentidos) en [at], la que da los golpes.
+func _beast(at: Vector3) -> NPCController:
+	var wolf := (load("res://scenes/animals/Wolf.tscn") as PackedScene).instantiate() as NPCController
+	_host.add_child(wolf)
+	wolf.set_physics_process(false)
+	wolf.perception.set_physics_process(false)
+	wolf.global_position = at
+	return wolf
+
+
+func _kill(c: Companion, by: Node3D) -> void:
+	c.health.receive_hit(DamageInfo.create(c.health.health + 1.0, by, c.global_position, Vector3.FORWARD))
+
+
+## El que va con el jugador cae malherido: se levanta si la fiera se ha ido; si sigue ahí, lo remata, se lo
+## come y se pierde, con su morral en un saco. El colono muere sin más y vuelve a la base al rato.
+func _check_death() -> void:
+	var saved := _spawn(Vector3(4.0, 0.05, 0.0))
+	var far := _beast(Vector3(60.0, 0.05, 0.0))
+	_kill(saved, far)
+	check(saved.is_down() and not saved.dead, "sin vida, el que va con el jugador cae malherido")
+	await _wait(Companion.DOWN_TIME + 1.0)
+	check(not saved.is_down() and not saved.dead and saved.health.health > 0.0,
+		"con la fiera lejos, a los %.0f s se levanta" % Companion.DOWN_TIME)
+	far.queue_free()
+	var lost := _spawn(Vector3(-4.0, 0.05, 0.0))
+	var lost_id := String(lost.resident.id)
+	lost.pack.add_item(_item(&"stone_hammer_01"), 1)
+	var wolf := _beast(Vector3(-7.0, 0.05, 0.0))
+	_kill(lost, wolf)
+	check(lost.is_down() and not lost.dead, "tumbado, otra vez malherido")
+	await _wait(Companion.FINISH_AFTER + 0.5)
+	check(is_instance_valid(lost) and lost.dead, "la fiera que lo ha tumbado, cerca y sin nadie más, lo remata")
+	var sack: DeathLoot
+	for node in get_tree().get_nodes_in_group(DeathLoot.GROUP):
+		if (node as DeathLoot).owner_name == String(lost.resident.name):
+			sack = node
+	check(sack != null and sack.inventory.get_item_count(_item(&"stone_hammer_01")) == 1 and lost.pack.get_free_slots()
+		== lost.pack.max_slots, "su morral queda en un saco junto a él")
+	DeathLoot.discard_previous(get_tree())
+	check(is_instance_valid(sack) and not sack.is_queued_for_deletion(), "que no se lleva la muerte del jugador")
+	check(get_tree().current_scene.get_children().any(func(n: Node) -> bool: return n is NpcDevouring),
+		"y empieza su devorado")
+	await _wait(NpcDevouring.BODY_DELAY + Devouring.POSE_TIMEOUT + 1.0)
+	check(not is_instance_valid(lost) and _companions.is_dead(lost_id) and _companions.has(lost_id),
+		"con sus restos en su sitio se va, y se pierde: su poblado no lo vuelve a sacar")
+	var settler := _spawn(Vector3(0.0, 0.05, 6.0), Companion.Mode.SETTLE)
+	settler.settle_here(_local(Vector3(0.0, 0.05, 6.0)))
+	var settler_id := String(settler.resident.id)
+	_kill(settler, wolf)
+	check(settler.dead and not settler.is_down(), "el colono en la base muere sin más")
+	await _wait(NpcDevouring.BODY_DELAY + Devouring.POSE_TIMEOUT + 1.0)
+	check(not is_instance_valid(settler) and _companions._returning.has(settler_id) and not _companions.is_dead(settler_id)
+		and _companions.has(settler_id) and _companions.settler_count() >= 1,
+		"y se va, pero vuelve a la base: cuenta como colono y su poblado no lo saca")
+	_companions._tick_returning(SettlementCompanions.RETURN_TIME)
+	check(not _companions._returning.has(settler_id), "a los %.0f min vuelve" % (SettlementCompanions.RETURN_TIME / 60.0))
+	for node in get_tree().current_scene.get_children():
+		if node is NpcDevouring:
+			(node as NpcDevouring).cancel()
+	for node in get_tree().get_nodes_in_group(DeathLoot.GROUP):
+		node.queue_free()
+	wolf.queue_free()
+	await _clear()
 
 
 # --- El cocinero y la comida -----------------------------------------------------------------------------

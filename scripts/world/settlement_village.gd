@@ -58,6 +58,8 @@ var plan: Dictionary
 ## La confianza del jugador en cada poblado, el trueque y los encargos (los de SettlementManager).
 var relations: SettlementRelations
 var trade: SettlementTrade
+## Los muertos de todos los poblados (SettlementManager.deaths), o null.
+var deaths: SettlementDeaths
 var quests: SettlementQuests
 ## El poblado más cercano: {"name", "toward": hacia él (tangente, unitario, marco del terreno),
 ## "distance": m}; vacío si no hay otro.
@@ -76,8 +78,10 @@ var fire: SettlementFire
 ## Ataca una fiera (THREATS): todo el mundo a casa, menos la guardia y quien tiene herramienta y la tiene
 ## cerca (Villager._should_fight).
 var danger := false
-## La fiera de la última vez que se miró (para la consola), o null; y su especie.
+## La fiera de la última vez que se miró (la más cercana a la plaza, para la consola), o null; y su especie.
 var threat: NPCController
+## Todas las que atacan ahora cerca (THREATS, _threats_near): cada vecino va a por la suya (beast_for).
+var threats: Array[NPCController] = []
 var threat_kind := &""
 ## Si el poblado va a por el jugador (SettlementRelations.hostile, con él cerca y vivo).
 var hostile := false
@@ -165,7 +169,8 @@ func update(delta: float) -> void:
 		return
 	_calm += _danger_age
 	_danger_age = 0.0
-	threat = _threat_near()
+	threats = _threats_near()
+	threat = _nearest(threats, center)
 	hostile = _hostile_now()
 	if threat != null:
 		threat_kind = threat.npc_type
@@ -176,8 +181,9 @@ func update(delta: float) -> void:
 			for v in villagers:
 				if is_instance_valid(v):
 					v.alarm()
-		elif threat != null:
-			# Quien tiene herramienta y no peleaba se suma si la fiera se le acerca o va a por uno de los suyos.
+		else:
+			# Quien no peleaba se suma: la guardia, si ya tiene a quién ir (otra fiera, tras acabar con la suya);
+			# quien tiene herramienta, si una fiera se le acerca o va a por uno de los suyos.
 			for v in villagers:
 				if is_instance_valid(v):
 					v.rally()
@@ -198,27 +204,52 @@ func _hostile_now() -> bool:
 	return at.distance_to(center) < float(plan.get("extent", plaza_radius)) + DANGER_REACH
 
 
-## A quién va la guardia: la fiera que ataca o, con el poblado hostil, el jugador. null si a nadie.
-func target() -> Node3D:
-	if threat != null and is_instance_valid(threat) and not threat.is_dead:
-		return threat
+## A quién va un guardia en [at] (marco del terreno): la fiera que ataca más cercana o, con el poblado
+## hostil, el jugador. null si a nadie.
+func target(at := center) -> Node3D:
+	var beast := _nearest(threats, at)
+	if beast != null:
+		return beast
 	if hostile and _hostile_now():
 		return player
 	return null
 
 
-## La fiera que ataca el poblado (threat) si un vecino en [at] (marco del terreno) le planta cara: la tiene a
-## menos de [reach] m o va a por uno de los de aquí (Villager._foe). null si no.
+## La fiera que ataca el poblado a la que planta cara un vecino en [at] (marco del terreno): la más cercana
+## de las que tiene a menos de [reach] m o, si no, de las que van a por uno de los de aquí (Villager._foe).
+## null si ninguna.
 func beast_for(at: Vector3, reach: float) -> NPCController:
-	if threat == null or not is_instance_valid(threat) or threat.is_dead:
-		return null
-	var ai := threat.ai_controller
-	var prey: Villager = ai.target as Villager if ai != null and is_instance_valid(ai.target) else null
-	if prey != null and prey.village == self:
-		return threat
-	if (frame().affine_inverse() * threat.global_position).distance_to(at) < reach:
-		return threat
-	return null
+	var near := _nearest(threats, at, reach)
+	if near != null:
+		return near
+	var hunting: Array[NPCController] = []
+	for creature in threats:
+		var ai := creature.ai_controller if Villager._alive(creature) else null
+		var prey: Villager = ai.target as Villager if ai != null and is_instance_valid(ai.target) else null
+		if prey != null and prey.village == self:
+			hunting.append(creature)
+	return _nearest(hunting, at)
+
+
+## De [creatures], la viva más cercana a [at] (marco del terreno) a menos de [reach] m, o null.
+func _nearest(creatures: Array[NPCController], at: Vector3, reach := INF) -> NPCController:
+	var to_local := frame().affine_inverse()
+	var best: NPCController
+	var best_d := reach
+	for creature in creatures:
+		if not Villager._alive(creature):
+			continue
+		var d := (to_local * creature.global_position).distance_to(at)
+		if d < best_d:
+			best = creature
+			best_d = d
+	return best
+
+
+## Ha muerto [who] (Villager._die): no vuelve a salir hasta dentro de SettlementDeaths.RESPAWN_TIME s.
+func died(who: Villager) -> void:
+	if deaths != null:
+		deaths.add(String(who.resident.get("id", "")))
 
 
 ## Si el poblado no quiere saber nada del jugador (SettlementRelations.closed).
@@ -334,7 +365,10 @@ func _read_weather() -> void:
 			v.weather_turned()
 
 
-func _threat_near() -> NPCController:
+## Las fieras (THREATS) vivas y despiertas que pelean con alguien (_attacking) a menos de DANGER_REACH m de lo
+## más lejano del poblado.
+func _threats_near() -> Array[NPCController]:
+	var out: Array[NPCController] = []
 	var reach := float(plan.get("extent", plaza_radius)) + DANGER_REACH
 	var to_local := frame().affine_inverse()
 	for node in terrain.get_tree().get_nodes_in_group(AmbientAnimal.GROUP):
@@ -343,12 +377,14 @@ func _threat_near() -> NPCController:
 				or creature.npc_type not in THREATS or not _attacking(creature):
 			continue
 		if (to_local * creature.global_position).distance_to(center) < reach:
-			return creature
-	return null
+			out.append(creature)
+	return out
 
 
-## Si [creature] está peleando con alguien (no solo rondando, comiendo o avisando de lejos).
+## Si [creature] está peleando con alguien o comiéndose a alguien (no solo rondando o avisando de lejos).
 static func _attacking(creature: NPCController) -> bool:
+	if creature.is_feeding():
+		return true
 	var ai := creature.ai_controller
 	if ai == null or ai.target == null or not is_instance_valid(ai.target):
 		return false

@@ -24,6 +24,8 @@ extends Node3D
 
 const GROUP := &"player_remains"
 const MAX_ALIVE := 8
+## Los de aldeanos y compañeros (npc: NpcDevouring), aparte: no echan a los del jugador.
+const MAX_NPC := 6
 const SCENE_PATH := "res://scenes/combat/player_remains.tscn"
 ## El cuerpo con el que se rehacen al cargar, y lo que se espera a que se vista (s).
 const MODEL_PATH := "res://scenes/character/character_model.tscn"
@@ -54,6 +56,7 @@ const STUMP_POOL := Vector2(0.5, 3.0)
 const GUTS_RADIUS := 0.28
 
 static var _alive: Array[PlayerRemains] = []
+static var _alive_npc: Array[PlayerRemains] = []
 
 var skeleton: Skeleton3D
 var dismemberment: Dismemberment
@@ -68,6 +71,9 @@ var wound := {}
 var entity_id := ""
 var save_category := "remains"
 var discard_on_load := true
+## De un aldeano o compañero (NpcDevouring): no se guarda (se rehace con el aspecto del jugador) y se
+## quita al cargar una partida.
+var npc := false
 
 var _ragdoll: Ragdoll
 var _gravity := Vector3.ZERO
@@ -100,12 +106,13 @@ var _planet_core: Node
 
 
 ## Un ancla en [host], en el marco [at] del cuerpo del jugador (+Z adelante), que sigue a [ragdoll]
-## hasta build().
-static func spawn(host: Node, at: Transform3D, ragdoll: Ragdoll) -> PlayerRemains:
+## hasta build(); [for_npc]: de un aldeano o compañero (npc).
+static func spawn(host: Node, at: Transform3D, ragdoll: Ragdoll, for_npc := false) -> PlayerRemains:
 	var remains := (load(SCENE_PATH) as PackedScene).instantiate() as PlayerRemains
-	remains.name = "PlayerRemains"
+	remains.name = "NpcRemains" if for_npc else "PlayerRemains"
 	remains.entity_id = "player_remains_%d_%d" % [Time.get_unix_time_from_system(), randi()]
 	remains._ragdoll = ragdoll
+	remains.npc = for_npc
 	host.add_child(remains, true)
 	remains.global_transform = Transform3D(at.basis.orthonormalized(), at.origin)
 	return remains
@@ -114,14 +121,15 @@ static func spawn(host: Node, at: Transform3D, ragdoll: Ragdoll) -> PlayerRemain
 func _ready() -> void:
 	add_to_group(&"floating_origin")
 	add_to_group(GROUP)
-	add_to_group(GameManager.SAVEABLE_GROUP)
+	add_to_group(GameManager.RESET_ON_LOAD_GROUP if npc else GameManager.SAVEABLE_GROUP)
 	set_process(false)
-	for i in range(_alive.size() - 1, -1, -1):
-		if not is_instance_valid(_alive[i]):
-			_alive.remove_at(i)
-	_alive.append(self)
-	while _alive.size() > MAX_ALIVE:
-		_alive.pop_front().queue_free()
+	var alive := _alive_npc if npc else _alive
+	for i in range(alive.size() - 1, -1, -1):
+		if not is_instance_valid(alive[i]):
+			alive.remove_at(i)
+	alive.append(self)
+	while alive.size() > (MAX_NPC if npc else MAX_ALIVE):
+		alive.pop_front().queue_free()
 
 
 func _notification(what: int) -> void:
@@ -164,7 +172,7 @@ func build(source: Skeleton3D, pose: Array[Transform3D], frame: Node3D, cutter: 
 		skeleton.set_bone_pose_scale(b, pose[b].basis.get_scale())
 		_positions.append(pose[b].origin)
 		_rotations.append(rotation)
-	if _restoring.is_empty():
+	if _restoring.is_empty() and not npc:
 		_record(source, cutter)
 	var body: MeshInstance3D = null
 	for node in source.find_children("*", "MeshInstance3D", true, false):

@@ -67,7 +67,7 @@ antes que los demás. Al volver a su puesto, cuatro de cada diez veces hacen ant
 ocho puntos de la cerca por dentro, en un sentido al azar. Si ataca una fiera (la alarma del poblado), no
 huyen: corren hasta ella con la lanza (`Villager._fight`), la encaran y le dan lanzazos (`DamageInfo` contra
 su hurtbox, 14 como poco o lo de su lanza) hasta que cae o se va, y vuelven a lo suyo. La fiera, al
-recibir, va a por ellos y los puede dejar malheridos (ver **Lo que el jugador les hace**).
+recibir, va a por ellos y los puede matar (ver **La muerte**, en **Lo que el jugador les hace**).
 
 Talar y picar son solo gesto: no producen nada. La herramienta cuelga del hueso del dedo corazón con
 el marco de agarre del jugador (`CombatPose.RIGHT_GRIP`). La mano no se cierra sobre el mango, así que
@@ -190,10 +190,15 @@ con lluvia se apaga. El tiempo cambia la rutina de día (ver Reacciones).
   después de que ninguna ataque. **Le plantan cara** la guardia (siempre) y quien tiene herramienta de
   su oficio (hacha, azada, martillo) si está fuera de casa y la fiera le queda a menos de 15 m o va a
   por uno de los suyos (`Villager._should_fight`, `SettlementVillage.beast_for`): corre hasta ella y le
-  da con la herramienta como la guardia con la lanza; ya peleando, la sigue hasta 30 m. El poblado lo
-  vuelve a mirar cada segundo (`Villager.rally`), así que quien iba hacia casa se da la vuelta si se le
-  acerca. Los de dentro de casa y los que no tienen herramienta (tenderos, vendedores, sin oficio) se
-  esconden. Las fieras no van a por los aldeanos por su cuenta: solo a por quien les pega. Una fiera que solo ronda, come o avisa no asusta: si asustara, con
+  da con la herramienta como la guardia con la lanza; ya peleando, la sigue hasta 30 m. Cuentan todas
+  las fieras que atacan a la vez (`SettlementVillage.threats`): cada guardia va a por la más cercana a él
+  y cada uno con herramienta, a la más cercana de las que tiene a su alcance. El poblado lo vuelve a
+  mirar cada segundo (`Villager.rally`), así que quien iba hacia casa se da la vuelta si se le acerca
+  una, y el guardia que acaba con la suya va a por la siguiente (aunque se hubiera ido ya a casa). Quien
+  aparece con la alarma ya dada (`Villager._spawns_to_fight`) sale en su sitio y pelea si le toca: la
+  guardia, si hay a quién ir; quien tiene herramienta, si su puesto está fuera y tiene una fiera a menos
+  de 15 m; los demás aparecen escondidos en casa. Los de dentro de casa y los que no tienen herramienta (tenderos, vendedores, sin oficio) se
+  esconden. Las fieras no van a por los aldeanos por su cuenta: solo a por quien les pega. Una que se está comiendo a alguien también cuenta (`NPCController.is_feeding`). Una fiera que solo ronda o avisa no asusta: si asustara, con
   tanta fauna el poblado se pasaría el día escondido de algo que ni se ve. Tampoco cuenta una dormida
   por la fauna (lejos del jugador y fuera de cámara se queda parada y oculta). La consola `village`
   dice de qué se esconden y a cuánto de la plaza.
@@ -360,11 +365,31 @@ no les quitan vida (se les devuelve lo que se les iba a quitar), pero el poblado
 (`SettlementVillage.struck`): sube su rencor y baja la confianza. El golpeado corre a esconderse a su casa
 45 s; el guardia, en cambio, se queda. Un combo contra el mismo vecino cuenta una vez (1,5 s).
 
-**Las fieras sí les quitan vida** (100, sin armadura). Sin ella **caen malheridos** (`Villager._on_down`,
-`combat/death`): 25 s en el suelo, sin cuerpo sólido ni hurtbox y sin que se les pueda hablar; la fiera los
-deja, porque su vida está a cero. Luego se levantan con toda la vida y se van andando a casa, donde se
-quedan 45 s (también el guardia), sin plantar cara a nada. No mueren. Fuera de pelea, a los 10 s del último
-mordisco recuperan 2 por segundo.
+**Las fieras sí les quitan vida** (100, sin armadura). Sin ella **mueren** (`Villager._die`): caen con
+`combat/death` (entero, no de multitud), sin cuerpo sólido ni hurtbox, y la fiera que los ha matado se los
+come como al jugador (ver **La muerte**). Su poblado los apunta (`SettlementDeaths`) y no los saca, ni de
+cuerpo ni de figura, hasta que pasan 20 min de juego (cuentan solo jugando, también lejos; se guarda en
+la partida); entonces vuelven a salir a los pies de su lecho y de ahí a lo suyo. Fuera de pelea, a los
+10 s del último mordisco recuperan 2 por segundo.
+
+**La muerte** (`NpcDevouring`, que hereda de `Devouring`). La fiera que mata a un aldeano, un compañero o
+un colono, si come carne (`NPCController.feed_profile`) y sigue a menos de 40 m, se lo come como al
+jugador, con las de su manada que peleaban con él (como mucho 3): bocados, miembros arrancados, la canal
+abierta y las vísceras, y sus gritos con su voz (la de mujer si lo es), según el ajuste de gore. Sin cámara
+de cine, sin cartel y sin muñeco de trapo: el cuerpo cae con su animación y a los 1,6 s (o en cuanto llega
+la fiera) sus restos (`PlayerRemains` con `npc`) se copian de la pose en que ha quedado; entonces el
+aldeano o el compañero se va. Si la fiera no come carne (el jabalí), o lo ha aplastado un árbol, los restos
+se quedan como ha caído. **Comiendo está absorta** (`FeedState`): tras despiezarlo sigue 2-3 min
+(`CreatureCombatProfile.feed_time`) y ni verte, ni oírte, ni que la llame su manada la saca de ahí; los
+golpes los encaja sin soltar la comida (avisa, eso sí, a su manada) hasta que le quitan un cuarto de su vida
+(`NPCController.MEAL_TOLERANCE`): entonces va a por quien le pega. Así, si cae un compañero y los demás
+siguen peleando, la fiera se lo come igual en vez de volver a la pelea al primer golpe. Pasada la pelea (sin objetivo y 8 s sin que le hieran) vuelve a su comida si la tiene a menos
+de 40 m, con lo que le quedaba (`NPCController._back_to_meal`). Es la ventana para atacarla. Con varias
+comiendo juntas (o cuerpos muy juntos), cada una mira con su cápsula si pisaría a otra criatura y, si
+es así, rodea la comida hasta un lado libre (`FeedState._free_side`); y cualquier criatura que quede
+encima de otro cuerpo se baja por el lado (`NPCController._check_on_body`). Los restos no se guardan en la partida (se quitan al cargar) y caben 6, aparte de
+los del jugador. Copiar el cuerpo para despiezarlo lee sus mallas de la GPU (las de los aldeanos ya no
+guardan copia, `MeshArrays.forget`): puede dar un tirón al morir cada uno.
 
 **Robar.** Los arcones, cajas, barriles y sacos de las casas (`SettlementStash`, los `SettlementProp` de
 esas clases) se abren con E como un botín. Tienen lo que les toca hoy (`SettlementTrade.STASH`, sorteado
@@ -611,8 +636,18 @@ no se agache; si no, como el jugador a paso normal. Las presas que dejan acercar
 `Hurtbox`, así que las zarpas y los dientes le dan. La criatura a la que golpea se le revuelve
 (`NPCController._on_damaged`), y `Perception` lo sigue viendo aunque el jugador ande cerca. Al encajar
 un golpe da un respingo (si no está a mitad de golpe) y se revuelve contra quien ha sido. El jugador no
-le hace daño: ni su hoja ni sus flechas. **Sin vida cae malherido**: queda en el suelo 25 s (las fieras
-lo dejan, porque su vida está a cero), se avisa en la barra y se levanta con el 40 % de la vida. Fuera
+le hace daño: ni su hoja ni sus flechas. **Sin vida cae malherido** (el que va con el jugador): queda en
+el suelo 15 s (las fieras lo dejan, porque su vida está a cero) y se avisa en la barra. Si la fiera que lo
+ha tumbado sigue viva, a menos de 12 m y sin huir, lo remata (`Companion._finisher`): al acabar los 15 s
+o, si no pelea con nadie más (tampoco con el jugador), a los 3 s. Si no, se levanta con el 40 % de la
+vida: para salvarlo hay que matar o espantar a la fiera, o tenerla entretenida. **Rematado, muere**
+(`Companion._die`): se lo come (ver **La muerte**) y se pierde (su poblado no lo vuelve a sacar,
+`SettlementCompanions._dead`); lo que llevaba en el morral queda en un saco junto a él (`DeathLoot.spawn_for`,
+«Morral de ...», que no se lleva la muerte del jugador) y lo puesto se queda en el cuerpo. **El colono en la
+base no cae: muere** sin más, y vuelve a la base a los 20 min de juego (`SettlementCompanions._returning`,
+se guarda) en el petate más cercano a ella, con toda la vida, comido, bebido, con su oficio y el morral
+vacío (el suyo también queda en un saco). Mientras, cuenta como colono. El que iba con el jugador desde la
+base (`return_base`) cae malherido como los demás, pero si muere vuelve a ella como colono. Fuera
 de pelea, a los 8 s del último golpe recupera 0,5 por segundo, y por debajo de la mitad come cada 6 s
 algo del morral: lo asado cura 25 y un remedio 40.
 
@@ -832,7 +867,8 @@ de noche duerme y, si atacan la base, deja lo que hace y pelea.
   al acabar cada árbol o roca, lo lleva al cofre. Las ramas de la copa quedan en el suelo.
 - **Nunca comparten** árbol ni roca (`SettlerWork._claims`): el siguiente va al siguiente. Los troncos
   caídos y los trozos que haya en la zona también se recogen.
-- **Accidentes**: un árbol que cae encima de otro colono lo mata (`Companion.crush`; al que lo tala, no).
+- **Accidentes**: un árbol que cae encima de otro colono lo mata (`Companion.crush`; al que lo tala, no) y
+  vuelve como los demás colonos muertos.
   Pero casi siempre se da cuenta: mientras cae, el árbol está en `FallingTree.HAZARD` con por dónde va a
   caer (`hazard_a`, `hazard_b`, `hazard_half`), y cada compañero lo mira en cada paso
   (`Companion._watch_falls`). De cada árbol decide una vez si se da cuenta: un 95 % a menos de 20 m del
@@ -1022,8 +1058,13 @@ física dados a mano, comprueba que:
 enfriarse, guardarse), lo recibido en el género (revenderlo, la mitad al día siguiente, guardarse), los
 arcones (lo del jugador no cuenta, lo suyo se apunta y se repone al día siguiente), los golpes (un combo
 cuenta una vez, el guardia pone hostil al poblado, lejos lo dejan, sin testigos no hay robo) y las fieras
-con dos aldeanos vestidos y un lobo (el jugador no les quita vida y la fiera sí; malherido y a casa; quién
-planta cara: de cerca o si va a por uno de los suyos, con herramienta y fuera de casa).
+con dos aldeanos vestidos y un lobo (el jugador no les quita vida y la fiera sí; quién planta cara: de cerca
+o si va a por uno de los suyos, con herramienta y fuera de casa; varias fieras a la vez; muere, empieza su
+devorado y vuelve en su cama a los 20 min).
+
+`tests/world/test_settlers.tscn -- --only=death`: el que va con el jugador cae malherido y se levanta con la
+fiera lejos; con ella cerca lo remata, queda su saco (que la muerte del jugador no se lleva), se lo come y
+se pierde; el colono muere sin más y vuelve.
 
 `tests/combat/test_creature_combat.tscn`, `_check_party_target`: la fiera elige entre el jugador y un
 compañero de pega (el más cercano, no cambia por poco, ignora al caído).
@@ -1049,8 +1090,8 @@ puerta, 25 lo pone hostil), y `spawn <animal>` saca fieras para pelear o cazar.
   ni rema solo: sin remeros, el barco solo va a vela.
 - La mano no agarra la herramienta fuera de los golpes y de cavar; por eso solo la sacan al trabajar.
 - Ante una fiera, quien no es de la guardia pelea solo con lo de su oficio: va derecho a la fiera (sin
-  caminos, como la guardia), no para ni esquiva, y desde dentro de casa no sale. Ni las fieras ni el
-  jugador los matan: las fieras los dejan malheridos y el jugador no les quita vida. El compañero no
+  caminos, como la guardia), no para ni esquiva, y desde dentro de casa no sale. El jugador no les quita
+  vida; las fieras los matan y vuelven a los 20 min. El compañero no
   ayuda a los aldeanos: pelea por el jugador y por los suyos. El compañero pelea: para con el
   escudo o con un arma a dos manos y, si no, esquiva hacia atrás (no rueda); no usa hondas ni lanzas
   arrojadizas. La armadura le protege toda sumada, no por partes como al

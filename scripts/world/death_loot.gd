@@ -4,6 +4,7 @@ extends Node3D
 ## Bolsa de lo que se llevaba al morir, con la XP del nivel en curso (Progression.forfeit). Permanece
 ## hasta recuperarla o hasta la siguiente muerte, que destruye lo pendiente (objetos y XP) como
 ## castigo. Usa el botín común para recuperar lo que quepa; la XP vuelve al abrirla (take_xp).
+## La de un compañero muerto (spawn_for, owner_name: su morral) no la destruye la muerte del jugador.
 const GROUP := &"death_loot"
 const REACH := 2.6
 const SCENE_PATH := "res://scenes/world/death_loot.tscn"
@@ -11,6 +12,9 @@ const SCENE_PATH := "res://scenes/world/death_loot.tscn"
 var inventory := Inventory.new()
 ## XP perdida al morir, que vuelve al abrir la bolsa.
 var xp := 0.0
+## De quién es si no es del jugador (el nombre del compañero muerto); vacío, del jugador.
+var owner_name := ""
+var _label: Label3D
 var entity_id := ""
 var save_category := "remains"
 var discard_on_load := true
@@ -27,13 +31,23 @@ func _ready() -> void:
 	var sack := DroppedItem._sack()
 	sack.scale = Vector3.ONE * 2.5
 	add_child(sack)
-	var label := Label3D.new()
-	label.text = "DEATH_LOOT_LABEL"
-	label.position.y = 1.2
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.font_size = 48
-	label.visibility_range_end = 60.0
-	add_child(label)
+	_label = Label3D.new()
+	_label.position.y = 1.2
+	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_label.font_size = 48
+	_label.visibility_range_end = 60.0
+	add_child(_label)
+	_update_label()
+
+
+## El título del botín al abrirla.
+func title() -> String:
+	return tr("DEATH_LOOT_COMPANION_TITLE") % owner_name if owner_name != "" else "DEATH_LOOT_TITLE"
+
+
+func _update_label() -> void:
+	if _label != null:
+		_label.text = tr("DEATH_LOOT_COMPANION") % owner_name if owner_name != "" else "DEATH_LOOT_LABEL"
 
 
 static func spawn(player: PlayerController, content: Array[InventoryItem], lost_xp := 0.0) -> DeathLoot:
@@ -49,11 +63,26 @@ static func spawn(player: PlayerController, content: Array[InventoryItem], lost_
 	return loot
 
 
+## El morral de un compañero muerto ([who]: su nombre), en [host], en el marco [at] (mundo). null si
+## no llevaba nada.
+static func spawn_for(host: Node, who: String, content: Array[InventoryItem], at: Transform3D) -> DeathLoot:
+	if content.is_empty() or host == null:
+		return null
+	var loot := (load(SCENE_PATH) as PackedScene).instantiate() as DeathLoot
+	loot.owner_name = who
+	loot.inventory.max_slots = content.size()
+	loot.inventory.items.assign(content)
+	host.add_child(loot)
+	loot.global_transform = at.orthonormalized()
+	return loot
+
+
 ## Se llama incluso al morir sin objetos. Retira también bolsas de partidas anteriores a esta regla.
+## Las de los compañeros muertos (owner_name) se quedan.
 static func discard_previous(tree: SceneTree) -> void:
 	for node in tree.get_nodes_in_group(GROUP):
 		var loot := node as DeathLoot
-		if loot != null:
+		if loot != null and loot.owner_name == "":
 			loot._discard()
 
 
@@ -107,7 +136,8 @@ func get_save_data() -> Dictionary:
 	var fo := get_tree().get_first_node_in_group("floating_origin_manager") as FloatingOrigin
 	if fo != null:
 		frame.origin = fo.to_canonical(frame.origin)
-	return {"transform": DroppedItem.VisualState.encode(frame), "inventory": inventory.get_save_data(), "xp": xp}
+	return {"transform": DroppedItem.VisualState.encode(frame), "inventory": inventory.get_save_data(), "xp": xp,
+		"owner": owner_name}
 
 
 func restore_save_data(data: Dictionary) -> void:
@@ -120,3 +150,5 @@ func restore_save_data(data: Dictionary) -> void:
 	if not inventory.restore_save_data(data.get("inventory", {})):
 		push_error("DeathLoot: no se pudo restaurar '%s'" % entity_id)
 	xp = maxf(float(data.get("xp", 0.0)), 0.0)
+	owner_name = str(data.get("owner", ""))
+	_update_label()

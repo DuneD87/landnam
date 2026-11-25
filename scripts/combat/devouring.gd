@@ -180,10 +180,9 @@ func _process(delta: float) -> void:
 	if not is_instance_valid(remains):
 		_over = true
 		_over_time += delta
-		_combat.player.camera_controller.cinematic = null
+		_watch(null)
 		return
-	# La cámara, de cine, a lo que queda (ver CameraController.cinematic).
-	_combat.player.camera_controller.cinematic = remains.torso_point() if remains.built else remains.feed_point()
+	_watch(remains.torso_point() if remains.built else remains.feed_point())
 	if not remains.built:
 		_await_body(delta)
 		return
@@ -276,7 +275,7 @@ func _plan_tears() -> void:
 		return
 	var zones: Array[StringName] = []
 	for zone in PlayerRemains.LIMBS:
-		if not _combat.body_damage.is_severed(zone):
+		if not _is_severed(zone):
 			zones.append(zone)
 	var from := _killer.global_position if is_instance_valid(_killer) else remains.global_position
 	zones.sort_custom(func(a: StringName, b: StringName) -> bool:
@@ -359,7 +358,7 @@ func _update_voice(delta: float) -> void:
 		return
 	if _progress >= DEATH_AT:
 		_screaming = false
-		CombatFx.play(_combat.voice(&"player_gurgle"), remains.head_point(), {"pitch": randf_range(0.95, 1.02)})
+		CombatFx.play(_voice(&"player_gurgle"), remains.head_point(), {"pitch": randf_range(0.95, 1.02)})
 		return
 	_scream_timer -= delta
 	if _scream_timer <= 0.0:
@@ -370,7 +369,7 @@ func _update_voice(delta: float) -> void:
 ## Un grito a [volume_db]: de agonía (siempre, si [agony]) o un quejido.
 func _scream(volume_db: float, agony := false) -> void:
 	var id := &"player_agony" if agony or randf() < AGONY_SHARE else &"player_hurt"
-	CombatFx.play(_combat.voice(id), remains.head_point(), {"pitch": randf_range(0.94, 1.06), "volume_offset_db": volume_db})
+	CombatFx.play(_voice(id), remains.head_point(), {"pitch": randf_range(0.94, 1.06), "volume_offset_db": volume_db})
 
 
 ## Lo que faltaba, de golpe y sin ruido (a oscuras): los miembros que quedaban ya se los han comido.
@@ -409,6 +408,23 @@ func _pull(feeder: NPCController, point: Vector3) -> Vector3:
 	if to.length_squared() < 1e-4:
 		to = Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).slide(up)
 	return to.normalized()
+
+
+# --- Lo propio de quien muere (NpcDevouring lo cambia para los aldeanos y compañeros) ----------------
+
+## La cámara, de cine, a [point] (lo que queda; ver CameraController.cinematic), o a nada (null).
+func _watch(point: Variant) -> void:
+	_combat.player.camera_controller.cinematic = point
+
+
+## El sonido de voz [id] con la voz de quien muere.
+func _voice(id: StringName) -> StringName:
+	return _combat.voice(id)
+
+
+## Si ya había perdido el brazo o la pierna [zone] antes de morir.
+func _is_severed(zone: StringName) -> bool:
+	return _combat.body_damage.is_severed(zone)
 
 
 func _jitter(size: float) -> Vector3:

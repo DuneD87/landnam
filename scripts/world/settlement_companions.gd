@@ -44,6 +44,8 @@ const LOOSE_STEP := 0.6
 const GROUP := &"settlement_companions"
 ## Al cargar, los colonos a más de esto (m) del jugador se visten en un hilo (restore_save_data).
 const DRESS_NOW := 150.0
+## Lo que tarda en volver a la base un colono muerto (s de juego; Companion.is_settler).
+const RETURN_TIME := 1200.0
 
 var entity_id := ""
 var save_category := "npc"
@@ -56,6 +58,9 @@ var _villages: Array = []
 var _prefabs := {}
 var _seed := 1
 var _list: Array[Companion] = []
+## Los colonos muertos, hasta que vuelven a la base (_come_back): id -> {"left" (s), "village", "entry": como
+## los de get_save_data, en su base}.
+var _returning := {}
 ## Cómo va el grupo que acompaña.
 var formation := Formation.WEDGE
 ## Por dónde ha pasado el jugador (marco del terreno, lo último al final) y hacia dónde va (marco del
@@ -106,7 +111,7 @@ func quests() -> SettlementQuests:
 ## Si el vecino [id] (SettlementPopulation: "id") va con el jugador, se está yendo o ha muerto: su poblado no
 ## lo saca.
 func has(id: String) -> bool:
-	if _dead.has(id):
+	if _dead.has(id) or _returning.has(id):
 		return true
 	for job in _pending:
 		if String(job.who.get("id", "")) == id:
@@ -115,7 +120,7 @@ func has(id: String) -> bool:
 		if not is_instance_valid(c):
 			continue
 		if c.dead:
-			_dead[String(c.resident.get("id", ""))] = true
+			_mourn(c)
 		if String(c.resident.get("id", "")) == id:
 			return true
 	return false
@@ -221,6 +226,7 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player) or _terrain == null or not is_instance_valid(_terrain):
 		return
+	_tick_returning(delta)
 	routes.update(_player, _terrain, delta)
 	zones.tick(delta, get_companions())
 	var here := _terrain.global_transform.affine_inverse() * _player.global_position
@@ -460,7 +466,7 @@ func next_formation() -> Formation:
 
 ## Los que viven en la base.
 func settler_count() -> int:
-	var count := _pending.size()
+	var count := _pending.size() + _returning.size()
 	for c in get_companions():
 		if c.mode == Companion.Mode.SETTLE:
 			count += 1
@@ -572,14 +578,19 @@ func _add(v: int, who: Dictionary, model: Node3D, at: Transform3D, mode: Compani
 	companion.gravity = float(_host.get("gravity_strength")) if _host.get("gravity_strength") != null else 9.8
 	companion.mode = mode
 	companion.transform = _host.global_transform.affine_inverse() * at
-	companion.tree_exiting.connect(func() -> void:
-		_list.erase(companion)
-		if companion.dead:
-			_dead[String(companion.resident.get("id", ""))] = true)
-	_list.append(companion)
+	track(companion)
 	_host.add_child(companion)
 	companion.reset_physics_interpolation()
 	return companion
+
+
+## Lleva la cuenta de [companion]: en la lista y, al irse muerto, a los muertos o a los que vuelven (_mourn).
+func track(companion: Companion) -> void:
+	companion.tree_exiting.connect(func() -> void:
+		_list.erase(companion)
+		if companion.dead:
+			_mourn(companion))
+	_list.append(companion)
 
 
 func get_save_data() -> Dictionary:
@@ -621,8 +632,13 @@ func get_save_data() -> Dictionary:
 		out.append(job.entry)
 	for c in _list:
 		if is_instance_valid(c) and c.dead:
-			_dead[String(c.resident.get("id", ""))] = true
-	return {"companions": out, "dead": _dead.keys(), "formation": int(formation), "zones": zones.save_data()}
+			_mourn(c)
+	var returning: Array = []
+	for id: String in _returning:
+		var r: Dictionary = _returning[id]
+		returning.append({"id": id, "left": r.left, "village": r.village, "entry": r.entry})
+	return {"companions": out, "dead": _dead.keys(), "returning": returning, "formation": int(formation),
+		"zones": zones.save_data()}
 
 
 ## Antes de cargar una partida: los de ahora se van (si la partida no trae ninguno, no queda ninguno).
@@ -644,6 +660,12 @@ func restore_save_data(data: Dictionary) -> void:
 	_dead.clear()
 	for id in data.get("dead", []):
 		_dead[str(id)] = true
+	_returning.clear()
+	for r: Dictionary in data.get("returning", []):
+		var v := int(r.get("village", -1))
+		if v >= 0 and v < _villages.size() and r.get("entry", null) is Dictionary:
+			_returning[str(r.get("id", ""))] = {"left": clampf(float(r.get("left", 0.0)), 0.0, RETURN_TIME),
+				"village": v, "entry": r.entry}
 	formation = clampi(int(data.get("formation", Formation.WEDGE)), 0, Formation.size() - 1) as Formation
 	zones.restore(data.get("zones", []))
 	_trail = PackedVector3Array()
@@ -705,6 +727,72 @@ func _apply_entry(entry: Dictionary, v: int, who: Dictionary, model: Node3D, at:
 	companion.restore_health(float(entry.get("health", -1.0)))
 	companion.meals.fed = float(entry.get("fed", SettlerMeals.START_HOURS))
 	companion.meals.watered = float(entry.get("watered", SettlerMeals.START_WATER))
+
+
+## Ha muerto [c]: el que iba con el jugador se pierde (_dead: su poblado no lo vuelve a sacar); el colono
+## vuelve a la base a los RETURN_TIME s (_returning).
+func _mourn(c: Companion) -> void:
+	var id := String(c.resident.get("id", ""))
+	if id == "" or _dead.has(id) or _returning.has(id):
+		return
+	if not c.is_settler():
+		_dead[id] = true
+		return
+	var settled := c.mode == Companion.Mode.SETTLE
+	var base: Vector3 = c.base if settled else c.return_base
+	var entry := {"village": c.village, "id": id, "mode": int(Companion.Mode.SETTLE),
+		"at": [base.x, base.y, base.z], "base": [base.x, base.y, base.z], "health": Companion.MAX_HEALTH}
+	var work: Dictionary = c.work.save_data() if settled else c.return_work
+	if not work.is_empty():
+		entry.work = work
+	_returning[id] = {"left": RETURN_TIME, "village": c.village, "entry": entry}
+
+
+## El tiempo de los colonos muertos (solo jugando): al cumplirse, vuelven (_come_back).
+func _tick_returning(delta: float) -> void:
+	if _returning.is_empty() or GameManager.current_state != GameManager.State.PLAYING:
+		return
+	for id: String in _returning.keys():
+		var r: Dictionary = _returning[id]
+		r.left = float(r.left) - delta
+		if float(r.left) <= 0.0:
+			_returning.erase(id)
+			_come_back(r)
+
+
+## Un colono muerto vuelve a la base: en el petate más cercano a ella o, sin ninguno, en ella; con toda su
+## vida, comido y bebido, el morral vacío y su oficio. Se viste en el hilo (_pending) y sale al estar listo.
+func _come_back(r: Dictionary) -> void:
+	var v := int(r.village)
+	if v < 0 or v >= _villages.size():
+		return
+	var entry: Dictionary = r.entry
+	var who := _resident(v, str(entry.get("id", "")))
+	var raw: Array = entry.get("at", [])
+	if who.is_empty() or raw.size() != 3:
+		return
+	var frame := _terrain.global_transform
+	var local := Vector3(raw[0], raw[1], raw[2])
+	var center := frame * local
+	var best_distance := Companion.BASE_RADIUS
+	for node in get_tree().get_nodes_in_group(Bedroll.GROUP):
+		var bed := node as Bedroll
+		if bed == null or not bed.is_inside_tree() or bed.is_queued_for_deletion():
+			continue
+		var d := bed.global_position.distance_to(center)
+		if d < best_distance:
+			best_distance = d
+			local = frame.affine_inverse() * bed.global_position
+	var up := local.normalized()
+	var forward := (Vector3.FORWARD - up * up.dot(Vector3.FORWARD)).normalized()
+	if not forward.is_finite() or forward.is_zero_approx():
+		forward = (Vector3.RIGHT - up * up.dot(Vector3.RIGHT)).normalized()
+	_pending.append({"entry": entry, "village": v, "who": who,
+		"local": Transform3D(Basis(up.cross(forward), up, forward), local),
+		"pieces": SettlementVillagers.pieces_of(who), "tool": SettlementVillagers.tool_of(who)})
+	var hotbar: Node = _player.get("hotbar") if _player != null and is_instance_valid(_player) else null
+	if hotbar != null:
+		hotbar.notify(tr("SETTLER_BACK") % String(who.get("name", "")))
 
 
 ## El vecino [id] del poblado [v], como lo saca su poblado, o {}.

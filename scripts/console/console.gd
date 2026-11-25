@@ -750,11 +750,16 @@ func _village_fight_report(village: SettlementVillage) -> String:
 				counts[0] += 1
 			Villager.Act.HIDE:
 				counts[1] += 1
-			Villager.Act.DOWN:
-				counts[2] += 1
+			Villager.Act.DEAD:
+				pass
 			_:
 				counts[3] += 1
+	# Los muertos ya no están (se van al quedar sus restos): los cuenta el poblado (SettlementDeaths).
+	var dead: Array = village.deaths.of_village(village.index) if village.deaths != null else [0, INF]
+	counts[2] = dead[0]
 	var text := tr("CON_VILLAGE_FIGHT") % counts
+	if int(dead[0]) > 0:
+		text += " " + tr("CON_VILLAGE_BACK") % (float(dead[1]) / 60.0)
 	var to_local := village.frame().affine_inverse()
 	var best: NPCController
 	var best_d := INF

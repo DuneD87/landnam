@@ -104,6 +104,25 @@ var hurtboxes: Array[Hurtbox] = []
 var hit_react: HitReact
 var is_hit: bool = false
 var _hit_timer: float = 0.0
+## Lo que se está comiendo (feed_on: unos restos), hasta que acaba (FeedState): absorto, ni ver ni oír a
+## nadie lo saca de comer (is_feeding); ni los golpes, hasta que le quitan MEAL_TOLERANCE de su vida (la
+## ventana para atacarle); y pasada la pelea, vuelve a ello (_back_to_meal).
+var meal: Node3D
+## Lo que le han quitado mientras come (de vida) desde que se puso a ello.
+var _meal_hurt := 0.0
+## Comiendo, los golpes no lo sacan de ahí hasta que le quitan esto de su vida máxima (fracción).
+const MEAL_TOLERANCE := 0.25
+## Cuándo (ms) le hirieron por última vez, y cada cuánto mira si vuelve a su comida (s).
+var _hurt_msec := -1000000
+var _meal_check := 0.0
+## Vuelve a su comida si la tiene a menos de esto (m) y hace al menos MEAL_CALM s que nadie le hiere.
+const MEAL_RETURN := 40.0
+const MEAL_CALM := 8.0
+## Encima de otro cuerpo (_check_on_body): desde qué inclinación de la normal del choque cuenta (coseno) y
+## con qué empuje (m/s) se baja.
+const ON_BODY_NORMAL := 0.5
+const SLIDE_OFF_SPEED := 3.0
+var _slide_off := Vector3.ZERO
 
 var _frame_offset: int = 0
 var _ai_update_stride: int = 1
@@ -257,6 +276,11 @@ func _physics_step(delta: float) -> void:
 	if active and _check_moving_ships(delta):
 		return
 
+	if meal != null:
+		_meal_check -= delta
+		if _meal_check <= 0.0:
+			_meal_check = 1.0
+			_back_to_meal()
 	if not _is_dying and Engine.get_physics_frames() % _ai_update_stride == _frame_offset % _ai_update_stride:
 		ai_controller.gravity_direction = gravity_direction
 		ai_controller.update(delta * _ai_update_stride)
@@ -304,8 +328,27 @@ func _physics_step(delta: float) -> void:
 
 	align_to_gravity(gravity_direction, delta)
 
+	if _slide_off != Vector3.ZERO:
+		velocity += _slide_off
+		_slide_off = _slide_off.move_toward(Vector3.ZERO, SLIDE_OFF_SPEED * 4.0 * delta)
 	move_and_slide()
+	_check_on_body()
 	_track_fall()
+
+
+## Si ha quedado encima de otro cuerpo (otra criatura, un compañero, el jugador: sus cápsulas cuentan como
+## suelo por floor_max_angle), se baja por el lado: un empujón hacia fuera de él (_slide_off).
+func _check_on_body() -> void:
+	for i in get_slide_collision_count():
+		var hit := get_slide_collision(i)
+		var other := hit.get_collider() as CharacterBody3D
+		if other == null or hit.get_normal().dot(up_direction) < ON_BODY_NORMAL:
+			continue
+		var away := (global_position - other.global_position).slide(up_direction)
+		if away.length_squared() < 1e-4:
+			away = global_basis.x.slide(up_direction)
+		_slide_off = away.normalized() * SLIDE_OFF_SPEED
+		return
 
 
 ## Daño por caída según lo que ha caído de verdad: la altura más alta desde que dejó el suelo
@@ -351,6 +394,9 @@ func _turn_toward(dir: Vector3, max_angle: float) -> void:
 
 
 func _on_target_detected(target: Node3D) -> void:
+	# Comiendo no se distrae: solo los golpes lo sacan, y al cabo de unos (_on_damaged).
+	if is_feeding():
+		return
 	# Al compañero del jugador, como al jugador.
 	if lets_player_approach and target != null \
 			and (target.is_in_group(&"player") or target.is_in_group(Companion.GROUP)):
@@ -384,7 +430,7 @@ func is_ally(other: Node) -> bool:
 ## Perception.memory_time). Devuelve true si acude, false si ya estaba con él o no puede.
 func answer_call(target: Node3D) -> bool:
 	var state := provoked_state if provoked_state != &"" else detect_state
-	if _is_dying or state == &"" or ai_controller.target == target:
+	if _is_dying or state == &"" or ai_controller.target == target or is_feeding():
 		return false
 	ai_controller.target = target
 	ai_controller.transition_to(state)
@@ -419,6 +465,8 @@ func feed_on(food: Node3D) -> bool:
 	if already:
 		state.exit()
 	state.food = food
+	meal = food
+	_meal_hurt = 0.0
 	ai_controller.target = null
 	if perception:
 		perception.forget()
@@ -430,19 +478,51 @@ func feed_on(food: Node3D) -> bool:
 
 
 func _on_target_lost() -> void:
+	if is_feeding():
+		return
 	ai_controller.transition_to(lose_state)
 
 
-func _on_damaged(_amount: float, source: Node) -> void:
+## Si está comiendo (FeedState, con su comida aún ahí).
+func is_feeding() -> bool:
+	return meal != null and is_instance_valid(meal) and ai_controller.get_current_state() == &"FeedState"
+
+
+## Ya sin pelea (parado o deambulando, sin objetivo y sin que le hieran desde hace MEAL_CALM s), vuelve a su
+## comida si sigue ahí y a menos de MEAL_RETURN m. Se la quita (meal = null) al acabar de comer (FeedState).
+func _back_to_meal() -> void:
+	if not is_instance_valid(meal) or meal.is_queued_for_deletion():
+		meal = null
+		return
+	if is_dead or _is_dying or not active or ai_controller.target != null \
+			or Time.get_ticks_msec() - _hurt_msec < MEAL_CALM * 1000.0:
+		return
+	var state := ai_controller.get_current_state()
+	if state != &"IdleState" and state != &"WanderState":
+		return
+	if meal.global_position.distance_to(global_position) > MEAL_RETURN:
+		return
+	feed_on(meal)
+
+
+func _on_damaged(amount: float, source: Node) -> void:
 	if is_dead:
 		return
 	is_hit = true
 	_hit_timer = hit_stun_duration
+	_hurt_msec = Time.get_ticks_msec()
 	if animation_controller:
 		animation_controller.trigger_hit()
 	# El golpe que mata suena con la muerte.
 	if hurt_sound != &"" and health_component.health > 0.0:
 		CombatFx.play(hurt_sound, global_position, {"pitch": voice_pitch})
+	# Comiendo aguanta los golpes (los encaja sin soltar la comida) hasta que le quitan MEAL_TOLERANCE.
+	if is_feeding():
+		_meal_hurt += amount
+		if _meal_hurt < MEAL_TOLERANCE * health_component.max_health:
+			if source is Node3D and source != self:
+				_alert_pack(source)
+			return
 	# Quien te pega es un objetivo aunque Perception no lo vigile.
 	var provoked := provoked_state if provoked_state != &"" else detect_state
 	if provoked != &"" and source is Node3D and source != self and not _is_dying:

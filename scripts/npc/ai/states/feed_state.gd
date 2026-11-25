@@ -12,8 +12,10 @@ class_name FeedState
 ##     cabeza entra y tira hacia atrás.
 ##   - Lo que arranca se lo lleva en la boca (hold): levanta la cabeza, lo sacude y lo suelta.
 ## Mientras come, Devouring despieza el cuerpo; acabado (food.devoured), sigue feed_time segundos y
-## vuelve a IdleState. Lo monta NPCController.feed_on la primera vez. Ver a alguien o que le
-## hieran lo saca de aquí como de cualquier estado (Perception, provoked_state).
+## vuelve a IdleState. Lo monta NPCController.feed_on la primera vez. Comiendo está absorto: ver u oír a
+## alguien, o que lo llame su manada, no lo saca de aquí (NPCController.is_feeding); solo que le hieran,
+## y no al primer golpe: cuando le han quitado NPCController.MEAL_TOLERANCE de su vida (provoked_state).
+## Pasada la pelea vuelve a comer (NPCController._back_to_meal) lo que le quedaba.
 
 ## Si el sitio donde comer queda más lejos que esto (m, a tamaño 1), va andando; ya comiendo, no
 ## se levanta hasta que se aleja REPOSITION, y por encima de SHUFFLE se arrima sin dejar de comer.
@@ -22,6 +24,12 @@ const REPOSITION := 1.0
 const SHUFFLE := 0.03
 ## Lo deprisa que se arrima comiendo (m/s).
 const SHUFFLE_SPEED := 0.6
+## Sitio para comer sin pisar a otro (_free_side): si su cápsula ahí chocaría con la de otra criatura
+## (con este margen, m), rodea la comida probando estos giros (grados) y se queda con el primero libre o, si
+## no hay ninguno, con el más holgado. Mira a las que estén a menos de CROWD_REACH m de la comida.
+const SIDE_ANGLES: Array[float] = [0.0, 35.0, -35.0, 70.0, -70.0, 105.0, -105.0, 140.0, -140.0, 180.0]
+const SIDE_MARGIN := 0.15
+const CROWD_REACH := 6.0
 ## Lo que tarda la medida de la boca en seguir al clip, si no se ha podido sacar de él (s).
 const MOUTH_SMOOTH := 0.8
 ## Antes de que acabe el clip, cuánto antes (s) se funde con el siguiente.
@@ -45,6 +53,8 @@ var _clip_left := 0.0
 var _next_growl := 0.0
 ## Lo que le queda comiendo una vez despiezado el cuerpo (s); se sortea al acabar el despiece.
 var _after := -1.0
+## La comida de la que es _after: si vuelve a la misma tras una pelea, sigue lo que le quedaba.
+var _after_food: Node3D
 var _original_speed := 0.0
 var _reach: BiteReach
 ## Dónde le queda la boca comiendo (marco del cuerpo, media de los clips); INF hasta saberlo.
@@ -62,7 +72,9 @@ var _hold_length := 0.0
 func enter() -> void:
 	_eating = false
 	_anim = &""
-	_after = -1.0
+	if food != _after_food:
+		_after = -1.0
+		_after_food = food
 	_bite_time = INF
 	_next_growl = randf_range(profile.feed_growl.x, profile.feed_growl.y) * 0.5
 	_original_speed = controller.movement.speed
@@ -136,6 +148,8 @@ func update(delta: float) -> StringName:
 			_after = randf_range(profile.feed_time.x, profile.feed_time.y)
 		_after -= delta
 		if _after <= 0.0:
+			# Saciado: ya no vuelve a por ello.
+			npc().meal = null
 			return &"IdleState"
 	var body := npc()
 	var point: Vector3 = food.bite_point(self) if food.has_method(&"bite_point") else food.feed_point()
@@ -143,6 +157,7 @@ func update(delta: float) -> StringName:
 	if to == Vector3.ZERO:
 		to = controller.project_on_gravity_plane(body.global_basis.z)
 	var up := -controller.gravity_direction.normalized()
+	to = _free_side(point, to.normalized(), up)
 	var off := _stand_point(point, to, up) - body.global_position
 	off -= up * off.dot(up)
 	var gap := off.length() / body.body_size
@@ -174,6 +189,56 @@ func _stand_point(point: Vector3, to: Vector3, up: Vector3) -> Vector3:
 	var offset := Basis(up.cross(to).normalized(), up, to) * _mouth_local
 	offset -= up * offset.dot(up)
 	return point - offset
+
+
+## Hacia dónde mirar [point] para comer sin que su cuerpo pise el de otra criatura: [to] (desde donde
+## está) si ahí cabe; si no, rodeando la comida (SIDE_ANGLES), el primer lado libre o el más holgado.
+## Con [to] desde donde está, al llegar al lado elegido ese mismo lado sale el primero: no va cambiando.
+func _free_side(point: Vector3, to: Vector3, up: Vector3) -> Vector3:
+	var body := npc()
+	var mine := _footprint(body)
+	if mine.is_empty():
+		return to
+	var others: Array = []
+	for other in CreatureGrid.near(point, CROWD_REACH):
+		if other == body or not other.active or other.is_dead:
+			continue
+		var theirs := _footprint(other)
+		if not theirs.is_empty():
+			others.append([other.global_transform.orthonormalized() * (theirs[0] as Vector3),
+				other.global_transform.orthonormalized() * (theirs[1] as Vector3), theirs[2]])
+	if others.is_empty():
+		return to
+	var best := to
+	var best_room := -INF
+	for degrees in SIDE_ANGLES:
+		var side := to.rotated(up, deg_to_rad(degrees))
+		var pose := Transform3D(Basis(up.cross(side).normalized(), up, side), _stand_point(point, side, up))
+		var a := pose * (mine[0] as Vector3)
+		var b := pose * (mine[1] as Vector3)
+		var room := INF
+		for o in others:
+			var closest := Geometry3D.get_closest_points_between_segments(a, b, o[0], o[1])
+			room = minf(room, closest[0].distance_to(closest[1]) - float(mine[2]) - float(o[2]))
+		if room > SIDE_MARGIN:
+			return side
+		if room > best_room:
+			best_room = room
+			best = side
+	return best
+
+
+## Lo que ocupa [creature]: su cápsula como [a, b, radio], los extremos del eje en su marco (sin escala,
+## +Z adelante) y el radio en m. Vacío si no tiene cápsula.
+static func _footprint(creature: NPCController) -> Array:
+	var shape := creature.collision_shape
+	var capsule := shape.shape as CapsuleShape3D if shape != null else null
+	if capsule == null:
+		return []
+	var local := creature.global_transform.orthonormalized().affine_inverse() * shape.global_transform
+	var radius := capsule.radius * shape.global_basis.get_scale().x
+	var half := maxf(capsule.height * 0.5 - capsule.radius, 0.0)
+	return [local * Vector3(0.0, half, 0.0), local * Vector3(0.0, -half, 0.0), radius]
 
 
 ## Dónde le queda la boca de media comiendo (marco del cuerpo): la media de sus clips de comer en sus
