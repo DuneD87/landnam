@@ -368,6 +368,7 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("heal", "heal [amount]", "CON_HELP_HEAL", _cmd_heal))
 	_add(ConsoleCommand.new("litter", "litter", "CON_HELP_LITTER", _cmd_litter))
 	_add(ConsoleCommand.new("god", "god [on|off]", "CON_HELP_GOD", _cmd_god))
+	_add(ConsoleCommand.new("notarget", "notarget [on|off]", "CON_HELP_NOTARGET", _cmd_notarget))
 	_add(ConsoleCommand.new("noclip", "noclip", "CON_HELP_NOCLIP", _cmd_noclip))
 	_add(ConsoleCommand.new("freebuild", "freebuild [on|off]", "CON_HELP_FREEBUILD", _cmd_freebuild))
 	_add(ConsoleCommand.new("sun", "sun <azimuth> [elevation] | sun auto <on|off>", "CON_HELP_SUN", _cmd_sun, 1))
@@ -1012,6 +1013,26 @@ func _cmd_freebuild(args: PackedStringArray) -> String:
 	else:
 		BuildingSystem.free_build = not BuildingSystem.free_build
 	return _paint(COLOR_OK, tr("CON_FREEBUILD") % ("ON" if BuildingSystem.free_build else "OFF"))
+
+
+## Las criaturas ignoran al jugador (para mirar peleas con compañeros y aldeanos). Al activarlo, las
+## que ya iban a por él lo sueltan.
+func _cmd_notarget(args: PackedStringArray) -> String:
+	if args.size() >= 1:
+		AIController.ignore_player = args[0].to_lower() in ["on", "1", "true"]
+	else:
+		AIController.ignore_player = not AIController.ignore_player
+	if AIController.ignore_player:
+		for node in get_tree().get_nodes_in_group(&"npc"):
+			var npc := node as NPCController
+			if npc == null or npc.ai_controller == null:
+				continue
+			var target := npc.ai_controller.target
+			if target != null and target.is_in_group(&"player"):
+				npc.ai_controller.target = null
+				if npc.perception != null:
+					npc.perception.forget()
+	return _paint(COLOR_OK, tr("CON_NOTARGET") % ("ON" if AIController.ignore_player else "OFF"))
 
 
 func _cmd_noclip(_args: PackedStringArray) -> String:

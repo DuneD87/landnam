@@ -8,6 +8,10 @@ class_name AIController
 ## Velocidad con la que el cuerpo aún gira hacia desired_direction casi sin desplazarse.
 const TURN_ONLY_SPEED := 0.01
 
+## Las criaturas ignoran al jugador (consola notarget, para pruebas): ni lo detectan ni lo toman de
+## objetivo. A sus compañeros y a los aldeanos sí.
+static var ignore_player := false
+
 var npc: CharacterBody3D
 var movement: Movement
 var gravity_direction: Vector3 = Vector3.DOWN
@@ -21,10 +25,14 @@ var turn_rate: float = 0.0
 ## Si lo liberan (un compañero que se pierde, unos restos), se lee null: un `as`/`is` sobre un objeto
 ## liberado peta, y se lee desde fuera (NPCController, Companion._hostile, SettlementVillage) en
 ## cualquier momento del frame.
+## Con ignore_player, el jugador no se puede poner de objetivo (se queda en null): ni al verlo, ni al
+## recibir sus golpes, ni por el aviso de la manada.
 var target: Node3D = null:
 	get:
 		return target if is_instance_valid(target) else null
 	set(value):
+		if ignore_player and is_instance_valid(value) and value.is_in_group(&"player"):
+			value = null
 		target = value
 		target_seen = true
 		unseen_time = 0.0

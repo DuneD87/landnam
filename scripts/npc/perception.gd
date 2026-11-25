@@ -120,7 +120,7 @@ func _scan() -> Node3D:
 	if detect_player:
 		# Lo más lejos que puede percibir a alguien (_can_detect: el oído crece con el ruido).
 		var reach := maxf(vision_range, hearing_range * 1.5)
-		if is_instance_valid(_player_cache) and _player_cache != best:
+		if is_instance_valid(_player_cache) and _player_cache != best and not AIController.ignore_player:
 			var dist := npc.global_position.distance_to(_player_cache.global_position)
 			if dist < best_dist and dist <= reach and _can_detect(_player_cache):
 				best = _player_cache
