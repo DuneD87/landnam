@@ -14,9 +14,11 @@ class_name FeedState
 ##   - Entre bocado y bocado mastica (devour_chew) y de vez en cuando traga (devour_gulp); al gruñir
 ##     sigue masticando, con la boca llena.
 ## Mientras come, Devouring despieza el cuerpo; acabado (food.devoured), sigue feed_time segundos y
-## vuelve a IdleState. Lo monta NPCController.feed_on la primera vez. Comiendo está absorto: ver u oír a
-## alguien, o que lo llame su manada, no lo saca de aquí (NPCController.is_feeding); solo que le hieran,
-## y no al primer golpe: cuando le han quitado NPCController.MEAL_TOLERANCE de su vida (provoked_state).
+## vuelve a IdleState. En total no pasa más de NPCController.MEAL_TIME con una comida (meal_left): si no la
+## alcanza o se alarga, la deja. Lo monta NPCController.feed_on la primera vez. Comiendo está absorto:
+## solo nota a quien se le arrima a NPCController.FEED_NOTICE m de su cuerpo (Perception.feeding_reach), y
+## a ese le ataca; que lo llame su manada no lo saca de aquí (NPCController.is_feeding); que le hieran,
+## no al primer golpe: cuando le han quitado NPCController.MEAL_TOLERANCE de su vida (provoked_state).
 ## Pasada la pelea vuelve a comer (NPCController._back_to_meal) lo que le quedaba.
 
 ## Si el sitio donde comer queda más lejos que esto (m, a tamaño 1), va andando; ya comiendo, no
@@ -97,9 +99,15 @@ func enter() -> void:
 	_mouth_from_clips = _mouth_local != Vector3.INF
 	if is_instance_valid(food) and food.has_method(&"add_feeder"):
 		food.add_feeder(self)
+	var perception := npc().perception
+	if perception != null:
+		perception.feeding_reach = NPCController.FEED_NOTICE + _body_extent()
 
 
 func exit() -> void:
+	var perception := npc().perception
+	if perception != null:
+		perception.feeding_reach = 0.0
 	_release_held()
 	_stop_eating()
 	controller.movement.speed = _original_speed
@@ -156,6 +164,11 @@ func hold(limb: Node3D, seconds: float) -> void:
 
 func update(delta: float) -> StringName:
 	if not is_instance_valid(food):
+		return &"IdleState"
+	npc().meal_left -= delta
+	if npc().meal_left <= 0.0:
+		# Se le acabó el rato de comer (o no llega a la comida): la deja.
+		npc().meal = null
 		return &"IdleState"
 	if food.get(&"devoured"):
 		if _after < 0.0:
@@ -253,6 +266,18 @@ static func _footprint(creature: NPCController) -> Array:
 	var radius := capsule.radius * shape.global_basis.get_scale().x
 	var half := maxf(capsule.height * 0.5 - capsule.radius, 0.0)
 	return [local * Vector3(0.0, half, 0.0), local * Vector3(0.0, -half, 0.0), radius]
+
+
+## De su origen al borde de su cuerpo por lo más largo (m, en horizontal): la mitad de su cápsula más su
+## radio, o 0 sin cápsula.
+func _body_extent() -> float:
+	var shape := _footprint(npc())
+	if shape.is_empty():
+		return 0.0
+	var up := -controller.gravity_direction.normalized()
+	var a: Vector3 = npc().global_basis.orthonormalized() * (shape[0] as Vector3)
+	var b: Vector3 = npc().global_basis.orthonormalized() * (shape[1] as Vector3)
+	return maxf(a.slide(up).length(), b.slide(up).length()) + float(shape[2])
 
 
 ## Dónde le queda la boca de media comiendo (marco del cuerpo): la media de sus clips de comer en sus

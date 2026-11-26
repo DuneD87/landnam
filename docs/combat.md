@@ -816,8 +816,8 @@ hiena y caimán.
      (`player_gurgle`), hacia el 70 % de la comida.
 4. La cámara lo mira todo de cine: se separa, lo mira desde arriba y gira despacio alrededor
    (`CameraController.cinematic`). El ratón aún la gira.
-5. Acabado, sale **HAS MUERTO** y, a los 3,5 s, reaparece. Las fieras siguen comiendo un rato
-   (`feed_time`) y se van.
+5. Acabado, sale **HAS MUERTO** y, a los 3,5 s, reaparece. Las fieras siguen comiendo unos segundos
+   (`feed_time`; 15 s en total como mucho, `NPCController.MEAL_TIME`) y se van.
 
 **Espacio** (la tecla de saltar) se lo salta. A oscuras, lo que faltaba se hace de golpe: lo que
 quedaba por arrancar ya se lo han comido (quedan los muñones, pero los miembros no caen), y queda

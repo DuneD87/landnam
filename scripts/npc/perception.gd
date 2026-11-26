@@ -44,6 +44,9 @@ signal target_lost()
 ## Para cambiar de objetivo entre el jugador y sus compañeros, el otro tiene que estar a menos de esta
 ## parte de la distancia al que ya tiene.
 const SWITCH_RATIO := 0.6
+## Comiendo (FeedState la pone y la quita): solo percibe a quien tenga a menos de esto (m, de su origen),
+## sin mirar cono ni línea de visión: lo huele y lo oye encima. 0 = percibe como siempre.
+var feeding_reach := 0.0
 
 var npc: CharacterBody3D
 var controller: AIController
@@ -168,6 +171,8 @@ func _can_detect(target: Node3D) -> bool:
 
 	var to_target := target.global_position - npc.global_position
 	var dist := to_target.length()
+	if feeding_reach > 0.0:
+		return dist <= feeding_reach
 	# Al que ya tiene encarado no lo pierde por girarse, ni porque se agache o se quede quieto.
 	var engaged := target == _detected and controller.target == target
 	# Al que aún no tiene, lo oye según el ruido que hace y lo ve según cuánto se deja ver: el

@@ -379,12 +379,15 @@ abierta y las vísceras, y sus gritos con su voz (la de mujer si lo es), según 
 de cine, sin cartel y sin muñeco de trapo: el cuerpo cae con su animación y a los 1,6 s (o en cuanto llega
 la fiera) sus restos (`PlayerRemains` con `npc`) se copian de la pose en que ha quedado; entonces el
 aldeano o el compañero se va. Si la fiera no come carne (el jabalí), o lo ha aplastado un árbol, los restos
-se quedan como ha caído. **Comiendo está absorta** (`FeedState`): tras despiezarlo sigue 2-3 min
-(`CreatureCombatProfile.feed_time`) y ni verte, ni oírte, ni que la llame su manada la saca de ahí; los
+se quedan como ha caído. **Comiendo está absorta** (`FeedState`): tras despiezarlo sigue unos segundos
+(`CreatureCombatProfile.feed_time`), y con una misma comida nunca pasa más de 15 s en total
+(`NPCController.MEAL_TIME`, `meal_left`, que no se repone al volver a ella): si no llega o se alarga, la deja.
+Solo nota a quien se le arrima a 2 m de su cuerpo (`NPCController.FEED_NOTICE`, `Perception.feeding_reach`:
+sin cono ni línea de visión), y a ese le ataca; que la llame su manada no la saca de ahí; los
 golpes los encaja sin soltar la comida (avisa, eso sí, a su manada) hasta que le quitan un cuarto de su vida
 (`NPCController.MEAL_TOLERANCE`): entonces va a por quien le pega. Así, si cae un compañero y los demás
 siguen peleando, la fiera se lo come igual en vez de volver a la pelea al primer golpe. Pasada la pelea (sin objetivo y 8 s sin que le hieran) vuelve a su comida si la tiene a menos
-de 40 m, con lo que le quedaba (`NPCController._back_to_meal`). Es la ventana para atacarla. Con varias
+de 40 m y le queda tiempo, con lo que le quedaba (`NPCController._back_to_meal`). Es la ventana para atacarla. Con varias
 comiendo juntas (o cuerpos muy juntos), cada una mira con su cápsula si pisaría a otra criatura y, si
 es así, rodea la comida hasta un lado libre (`FeedState._free_side`); y cualquier criatura que quede
 encima de otro cuerpo se baja por el lado (`NPCController._check_on_body`). Los restos no se guardan en la partida (se quitan al cargar) y caben 6, aparte de

@@ -104,10 +104,17 @@ var hurtboxes: Array[Hurtbox] = []
 var hit_react: HitReact
 var is_hit: bool = false
 var _hit_timer: float = 0.0
-## Lo que se está comiendo (feed_on: unos restos), hasta que acaba (FeedState): absorto, ni ver ni oír a
-## nadie lo saca de comer (is_feeding); ni los golpes, hasta que le quitan MEAL_TOLERANCE de su vida (la
-## ventana para atacarle); y pasada la pelea, vuelve a ello (_back_to_meal).
+## Lo que se está comiendo (feed_on: unos restos), hasta que acaba (FeedState) o se le acaba MEAL_TIME:
+## absorto, solo nota a quien se le arrime a FEED_NOTICE m (Perception.feeding_reach), y a ese lo ataca;
+## ni la llamada de su manada lo saca de comer (is_feeding); ni los golpes, hasta que le quitan
+## MEAL_TOLERANCE de su vida (la ventana para atacarle); y pasada la pelea, vuelve a ello (_back_to_meal).
 var meal: Node3D
+## Lo que le queda para comerse [meal] (s): MEAL_TIME al empezar con ella, corre en FeedState (también
+## yendo hacia ella) y no se repone al volver tras una pelea. Agotado, se va saciado.
+var meal_left := 0.0
+const MEAL_TIME := 15.0
+## Comiendo, a quien se le acerque a menos de esto (m, del borde de su cuerpo) lo nota y le ataca.
+const FEED_NOTICE := 2.0
 ## Lo que le han quitado mientras come (de vida) desde que se puso a ello.
 var _meal_hurt := 0.0
 ## Comiendo, los golpes no lo sacan de ahí hasta que le quitan esto de su vida máxima (fracción).
@@ -394,8 +401,13 @@ func _turn_toward(dir: Vector3, max_angle: float) -> void:
 
 
 func _on_target_detected(target: Node3D) -> void:
-	# Comiendo no se distrae: solo los golpes lo sacan, y al cabo de unos (_on_damaged).
+	# Comiendo solo lo percibe si se le arrima (Perception.feeding_reach): suelta la comida y le ataca. Pasada
+	# la pelea vuelve a ella si le queda tiempo (_back_to_meal).
 	if is_feeding():
+		var state := provoked_state if provoked_state != &"" else detect_state
+		if state != &"" and target != null:
+			ai_controller.target = target
+			ai_controller.transition_to(state)
 		return
 	# Al compañero del jugador, como al jugador.
 	if lets_player_approach and target != null \
@@ -465,6 +477,8 @@ func feed_on(food: Node3D) -> bool:
 	if already:
 		state.exit()
 	state.food = food
+	if food != meal:
+		meal_left = MEAL_TIME
 	meal = food
 	_meal_hurt = 0.0
 	ai_controller.target = null
@@ -489,9 +503,10 @@ func is_feeding() -> bool:
 
 
 ## Ya sin pelea (parado o deambulando, sin objetivo y sin que le hieran desde hace MEAL_CALM s), vuelve a su
-## comida si sigue ahí y a menos de MEAL_RETURN m. Se la quita (meal = null) al acabar de comer (FeedState).
+## comida si sigue ahí, a menos de MEAL_RETURN m y le queda tiempo para ella (meal_left). Se la quita
+## (meal = null) al acabar de comer (FeedState).
 func _back_to_meal() -> void:
-	if not is_instance_valid(meal) or meal.is_queued_for_deletion():
+	if not is_instance_valid(meal) or meal.is_queued_for_deletion() or meal_left <= 0.0:
 		meal = null
 		return
 	if is_dead or _is_dying or not active or ai_controller.target != null \

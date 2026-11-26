@@ -114,9 +114,9 @@ extends Resource
 ## De su origen a la boca (m, a tamaño 1), para acercarse al cuerpo si no se puede sacar de sus clips
 ## de comer dónde le queda la boca (FeedState). 0 = la punta de su cápsula.
 @export var feed_reach: float = 0.0
-## Lo que sigue comiendo una vez despiezado el cuerpo (s, al azar entre los dos): un buen rato, absorto
-## (FeedState), en el que se le puede atacar.
-@export var feed_time := Vector2(120.0, 180.0)
+## Lo que sigue comiendo una vez despiezado el cuerpo (s, al azar entre los dos), absorto (FeedState); con
+## el despiece, nunca más de NPCController.MEAL_TIME en total.
+@export var feed_time := Vector2(3.0, 6.0)
 ## Lo que suena mientras come (gruñidos) y cada cuánto (s, al azar entre los dos). Vacío = wait_sound.
 @export var feed_sound: StringName = &""
 @export var feed_growl := Vector2(2.5, 5.0)

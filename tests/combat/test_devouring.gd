@@ -129,12 +129,18 @@ func _run() -> void:
 	check(remains.get_node_or_null(^"GutPile") != null, "las vísceras salen al suelo")
 	await _check_open_torso(remains, skel, source)
 
-	# Comiendo está absorto: ni verlo ni la llamada de su manada lo sacan; los golpes, al cabo de unos, sí, y
-	# luego vuelve.
+	# Comiendo está absorto: solo nota a quien se le arrima, ni la llamada de su manada lo saca; los golpes, al
+	# cabo de unos, sí, y luego vuelve.
 	var someone := Node3D.new()
 	add_child(someone)
-	wolf._on_target_detected(someone)
-	check(wolf.is_feeding() and not wolf.answer_call(someone), "comiendo, ni ver a alguien ni la llamada de su manada lo distraen")
+	var reach := wolf.perception.feeding_reach
+	someone.global_position = wolf.global_position + Vector3(reach + 3.0, 0.0, 0.0)
+	var far := wolf.perception._can_detect(someone)
+	someone.global_position = wolf.global_position + Vector3(reach - 0.3, 0.0, 0.0)
+	var near := wolf.perception._can_detect(someone)
+	check(reach > NPCController.FEED_NOTICE and not far and near,
+		"comiendo solo nota a quien tiene a menos de %.1f m (de su origen)" % reach)
+	check(wolf.is_feeding() and not wolf.answer_call(someone), "la llamada de su manada no lo distrae")
 	var tolerance := NPCController.MEAL_TOLERANCE * wolf.health_component.max_health
 	wolf._on_damaged(tolerance * 0.6, someone)
 	check(wolf.is_feeding() and wolf.ai_controller.target == null,
@@ -149,6 +155,15 @@ func _run() -> void:
 	wolf._hurt_msec -= int(NPCController.MEAL_CALM * 1000.0) + 100
 	wolf._back_to_meal()
 	check(wolf.is_feeding(), "pasada la pelea, vuelve a su comida")
+	wolf._on_target_detected(someone)
+	check(not wolf.is_feeding() and wolf.ai_controller.target == someone and wolf.meal == remains,
+		"si se le arrima alguien, suelta la comida y va a por él")
+	check(wolf.perception.feeding_reach == 0.0, "y vuelve a percibir como siempre")
+	wolf.ai_controller.target = null
+	wolf.ai_controller.transition_to(&"IdleState")
+	var left := wolf.meal_left
+	wolf._back_to_meal()
+	check(wolf.is_feeding() and wolf.meal_left == left, "vuelve a comer con el tiempo que le quedaba")
 	someone.queue_free()
 
 	# Otro que llega a comer no se le pone encima: rodea la comida hasta un lado libre.
@@ -179,6 +194,14 @@ func _run() -> void:
 	check(room > -0.1 and above < 0.3, "comen los dos sin pisarse (holgura %.2f m, desnivel %.2f m)" % [room, above])
 	second.queue_free()
 
+	# Se le acaba el rato de comer (MEAL_TIME): la deja aunque no haya acabado.
+	wolf.meal_left = 0.05
+	await _wait(0.3)
+	check(not wolf.is_feeding() and wolf.meal == null, "pasado MEAL_TIME deja la comida, aunque no esté despiezada")
+	wolf._back_to_meal()
+	check(not wolf.is_feeding(), "y no vuelve a ella")
+	wolf.feed_on(remains)
+	wolf.meal_left = 1000.0
 	# Despiezado: el lobo come un rato más y se va.
 	var state := wolf.ai_controller.get_node(^"FeedState") as FeedState
 	state.profile = state.profile.duplicate()
@@ -383,8 +406,10 @@ func _feeding_wolf(remains: PlayerRemains) -> NPCController:
 	wolf.planet = planet
 	var torso := remains.torso_point()
 	wolf.global_position = Vector3(torso.x + 4.0, 0.05, torso.z + 1.0)
-	check(wolf.feed_on(remains) and wolf.ai_controller.get_current_state() == &"FeedState",
-		"el lobo va a comer")
+	check(wolf.feed_on(remains) and wolf.ai_controller.get_current_state() == &"FeedState"
+		and is_equal_approx(wolf.meal_left, NPCController.MEAL_TIME), "el lobo va a comer, con MEAL_TIME por delante")
+	# La prueba se alarga más que MEAL_TIME: que no se le acabe a mitad.
+	wolf.meal_left = 1000.0
 	var state := wolf.ai_controller.get_node(^"FeedState") as FeedState
 	var waited := 0.0
 	while remains.eating().is_empty() and waited < 10.0:
