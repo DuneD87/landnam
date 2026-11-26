@@ -10,11 +10,17 @@ const MAX_HULLS := 8
 const MAX_RINGS := 16
 ## Hasta dónde de la cámara (m) se dibujan las olas de un barco.
 const REACH := 260.0
+## Y las de un vadeador (Cthulhu), que se ve desde kilómetros.
+const WADER_REACH := 2500.0
 const GRAVITY := 9.8
 
 ## Interruptor general.
 static var enabled: bool = true
 static var _active: HullWaves
+## Lo que levanta olas sin ser barco (Cthulhu): nodos con wake_source() -> Dictionary con center,
+## heading (mundo, tangente), length y beam (semiejes, m), speed y amplitude; vacío si ahora no
+## levanta nada. Ocupan los primeros huecos, antes que los barcos.
+static var _waders: Array[Node] = []
 
 ## Altura de la ola de proa respecto a la carga de velocidad U²/2g: 0,5 = la mitad.
 @export_range(0.0, 2.0, 0.05) var bow_amount: float = 0.42
@@ -61,7 +67,24 @@ func _exit_tree() -> void:
 static func ring(world_pos: Vector3, strength: float, beam: float) -> void:
 	if _active == null or not is_instance_valid(_active) or not enabled:
 		return
-	_active._add_ring(world_pos, clampf(strength, 0.0, 1.5), beam)
+	_active._add_ring(world_pos, ring_shape(clampf(strength, 0.0, 1.5), beam))
+
+
+## Onda de forma libre, sin los topes de un casco (las pisadas de Cthulhu): altura [amp] (m), radio
+## inicial [r0] (m), velocidad del frente [speed] (m/s) y vida [life] (s).
+static func wave_ring(world_pos: Vector3, amp: float, r0: float, speed: float, life: float) -> void:
+	if _active == null or not is_instance_valid(_active) or not enabled:
+		return
+	_active._add_ring(world_pos, {"amp": amp, "r0": r0, "speed": speed, "life": life})
+
+
+static func add_wader(node: Node) -> void:
+	if not _waders.has(node):
+		_waders.append(node)
+
+
+static func remove_wader(node: Node) -> void:
+	_waders.erase(node)
 
 
 ## Forma del anillo de un golpe: altura, radio inicial, velocidad de la onda y vida. La comparten la
@@ -84,14 +107,13 @@ static func hull_info(body: Node) -> Dictionary:
 	return _active._info.get(body.get_instance_id(), {})
 
 
-func _add_ring(world_pos: Vector3, strength: float, beam: float) -> void:
+func _add_ring(world_pos: Vector3, ring: Dictionary) -> void:
 	var material := _material()
 	if material == null:
 		return
 	var center: Vector3 = material.get_shader_parameter(&"planet_center")
 	if _rings.size() >= MAX_RINGS:
 		_rings.pop_front()
-	var ring := ring_shape(strength, beam)
 	ring["offset"] = world_pos - center
 	ring["age"] = 0.0
 	_rings.append(ring)
@@ -105,7 +127,8 @@ func _process(delta: float) -> void:
 	var hulls := 0
 	_info.clear()
 	if enabled and camera != null:
-		hulls = _gather_hulls(camera.global_position, delta)
+		hulls = _gather_waders(camera.global_position)
+		hulls = _gather_hulls(camera.global_position, delta, hulls)
 	var center: Vector3 = material.get_shader_parameter(&"planet_center")
 	var rings := 0
 	for r in range(_rings.size() - 1, -1, -1):
@@ -142,8 +165,34 @@ func _material() -> ShaderMaterial:
 	return ocean.mesh_manager.default_material as ShaderMaterial
 
 
-## Rellena los buffers con los barcos más cercanos que se mueven en el agua; devuelve cuántos.
-func _gather_hulls(eye: Vector3, delta: float) -> int:
+## Los vadeadores, en los primeros huecos de los buffers; devuelve cuántos.
+func _gather_waders(eye: Vector3) -> int:
+	for i in range(_waders.size() - 1, -1, -1):
+		if not is_instance_valid(_waders[i]) or not _waders[i].is_inside_tree():
+			_waders.remove_at(i)
+	var count := 0
+	for node in _waders:
+		if count >= MAX_HULLS:
+			break
+		var wake: Dictionary = node.wake_source()
+		if wake.is_empty():
+			continue
+		var center: Vector3 = wake["center"]
+		if center.distance_to(eye) > WADER_REACH:
+			continue
+		var heading: Vector3 = wake["heading"]
+		var length: float = wake["length"]
+		var beam: float = wake["beam"]
+		_frame[count] = Vector4(center.x, center.y, center.z, length)
+		_axis[count] = Vector4(heading.x, heading.y, heading.z, beam)
+		_params[count] = Vector4(wake["speed"], wake["amplitude"], length * 10.0 + beam + 25.0, 0.0)
+		count += 1
+	return count
+
+
+## Rellena los buffers con los barcos más cercanos que se mueven en el agua, a partir del hueco
+## [start]; devuelve cuántos hay ocupados en total.
+func _gather_hulls(eye: Vector3, delta: float, start: int = 0) -> int:
 	var found: Array = []
 	var seen := {}
 	for node in get_tree().get_nodes_in_group(DynamicGridBody.GROUP):
@@ -186,7 +235,7 @@ func _gather_hulls(eye: Vector3, delta: float) -> int:
 	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["distance"] < b["distance"])
 
 	_info.clear()
-	var count := 0
+	var count := start
 	for item: Dictionary in found:
 		if count >= MAX_HULLS:
 			break

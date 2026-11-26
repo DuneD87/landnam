@@ -67,6 +67,12 @@ const CINEMATIC_BLEND := 1.2
 const CINEMATIC_LIFT := 0.35
 var _cine := 0.0
 var _cine_point := Vector3.ZERO
+## La mirada del abismo (AbyssStare): punto del mundo hacia el que se va la vista sola, con una fuerza
+## de 0..1 (stare_weight), y lo que se cierra el encuadre (grados de FOV). Mientras hay punto el ratón
+## no gira la cámara.
+var stare_point: Variant = null
+var stare_weight: float = 0.0
+var stare_fov_drop: float = 0.0
 var _lock_swipe: float = 0.0
 var _shake: float = 0.0
 var _base_fov: float = -1.0
@@ -186,6 +192,29 @@ func _track_lock_point() -> void:
 	pitch = lerpf(pitch, desired, 0.12)
 
 
+## Lleva yaw y pitch hacia stare_point, más deprisa cuanto más fuerte es la mirada. Como
+## _track_lock_point, pero la vista va derecha a los ojos (sin dejar sitio al personaje) y sin tope
+## de cámara a la altura: un gigante se mira hacia arriba.
+func _track_stare_point(dt: float) -> void:
+	var player = get_parent()
+	var up: Vector3 = _current_up_axis
+	var eye: Vector3 = camera.global_position if first_person else \
+		player.global_position + up * (target_height_offset - crouch_drop)
+	var to: Vector3 = (stare_point as Vector3) - eye
+	var gain := 1.0 - exp(-dt * lerpf(0.4, 4.0, stare_weight))
+	var to_h := to - up * to.dot(up)
+	var cur := -camera_pivot.global_basis.z
+	cur = cur - up * cur.dot(up)
+	if to_h.length_squared() > 0.01 and cur.length_squared() > 1e-6:
+		to_h = to_h.normalized()
+		cur = cur.normalized()
+		yaw += atan2(up.dot(cur.cross(to_h)), cur.dot(to_h)) * gain
+		camera_pivot.rotation.y = yaw
+	if to.length_squared() > 0.01:
+		var desired := clampf(asin(clampf(to.normalized().dot(up), -1.0, 1.0)), min_pitch, max_pitch)
+		pitch = lerpf(pitch, desired, gain)
+
+
 func update_camera_rotation():
 	var dt := get_physics_process_delta_time()
 	_update_gamepad_look(dt)
@@ -198,6 +227,10 @@ func update_camera_rotation():
 		delta_pitch = 0.0
 	if lock_point != null:
 		_track_lock_point()
+		delta_yaw = 0.0
+		delta_pitch = 0.0
+	if stare_point != null:
+		_track_stare_point(dt)
 		delta_yaw = 0.0
 		delta_pitch = 0.0
 	if first_person and fp_yaw_limit < PI and delta_yaw != 0.0:
@@ -278,7 +311,7 @@ func update_camera_transform():
 	var aim_ease := _aim * _aim * (3.0 - 2.0 * _aim)
 	if _base_fov < 0.0:
 		_base_fov = camera.fov
-	camera.fov = _base_fov - aim_fov_drop * aim_ease * (0.55 + 0.45 * aim_zoom)
+	camera.fov = _base_fov - aim_fov_drop * aim_ease * (0.55 + 0.45 * aim_zoom) - stare_fov_drop
 	_shake = maxf(0.0, _shake - 0.02)
 
 	var cine := smoothstep(0.0, 1.0, _cine)

@@ -74,6 +74,9 @@ var _config_action: Action = Action.NONE
 var water_material : ShaderMaterial
 var weather_controller: WeatherController
 var _pending_weather_data: Dictionary = {}
+## Cthulhu: cuándo y dónde sale (solo en planetas con mar, mapa del mundo y clima).
+var cthulhu_director: CthulhuDirector
+var _pending_abyss_data: Dictionary = {}
 
 func get_gravity_direction(_global_position: Vector3) -> Vector3:
 	var gravity_center = voxel_terrain.global_position
@@ -298,6 +301,7 @@ func _load_planet() -> void:
 	if not Engine.is_editor_hint():
 		_setup_ambient_fauna()
 		_setup_ground_fauna(planet_parser)
+		_setup_cthulhu()
 		GroundPickup.setup(planet)
 		_setup_settlements()
 
@@ -508,6 +512,22 @@ func _apply_weather_override() -> void:
 		weather_controller.force_weather(forced_weather)
 	else:
 		weather_controller.clear_force()
+
+## El director de Cthulhu: necesita mar, el mapa del mundo (fondo y tipo de agua) y el clima, que trae
+## su tormenta.
+func _setup_cthulhu() -> void:
+	if players.is_empty() or not planet.has_water or water_sphere == null or world_map == null \
+			or weather_controller == null:
+		return
+	var player := players[0] as PlayerController
+	if player == null:
+		return
+	cthulhu_director = CthulhuDirector.new()
+	cthulhu_director.name = "CthulhuDirector"
+	cthulhu_director.add_to_group(&"cthulhu_director")
+	add_child(cthulhu_director)
+	cthulhu_director.setup(voxel_terrain, water_sphere, world_map, weather_controller, player)
+
 
 ## Un spawner por especie de superficie, con la misma maquinaria de pool que peces y pájaros.
 ## Cada especie es un GroundFaunaProfile en disco; el JSON del planeta solo dice cuáles viven aquí.
@@ -803,7 +823,8 @@ func get_save_data() -> Dictionary:
 			"y": save_pos.y,
 			"z": save_pos.z
 		},
-		"weather": weather_controller.get_save_data() if weather_controller != null else {}
+		"weather": weather_controller.get_save_data() if weather_controller != null else {},
+		"abyss": cthulhu_director.get_save_data() if cthulhu_director != null else {}
 	}
 
 
@@ -813,6 +834,7 @@ func restore_save_data(data: Dictionary) -> void:
 	sun_dir = Vector3(data.sun_dir.x, data.sun_dir.y, data.sun_dir.z)
 	global_pos = Vector3(data.global_pos.x, data.global_pos.y, data.global_pos.z)
 	_pending_weather_data = data.get("weather", {})
+	_pending_abyss_data = data.get("abyss", {})
 
 	if config_file_path != "":
 		_load_planet()
@@ -830,6 +852,11 @@ func post_restore() -> void:
 	if weather_controller != null and not _pending_weather_data.is_empty():
 		weather_controller.restore_save_data(_pending_weather_data)
 	_pending_weather_data = {}
+	if cthulhu_director != null:
+		# Un encuentro a medias no se guarda: al cargar no hay Cthulhu ni su tormenta.
+		cthulhu_director.dismiss(true)
+		cthulhu_director.restore_save_data(_pending_abyss_data)
+	_pending_abyss_data = {}
 
 func _process(_delta: float) -> void:
 	if planet != null:

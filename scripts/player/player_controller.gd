@@ -73,6 +73,8 @@ var appearance_rig: CharacterAppearanceRig
 var combat: PlayerCombat
 ## Hambre, sed, descanso, cordura, oxígeno y temperatura (los enseña la barra rápida).
 var needs: SurvivalNeeds
+## La mirada del abismo: paraliza, lleva la cámara y vacía la cordura (Cthulhu).
+var abyss_stare: AbyssStare
 ## Nivel, experiencia y atributos (ver Progression).
 var progression: Progression
 ## Descanso en lechos y aceleración temporal mientras se duerme.
@@ -672,6 +674,10 @@ func _ready():
 	needs.name = "SurvivalNeeds"
 	add_child(needs)
 	needs.setup(self)
+	abyss_stare = AbyssStare.new()
+	abyss_stare.name = "AbyssStare"
+	add_child(abyss_stare)
+	abyss_stare.setup(self)
 	progression = Progression.new()
 	progression.name = "Progression"
 	add_child(progression)
@@ -1436,8 +1442,9 @@ func _input(event):
  
 	if not input_enabled:
 		return
-	# Muerto no se hace nada hasta reaparecer (el menú de Escape sí, arriba).
-	if combat.is_dead():
+	# Muerto no se hace nada hasta reaparecer (el menú de Escape sí, arriba). Paralizado por la mirada
+	# del abismo, tampoco.
+	if combat.is_dead() or is_transfixed():
 		return
  
 	if event.is_pressed() and not event.is_echo() and not blueprint_placer.is_active():
@@ -1958,6 +1965,14 @@ func _physics_step(delta: float):
 			_platform_prev_xform = _platform_body.global_transform
 		camera_controller.update_camera_transform()
 		return
+	# Bajo la mirada del abismo el cuerpo no responde: el paso sigue con el input en reposo y la vista
+	# la lleva AbyssStare. Trepando se queda colgado donde está.
+	if is_transfixed():
+		if _body_runs_hands_off():
+			_hands_off_step(delta)
+		else:
+			camera_controller.update_camera_rotation()
+		return
 	if not input_enabled or not mouse_captured:
 		if _body_runs_hands_off():
 			_hands_off_step(delta)
@@ -2002,6 +2017,11 @@ func _physics_step(delta: float):
 				camera_controller.update_camera_transform()
 			
 		update_normal_movement(delta)
+
+
+## Paralizado por la mirada del abismo (AbyssStare).
+func is_transfixed() -> bool:
+	return abyss_stare != null and abyss_stare.is_transfixed()
 
 
 ## Con el menú de pausa, la consola o una ventana abiertos el jugador no manda, pero el cuerpo

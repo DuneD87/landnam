@@ -359,6 +359,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
 		_complete_weather))
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
+	_add(ConsoleCommand.new("cthulhu", "cthulhu [spawn | gaze [distance] | leave | reset]", "CON_HELP_CTHULHU",
+		_cmd_cthulhu, 0, func() -> PackedStringArray: return PackedStringArray(["spawn", "gaze", "leave", "reset"])))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
 	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | grudge <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
@@ -672,6 +674,29 @@ func _cmd_weather(args: PackedStringArray) -> String:
 		return _paint(COLOR_ERR, tr("CON_UNKNOWN_WEATHER") % args[0])
 	wc.force_weather(sub)
 	return _paint(COLOR_OK, tr("CON_WEATHER_FORCED") % sub)
+
+
+## Cthulhu (CthulhuDirector): sin argumento dice dónde está; spawn trae la tormenta y lo saca en unos
+## segundos a la distancia normal, gaze lo planta fuera del agua delante, leave lo hunde y reset quita
+## la espera entre encuentros.
+func _cmd_cthulhu(args: PackedStringArray) -> String:
+	var director := get_tree().get_first_node_in_group(&"cthulhu_director") as CthulhuDirector
+	if director == null:
+		return _paint(COLOR_ERR, tr("CON_NO_CTHULHU"))
+	var sub := args[0].to_lower() if args.size() > 0 else ""
+	match sub:
+		"spawn":
+			if not director.summon():
+				return _paint(COLOR_ERR, director.describe())
+		"gaze":
+			var distance := args[1].to_float() if args.size() > 1 and args[1].is_valid_float() else 420.0
+			return _paint(COLOR_OK, director.summon_facing(clampf(distance, 150.0, 1500.0)))
+		"leave":
+			director.dismiss()
+		"reset":
+			director.dismiss(true)
+			director.restore_save_data({})
+	return _paint(COLOR_INFO, director.describe())
 
 
 func _cmd_tp(args: PackedStringArray) -> String:

@@ -304,7 +304,7 @@ func pre_update() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("crouch") and player != null and player.input_enabled \
-			and player.is_mouse_captured():
+			and player.is_mouse_captured() and not player.is_transfixed():
 		_toggle_requested = true
 
 

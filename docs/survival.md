@@ -41,7 +41,7 @@ avisa desde **Frío**, cuando empieza a quitar vida. En la ficha de atributos
 | Hambre | de lleno a vacío en 45 min; más deprisa con esfuerzo (lo que gasta aguante, nadar) y con frío | — | 0,25 de vida por segundo |
 | Sed | en 30 min; más deprisa con esfuerzo y con calor | — | 0,4 de vida por segundo |
 | Descanso | en una jornada de 16 h del mundo despierto; algo más con esfuerzo | una noche de 8 h durmiendo en un lecho | el aguante se recupera al 40 % |
-| Cordura | a oscuras (en 40 min de noche cerrada; a la luz de una hoguera, no), muy cansado y con hambre o sed; la carne cruda, un 6 % | de día, si se ha descansado; la carne asada, un 3 % | (sin efectos todavía) |
+| Cordura | a oscuras (en 40 min de noche cerrada; a la luz de una hoguera, no), muy cansado y con hambre o sed; la carne cruda, un 6 %; la mirada de Cthulhu la vacía entera ([monstruos](monsters.md)) | de día, si se ha descansado; la carne asada, un 3 % | (sin efectos todavía; la mirada deja unos minutos de secuelas) |
 | Oxígeno | 40 s con la cabeza bajo el agua | en 4 s al sacarla | 8 de vida por segundo |
 
 La vida se quita a golpes de 2 puntos, no a pellizcos. El modo dios (`god`) no
