@@ -457,23 +457,37 @@ sangra.
 - **Lo que cae** (`SeveredLimb`): una copia del esqueleto en la pose del corte con las mallas
   cortadas, movida por un `Ragdoll` solo de sus segmentos (el codo y la rodilla doblan). Gotea por el
   corte unos segundos y, quieto, deja un charco que se extiende. Dura dos minutos.
-- **Sangre de los golpes** (`CombatFx.blood`): gotas en forma de lágrima alineadas con su velocidad
-  (`blood_droplet.gdshader`; casi negras donde son gruesas, rojas en el borde y la cola, con un
-  brillo pequeño de líquido y la luz roja que las atraviesa a contraluz) y una neblina que se funde
-  con lo que toca (`blood_mist.gdshader`).
-  Cada tipo salpica a su manera: un tajo, muchas gotas rápidas en abanico; una estocada, un chorro
-  estrecho; un golpe contundente, pocas gotas y más neblina. La cantidad sale del daño.
+- **Sangre de los golpes** (`CombatFx.hit_blood`, que pasa a `CombatFx.blood` el daño que ha
+  entrado y lo que paró la armadura o la piel). Un golpe apenas salpica en el momento: lo que se ve
+  es la herida, que se abre y sangra. Salpica solo lo que entra de lleno, y la salpicadura crece
+  más deprisa que el daño (daño/25 elevado a 1,6): un roce no saca gotas, solo mancha; lo parado
+  por la protección salpica menos y deja la herida más pequeña. Cada tipo a su manera: un tajo, un
+  abanico corto; una estocada, un chorrito; un golpe contundente, casi nada y algo de neblina. Las
+  gotas (`blood_droplet.gdshader`) van alineadas con su velocidad y cada una estira su cola a su
+  manera (de casi redonda a un hilo); son rojas y vivas donde son finas, granates donde son
+  gruesas, brillan como líquido y dejan pasar la luz roja a contraluz. No se encogen en el aire:
+  caen hasta el suelo. La neblina (`blood_mist.gdshader`) son unas pocas manchas finas que se van
+  enseguida.
 - **Sangre en el suelo** (`BloodPool`): decals bajo el punto, siguiendo la gravedad del planeta. Las
-  gotas de cada golpe manchan el suelo por delante, un muñón al gotear (reguero si se anda), lo
-  cortado deja su charco y los cadáveres (el jugador y las criaturas) uno a su medida. No son una
-  capa de pintura: el color sale del grosor, así que donde es fina la sangre empapa el suelo y lo
-  deja ver, y donde se encharca es casi negra y brilla (la rugosidad va en la textura: líquida en lo
-  espeso, mate en lo empapado). Hay tres charcos y cuatro salpicaduras (una mancha con gotas
-  despedidas, el impacto de un goterón, un reguero de gotas y un salpicado), con salpicado fino
-  alrededor; cada vez, uno al azar. Se oscurecen al secarse y se van a los tres minutos (el rastro
-  de una presa herida, a los siete).
-- **Sangre en el cuerpo** (`BloodStains`): cada golpe deja una mancha con regueros hacia abajo (una
-  de tres), pegada al hueso más cercano. Solo pinta las mallas del personaje (llevan la capa de render 20,
+  gotas de un golpe fuerte manchan el suelo por delante, cuando llegarían (más lejos, más tarde),
+  con salpicaduras alargadas hacia donde iban (`facing`). Un muñón mancha al gotear (un reguero si
+  se anda), lo cortado deja su charco y los cadáveres (el jugador y las criaturas) uno a su medida.
+  No son una capa de pintura: el color sale del grosor, y donde se encharca es granate casi negro y
+  brilla (la rugosidad va en la textura: líquida en lo espeso, mate en lo empapado). Los charcos
+  tienen lóbulos torcidos y algún dedo por donde corrió, y un borde que no es una línea pareja:
+  espeso hasta el filo casi en todo él (solo a trechos se extiende en una película fina y roja),
+  con muescas donde se engancha en el suelo, alguna isla seca y gotitas pegadas al filo. A trechos,
+  alrededor, la tierra la ha chupado: un empapado pardo y mate que se deshace en puntitos. Hay tres charcos y cuatro
+  salpicaduras: dos que caen de arriba (un goterón con su corona y sus gotitas satélite, un
+  salpicado fino a racimos) y dos que llegan de lado (la estela de un tajo, un abanico); cada vez,
+  una al azar de las que tocan. Se oscurecen hacia el pardo al secarse y se van a los tres minutos
+  (el rastro de una presa herida, a los siete).
+- **Sangre en el cuerpo** (`BloodStains`): cada golpe abre una herida pegada al hueso más cercano:
+  una mancha irregular que empapa alrededor y unos pocos regueros desiguales que bajan
+  serpenteando hacia donde tira la gravedad y acaban en gota. Se abre en el momento y los regueros
+  bajan en un par de segundos (`RUN_TIME`). Si el golpe fue bueno, la herida gotea unos segundos
+  más desde el pie de los regueros, cada vez más espaciado, y si fue muy bueno deja una
+  salpicadura en el suelo debajo. Solo pinta las mallas del personaje (llevan la capa de render 20,
   la única del `cull_mask` de las manchas). Se limpian al reaparecer o al reciclar la criatura.
 - **Sangre en la vegetación** (`BloodFoliage`): cada mancha o charco en el suelo, cada golpe (a su
   altura) y cada corte apuntan una salpicadura en una lista de 128 (las que caen casi encima se

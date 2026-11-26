@@ -1177,7 +1177,7 @@ func _land_hit(target: Node3D, to: Vector3) -> void:
 	info.kind = weapon.damage_kind if weapon != null else ItemData.DamageKind.PIERCE
 	info.knockback = 0.2
 	if box.receive(info) > 0.0:
-		CombatFx.blood(target, point, dir, info.kind, info.amount)
+		CombatFx.hit_blood(target, point, dir, info)
 		CombatFx.impact(self, point, info.kind, true)
 
 

@@ -35,6 +35,11 @@ const SPLAT_TEXTURES := [
 		preload("res://textures/combat/blood_splat_3_normal.png"),
 		preload("res://textures/combat/blood_splat_3_orm.png")],
 ]
+## Las salpicaduras que caen de arriba (un goterón, un salpicado fino), y las que llegan de lado,
+## alargadas hacia +X de la imagen (la estela de un tajo, un abanico): esas se giran hacia donde
+## iban las gotas.
+const SPLAT_DROPPED := [0, 3]
+const SPLAT_THROWN := [1, 2]
 const SMEAR_TEXTURES := [
 	[preload("res://textures/combat/blood_smear_0.png"),
 		preload("res://textures/combat/blood_smear_0_normal.png"),
@@ -56,8 +61,9 @@ const FADE := 15.0
 ## se lleve las gotas que hay que seguir, y dura más: da tiempo a ir tras él.
 const MAX_TRAIL := 160
 const TRAIL_LIFETIME := 420.0
-## Lo que tarda en secarse (se oscurece).
+## Lo que tarda en secarse: se oscurece y se apaga hacia el pardo.
 const DRY_TIME := 90.0
+const DRY_TINT := Color(0.5, 0.4, 0.36)
 ## Alto de la caja que proyecta: el suelo y lo que esté tirado en él, no las rodillas del que pasa.
 const DEPTH := 0.24
 ## Hasta dónde busca el suelo bajo el punto (m).
@@ -78,9 +84,11 @@ var _since := 0.0
 
 ## Deja sangre en el suelo bajo [point], buscándolo hacia [gravity] contra [mask]: un charco de
 ## [size] m que tarda [grow_time] s en extenderse, o una salpicadura si [splat]. Si es del rastro
-## de una criatura herida, [trail]. null si no hay suelo cerca.
+## de una criatura herida, [trail]. Una salpicadura con [facing] (hacia donde iban las gotas) es de
+## las que llegan de lado y se gira hacia allí; sin él, de las que caen de arriba. null si no hay
+## suelo cerca.
 static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float, grow_time: float,
-		mask: int, splat := false, trail := false) -> BloodPool:
+		mask: int, splat := false, trail := false, facing := Vector3.ZERO) -> BloodPool:
 	if context == null or not context.is_inside_tree() \
 			or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return null
@@ -96,7 +104,9 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 		return null
 	var pool := BloodPool.new()
 	pool.name = "BloodSplat" if splat else "BloodPool"
-	var textures: Array = (SPLAT_TEXTURES if splat else POOL_TEXTURES).pick_random()
+	var textures: Array = POOL_TEXTURES.pick_random()
+	if splat:
+		textures = SPLAT_TEXTURES[(SPLAT_THROWN if facing != Vector3.ZERO else SPLAT_DROPPED).pick_random()]
 	pool.texture_albedo = textures[0]
 	pool.texture_normal = textures[1]
 	pool.texture_orm = textures[2]
@@ -118,8 +128,13 @@ static func spawn(context: Node3D, point: Vector3, gravity: Vector3, size: float
 	var up: Vector3 = hit.normal
 	if up.dot(-down) < 0.2:
 		up = -down
-	var side := up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
-	side = side.rotated(up, randf() * TAU)
+	# +X del decal es +X de la imagen: hacia donde iban, si lo dice [facing].
+	var side := facing - up * facing.dot(up)
+	if splat and side.length_squared() > 1e-4:
+		side = side.normalized()
+	else:
+		side = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+		side = side.rotated(up, randf() * TAU)
 	pool.global_transform = Transform3D(Basis(side, up, side.cross(up)), hit.position)
 	pool.add_to_group(&"floating_origin")
 	# Las hojas de la hierba y los arbustos de encima también se manchan.
@@ -171,5 +186,5 @@ func _process(delta: float) -> void:
 	size = Vector3(extent.x, DEPTH, extent.y)
 	var dry := clampf(_age / DRY_TIME, 0.0, 1.0)
 	var fade := clampf((_lifetime - _age) / FADE, 0.0, 1.0)
-	modulate = Color(1.0, 1.0, 1.0).lerp(Color(0.55, 0.42, 0.42), dry)
+	modulate = Color(1.0, 1.0, 1.0).lerp(DRY_TINT, dry)
 	modulate.a = fade

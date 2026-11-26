@@ -1729,7 +1729,7 @@ func _land_hit(up: Vector3) -> void:
 	info.penetration = _weapon.armor_penetration if _weapon != null else 0.0
 	info.knockback = 0.3
 	if _target.hurtboxes[0].receive(info) > 0.0:
-		CombatFx.blood(_target, point, dir, info.kind, info.amount)
+		CombatFx.hit_blood(_target, point, dir, info)
 		CombatFx.impact(self, point, info.kind, true)
 
 

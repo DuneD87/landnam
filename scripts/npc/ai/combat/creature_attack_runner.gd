@@ -225,7 +225,7 @@ func _sweep_hit(hit: CreatureHit, sweeps: Array) -> void:
 			# Lo parado con la guardia ni sangra ni suena a carne: suena la guardia (Guard).
 			if box.receive(info) > 0.0 and info.guarded != Guard.Result.BLOCKED:
 				landed += 1
-				CombatFx.blood(box.owner_body, result.point, dir, hit.kind, info.amount)
+				CombatFx.hit_blood(box.owner_body, result.point, dir, info)
 				CombatFx.impact(_npc, result.point, hit.kind, true)
 			if attack == null:
 				return

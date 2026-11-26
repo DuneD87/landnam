@@ -1576,7 +1576,7 @@ func _on_blade_hit(box: Hurtbox, point: Vector3, info: DamageInfo) -> void:
 	var weight := (1.6 if _heavy else 1.0) * (1.3 if data != null and data.two_handed else 1.0)
 	_hitstop = HITSTOP_TIME * weight
 	player.camera_controller.add_shake(0.05 * weight)
-	CombatFx.blood(box.owner_body, point, info.direction, info.kind, info.amount)
+	CombatFx.hit_blood(box.owner_body, point, info.direction, info)
 	CombatFx.impact(player, point, info.kind, true)
 	hud.note_enemy_hit(box.owner_body)
 

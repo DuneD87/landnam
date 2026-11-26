@@ -45,24 +45,48 @@ static func play(id: StringName, pos: Vector3, opts: Dictionary = {}) -> void:
 	AudioManager.play_event_3d(ev, pos, opts)
 
 
-## Sangre de un golpe que entra por [point] en el sentido [direction]: gotas que caen con la gravedad
-## del planeta, una neblina fina, manchas en el suelo donde caen y una mancha en el cuerpo
-## (BloodStains). Cada tipo de golpe salpica a su manera: un tajo, muchas gotas rápidas en abanico;
-## una estocada, un chorro estrecho; un golpe contundente, pocas gotas y más neblina. [amount] (el
-## daño) da la cantidad. (La nube del hábitat queda para la muerte de la fauna pequeña.)
+## Salpicadura de un golpe (ver blood()): por debajo de SPRAY_MIN no saca gotas al aire, solo la
+## herida; desde SPRAY_GROUND llegan al suelo.
+const SPRAY_MIN := 0.12
+const SPRAY_GROUND := 0.45
+
+
+## Sangre de un golpe de combate ([info] ya recibido: trae lo que la armadura o la piel dejaron
+## pasar). Lo que para la protección ni salpica ni mancha igual: ver blood().
+static func hit_blood(target: Node, point: Vector3, direction: Vector3, info: DamageInfo) -> void:
+	var raw := info.amount * info.part_multiplier
+	var dealt := info.mitigated if info.mitigated > 0.0 else raw
+	var absorbed := 1.0 - clampf(dealt / raw, 0.0, 1.0) if raw > 0.0 else 0.0
+	blood(target, point, direction, info.kind, dealt, absorbed)
+
+
+## Sangre de un golpe que entra por [point] en el sentido [direction]. Un golpe apenas salpica en el
+## momento: lo que se ve es la herida, que se abre (la mancha del cuerpo crece y chorrea hacia
+## abajo, BloodStains) y gotea un rato. Salpica de verdad solo lo que entra de lleno, y más cuanto
+## más fuerte ([amount], el daño que entra; crece más deprisa que el daño: un roce no saca gotas).
+## Cada tipo a su manera: un tajo, un abanico corto; una estocada, un chorrito; un golpe
+## contundente, casi nada, y unas gotas de neblina. [absorbed] (0–1) es lo que paró la armadura o
+## la piel gruesa: menos salpicadura y una herida más pequeña. (La nube del hábitat queda para la
+## muerte de la fauna pequeña.)
 static func blood(target: Node, point: Vector3, direction: Vector3,
-		kind := ItemData.DamageKind.SLASH, amount := 25.0) -> void:
+		kind := ItemData.DamageKind.SLASH, amount := 25.0, absorbed := 0.0) -> void:
 	if SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return
 	var host := _host(target)
 	if host == null:
 		return
 	var dir := direction.normalized() if direction.length_squared() > 1e-6 else -_down()
-	var power := _blood_burst(host, point, dir, kind, clampf(amount / 25.0, 0.6, 2.0))
-	_ground_splats(target, point, dir, power)
-	BloodStains.stain(target, point, dir, power)
-	# Salpica las matas de alrededor, a la altura del golpe.
-	BloodFoliage.add(point + dir * 0.3, 0.5 * power)
+	var severity := clampf(amount / 25.0, 0.0, 2.5)
+	var open := 1.0 - clampf(absorbed, 0.0, 0.9)
+	var spray := minf(pow(severity, 1.6) * open, 2.2)
+	if spray >= SPRAY_MIN:
+		spray = _blood_burst(host, point, dir, kind, spray)
+	if spray >= SPRAY_GROUND:
+		_ground_splats(target, point, dir, spray)
+		# Salpica las matas de alrededor, a la altura del golpe.
+		BloodFoliage.add(point + dir * 0.3, 0.35 * spray)
+	BloodStains.stain(target, point, dir, clampf(severity, 0.45, 1.8) * lerpf(0.6, 1.0, open),
+		clampf(severity * open - 0.25, 0.0, 1.0))
 
 
 ## Gotas, goterones (pocos, gordos y lentos: la sangre se ve espesa) y neblina de un golpe de tipo
@@ -71,18 +95,18 @@ static func _blood_burst(host: Node, point: Vector3, dir: Vector3, kind: ItemDat
 		power: float) -> float:
 	match kind:
 		ItemData.DamageKind.PIERCE:
-			_droplets(host, point, dir, int(70 * power), 12.0, Vector2(3.5, 8.5), Vector2(0.6, 1.4))
-			_droplets(host, point, dir, int(4 * power), 18.0, Vector2(1.5, 3.5), Vector2(2.0, 3.2), 1.2)
-			_mist(host, point, dir, int(8 * power))
+			_droplets(host, point, dir, int(16 * power), 10.0, Vector2(2.0, 5.5), Vector2(0.35, 1.2))
+			_droplets(host, point, dir, int(2.5 * power), 14.0, Vector2(1.0, 2.5), Vector2(1.6, 2.6), 1.4)
+			_mist(host, point, dir, int(1.5 * power))
 		ItemData.DamageKind.BLUNT:
-			_droplets(host, point, dir, int(42 * power), 75.0, Vector2(1.5, 4.0), Vector2(0.6, 1.6))
-			_droplets(host, point, dir, int(6 * power), 60.0, Vector2(0.8, 2.5), Vector2(2.0, 3.5), 1.2)
-			_mist(host, point, dir, int(20 * power))
+			_droplets(host, point, dir, int(9 * power), 60.0, Vector2(1.0, 3.0), Vector2(0.35, 1.2))
+			_droplets(host, point, dir, int(2 * power), 45.0, Vector2(0.6, 1.8), Vector2(1.6, 2.6), 1.4)
+			_mist(host, point, dir, int(4 * power))
 			power *= 0.7
 		_:
-			_droplets(host, point, dir, int(110 * power), 38.0, Vector2(2.5, 7.0), Vector2(0.6, 1.7))
-			_droplets(host, point, dir, int(8 * power), 30.0, Vector2(1.0, 3.0), Vector2(2.0, 3.5), 1.2)
-			_mist(host, point, dir, int(14 * power))
+			_droplets(host, point, dir, int(26 * power), 28.0, Vector2(1.5, 4.5), Vector2(0.35, 1.3))
+			_droplets(host, point, dir, int(3.5 * power), 22.0, Vector2(0.8, 2.4), Vector2(1.6, 2.8), 1.4)
+			_mist(host, point, dir, int(2.5 * power))
 	return power
 
 
@@ -128,9 +152,9 @@ static func sever_burst(target: Node, point: Vector3, direction: Vector3) -> voi
 	if host == null or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return
 	var dir := direction.normalized() if direction.length_squared() > 1e-6 else -_down()
-	_droplets(host, point, dir, 160, 50.0, Vector2(2.0, 7.0), Vector2(1.0, 2.2), 1.2)
-	_droplets(host, point, dir, 20, 40.0, Vector2(1.0, 3.5), Vector2(2.5, 4.0), 1.3)
-	_mist(host, point, dir, 24)
+	_droplets(host, point, dir, 70, 40.0, Vector2(1.5, 6.0), Vector2(0.4, 1.6), 1.3)
+	_droplets(host, point, dir, 10, 35.0, Vector2(0.8, 3.0), Vector2(1.8, 3.0), 1.4)
+	_mist(host, point, dir, 6)
 	_ground_splats(target, point, dir, 2.0)
 	BloodFoliage.add(point + dir * 0.4, 1.0)
 	play(&"hit_blunt", point, {"pitch": randf_range(0.65, 0.75)})
@@ -143,10 +167,10 @@ static func spurt(target: Node, point: Vector3, direction: Vector3, strength: fl
 		return
 	var s := clampf(strength, 0.0, 1.0)
 	var dir := direction.normalized() if direction.length_squared() > 1e-6 else -_down()
-	_droplets(host, point, dir, int(lerpf(10.0, 40.0, s)), lerpf(28.0, 12.0, s),
-		Vector2(0.4, 1.0) * lerpf(1.0, 3.2, s), Vector2(0.8, 1.6), 0.9)
-	_droplets(host, point, dir, int(lerpf(1.0, 5.0, s)), 15.0, Vector2(0.3, 1.0) * lerpf(1.0, 2.5, s),
-		Vector2(2.0, 3.0), 1.0)
+	_droplets(host, point, dir, int(lerpf(5.0, 22.0, s)), lerpf(28.0, 12.0, s),
+		Vector2(0.4, 1.0) * lerpf(1.0, 3.2, s), Vector2(0.4, 1.4), 1.1)
+	_droplets(host, point, dir, int(lerpf(1.0, 4.0, s)), 15.0, Vector2(0.3, 1.0) * lerpf(1.0, 2.5, s),
+		Vector2(1.6, 2.6), 1.2)
 
 
 ## Unas pocas gotas ([amount]) que caen sin fuerza desde [point]: el hocico de una fiera que acaba de
@@ -155,7 +179,7 @@ static func drip(target: Node, point: Vector3, amount: int) -> void:
 	var host := _host(target)
 	if host == null or SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return
-	_droplets(host, point, _down(), amount, 25.0, Vector2(0.05, 0.4), Vector2(0.6, 1.3), 0.9)
+	_droplets(host, point, _down(), amount, 20.0, Vector2(0.05, 0.3), Vector2(0.7, 1.6), 1.1)
 
 
 ## Golpe contra algo: sonido según el tipo de golpe y, si no es carne, polvo.
@@ -267,11 +291,11 @@ static func sparks(node: Node, point: Vector3, direction: Vector3, power: float 
 ## franja corta atravesada al golpe (el tajo abre en abanico) hacia [dir] con [spread] grados, caen
 ## con la gravedad del planeta y se encogen al final, cuando ya han llegado al suelo.
 static func _droplets(host: Node, point: Vector3, dir: Vector3, amount: int, spread: float,
-		speed: Vector2, scale: Vector2, lifetime := 0.9) -> void:
+		speed: Vector2, scale: Vector2, lifetime := 1.2) -> void:
 	if amount <= 0:
 		return
 	var particles := BurstParticles.create(amount, lifetime, 0.9)
-	particles.randomness = 0.3
+	particles.randomness = 0.45
 	particles.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
 	var process := ParticleProcessMaterial.new()
 	# En el marco del emisor (ver _frame): +Y es [dir] y +X la franja de la que salen.
@@ -298,22 +322,23 @@ static func _droplets(host: Node, point: Vector3, dir: Vector3, amount: int, spr
 	particles.get_tree().create_timer(lifetime + 0.8).timeout.connect(particles.queue_free)
 
 
-## Neblina: unas manchas suaves que salen despacio, crecen y se desvanecen (blood_mist.gdshader).
+## Neblina: unas pocas manchas finas que salen despacio, crecen un poco y se van enseguida
+## (blood_mist.gdshader).
 static func _mist(host: Node, point: Vector3, dir: Vector3, amount: int) -> void:
 	if amount <= 0:
 		return
-	var particles := BurstParticles.create(amount, 1.2, 0.85)
+	var particles := BurstParticles.create(amount, 0.7, 0.85)
 	particles.randomness = 0.4
 	var process := ParticleProcessMaterial.new()
 	process.direction = Vector3.UP
 	process.spread = 70.0
-	process.initial_velocity_min = 0.3
-	process.initial_velocity_max = 1.4
-	process.damping_min = 2.0
-	process.damping_max = 4.0
-	process.gravity = _down() * 0.6
-	process.scale_min = 0.25
-	process.scale_max = 0.55
+	process.initial_velocity_min = 0.4
+	process.initial_velocity_max = 1.6
+	process.damping_min = 2.5
+	process.damping_max = 4.5
+	process.gravity = _down() * 0.8
+	process.scale_min = 0.1
+	process.scale_max = 0.24
 	process.scale_curve = _mist_grow_curve()
 	process.color_ramp = _mist_fade_ramp()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
@@ -326,10 +351,11 @@ static func _mist(host: Node, point: Vector3, dir: Vector3, amount: int) -> void
 	particles.global_transform = Transform3D(_frame(dir), point)
 	particles.add_to_group(&"floating_origin")
 	particles.emitting = true
-	particles.get_tree().create_timer(2.2).timeout.connect(particles.queue_free)
+	particles.get_tree().create_timer(1.5).timeout.connect(particles.queue_free)
 
 
-## Manchas en el suelo donde caen las gotas: por delante del golpe, un poco después.
+## Manchas en el suelo donde caen las gotas: por delante del golpe, cuando llegarían (más lejos,
+## más tarde), alargadas en el sentido en que iban.
 static func _ground_splats(target: Node, point: Vector3, dir: Vector3, power: float) -> void:
 	var body := target as Node3D
 	if body == null or not body.is_inside_tree():
@@ -341,12 +367,15 @@ static func _ground_splats(target: Node, point: Vector3, dir: Vector3, power: fl
 	flat = flat.normalized() if flat.length_squared() > 1e-4 else Vector3.ZERO
 	var side := flat.cross(down)
 	var mask := _ground_mask()
-	for i in 2 + int(power * 1.5):
-		var at := point + flat * randf_range(0.2, 1.6) * power + side * randf_range(-0.45, 0.45)
-		var size := randf_range(0.4, 0.7) * clampf(power, 0.7, 1.6)
-		body.get_tree().create_timer(randf_range(0.2, 0.45)).timeout.connect(func() -> void:
+	var reach := sqrt(clampf(power, 0.5, 2.0))
+	for i in 1 + int(power * 0.8):
+		var dist := randf_range(0.35, 1.3) * reach
+		var at := point + flat * dist + side * randf_range(-0.3, 0.3)
+		var size := randf_range(0.3, 0.55) * clampf(power, 0.8, 1.5)
+		var facing := (flat + side * randf_range(-0.25, 0.25)).normalized() if flat != Vector3.ZERO else Vector3.ZERO
+		body.get_tree().create_timer(0.25 + dist * 0.2).timeout.connect(func() -> void:
 			if is_instance_valid(body) and body.is_inside_tree():
-				BloodPool.spawn(body, at, down * 9.8, size, 0.2, mask, true))
+				BloodPool.spawn(body, at, down * 9.8, size, 0.15, mask, true, false, facing))
 
 
 ## Lo que cuenta como suelo para la sangre: con lo que choca el jugador (terreno y construcciones).
@@ -369,7 +398,7 @@ static func _frame(dir: Vector3) -> Basis:
 static func _droplet() -> QuadMesh:
 	if _droplet_mesh == null:
 		_droplet_mesh = QuadMesh.new()
-		_droplet_mesh.size = Vector2(0.014, 0.046)
+		_droplet_mesh.size = Vector2(0.014, 0.056)
 		var mat := ShaderMaterial.new()
 		mat.shader = DROPLET_SHADER
 		_droplet_mesh.material = mat
@@ -390,7 +419,7 @@ static func _shrink_curve() -> CurveTexture:
 	if _shrink == null:
 		var curve := Curve.new()
 		curve.add_point(Vector2(0.0, 1.0))
-		curve.add_point(Vector2(0.7, 1.0))
+		curve.add_point(Vector2(0.9, 1.0))
 		curve.add_point(Vector2(1.0, 0.0))
 		_shrink = CurveTexture.new()
 		_shrink.curve = curve
@@ -411,7 +440,7 @@ static func _mist_fade_ramp() -> GradientTexture1D:
 	if _mist_fade == null:
 		var ramp := Gradient.new()
 		ramp.offsets = PackedFloat32Array([0.0, 0.15, 1.0])
-		ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.55), Color(1, 1, 1, 0.0)])
+		ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.4), Color(1, 1, 1, 0.0)])
 		_mist_fade = GradientTexture1D.new()
 		_mist_fade.gradient = ramp
 	return _mist_fade

@@ -1,23 +1,30 @@
 class_name BloodStains
 extends RefCounted
 
-## Sangre sobre el cuerpo: cada golpe deja en el sitio por donde entra una mancha con regueros que
-## bajan según la gravedad (BloodPool.SMEAR_TEXTURES, una al azar), pegada al hueso más cercano para
-## que siga al cuerpo al moverse. Son Decals que solo pintan las mallas del personaje: estas llevan
+## Sangre sobre el cuerpo: cada golpe abre en el sitio por donde entra una herida que se ve
+## sangrar: una mancha que se extiende y unos regueros que van bajando según la gravedad en un par
+## de segundos, y que gotea un rato si el golpe fue bueno (BloodPool.SMEAR_TEXTURES, una al azar).
+## Va pegada al hueso más cercano para que siga al cuerpo al moverse. Son Decals que solo pintan las mallas del personaje: estas llevan
 ## además la capa de render RenderLayers.STAINABLE, y las manchas solo esa capa en su cull_mask, así que el suelo de
 ## debajo no se mancha. Se secan oscureciéndose y se limpian con clear() (al reaparecer, al reciclar
 ## una criatura).
 
 const MAX_PER_BODY := 12
 const DRY_TIME := 60.0
+const DRY_TINT := Color(0.5, 0.4, 0.36)
+## Lo que tardan los regueros en bajar del todo (s) y de qué largo empiezan (fracción del final).
+const RUN_TIME := 2.4
+const RUN_START := 0.5
+## Dónde está la mancha del golpe en la imagen, de arriba abajo (fracción del largo).
+const WOUND_AT := 0.25
 const META_SKELETON := &"blood_stain_skeleton"
 const META_STAINS := &"blood_stains"
 const HOLDER_PREFIX := "BloodStains_"
 
 
 ## Mancha a [target] por donde entra un golpe ([point], mundo) que va hacia [direction]. [power]
-## (0,4..1,6) da el tamaño.
-static func stain(target: Node, point: Vector3, direction: Vector3, power: float) -> void:
+## (0,4..1,8) da el tamaño; [seep] (0–1), cuánto gotea después la herida.
+static func stain(target: Node, point: Vector3, direction: Vector3, power: float, seep := 0.0) -> void:
 	if SettingsManager.gore_level() == SettingsManager.GORE_OFF:
 		return
 	var body := target as Node3D
@@ -45,8 +52,9 @@ static func stain(target: Node, point: Vector3, direction: Vector3, power: float
 	decal.distance_fade_enabled = true
 	decal.distance_fade_begin = 30.0
 	decal.distance_fade_length = 10.0
-	var size := randf_range(0.22, 0.34) * clampf(power, 0.8, 1.8)
-	decal.size = Vector3(size, 0.22, size * 1.5)
+	var size := randf_range(0.2, 0.3) * clampf(power, 0.45, 1.8)
+	var length := size * randf_range(1.3, 1.7)
+	decal.size = Vector3(size, 0.22, length)
 	holder.add_child(decal)
 	# +Y hacia fuera del cuerpo (contra el golpe), +Z hacia abajo por la superficie: en la imagen,
 	# abajo es por donde corren los regueros. La mancha del golpe queda arriba, en el punto.
@@ -56,8 +64,18 @@ static func stain(target: Node, point: Vector3, direction: Vector3, power: float
 	if along.length_squared() < 1e-4:
 		along = out.cross(Vector3.RIGHT if absf(out.x) < 0.9 else Vector3.FORWARD)
 	along = along.normalized()
-	decal.global_transform = Transform3D(Basis(out.cross(along), out, along), point + along * size * 0.45)
-	decal.create_tween().tween_property(decal, "modulate", Color(0.6, 0.45, 0.45), DRY_TIME)
+	decal.global_transform = Transform3D(Basis(out.cross(along), out, along), point + along * length * (0.5 - WOUND_AT))
+	# La herida se abre y los regueros bajan: alto en la imagen, con la mancha quieta en el golpe.
+	var wound := decal.position - decal.basis.z.normalized() * length * (0.5 - WOUND_AT)
+	var run := func(t: float) -> void:
+		decal.size = Vector3(size * lerpf(0.8, 1.0, minf(t * 4.0, 1.0)), 0.22, length * lerpf(RUN_START, 1.0, t))
+		decal.position = wound + decal.basis.z.normalized() * decal.size.z * (0.5 - WOUND_AT)
+	run.call(0.0)
+	decal.create_tween().tween_method(run, 0.0, 1.0, RUN_TIME * randf_range(0.8, 1.2)) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	decal.create_tween().tween_property(decal, "modulate", DRY_TINT, DRY_TIME)
+	if seep > 0.05:
+		_seep(target, decal, seep)
 	var list: Array = skel.get_meta(META_STAINS, [])
 	list.append(decal)
 	while list.size() > MAX_PER_BODY:
@@ -65,6 +83,34 @@ static func stain(target: Node, point: Vector3, direction: Vector3, power: float
 		if is_instance_valid(old):
 			(old as Node).queue_free()
 	skel.set_meta(META_STAINS, list)
+
+
+## Gotas que caen del pie de la mancha (por donde acaban los regueros) unos segundos, cada vez más
+## espaciadas, y una salpicadura en el suelo debajo si es mucho.
+static func _seep(target: Node, decal: Decal, seep: float) -> void:
+	var drops := int(lerpf(2.0, 9.0, seep))
+	var tween := decal.create_tween()
+	var gap := 0.35
+	for i in drops:
+		tween.tween_interval(gap * randf_range(0.6, 1.4))
+		gap *= 1.25
+		tween.tween_callback(func() -> void:
+			if is_instance_valid(target) and (target as Node).is_inside_tree():
+				CombatFx.drip(target, _foot(decal), 1 if randf() < 0.7 else 2))
+	if seep > 0.5:
+		tween.tween_callback(func() -> void:
+			if not is_instance_valid(target):
+				return
+			var body := target as Node3D
+			var down := CombatFx._down()
+			if body != null and body.is_inside_tree() and down != Vector3.ZERO:
+				BloodPool.spawn(body, _foot(decal), down * 9.8, randf_range(0.14, 0.24), 0.6,
+					CombatFx._ground_mask(), true))
+
+
+## El pie de [decal] en el mundo: donde acaban los regueros.
+static func _foot(decal: Decal) -> Vector3:
+	return decal.global_position + decal.global_basis.z * decal.size.z * 0.45
 
 
 ## Quita todas las manchas de [target].

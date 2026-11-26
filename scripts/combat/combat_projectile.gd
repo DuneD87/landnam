@@ -184,7 +184,7 @@ func _hit_hurtbox(box: Hurtbox, point: Vector3) -> void:
 		queue_free()
 		return
 	if applied > 0.0:
-		CombatFx.blood(box.owner_body, point, velocity, info.kind, info.amount)
+		CombatFx.hit_blood(box.owner_body, point, velocity, info)
 	CombatFx.impact(self, point, damage_kind, true)
 	if kind == Kind.STONE:
 		queue_free()
