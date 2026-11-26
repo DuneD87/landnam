@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_se"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/roar_01.ogg" id="2_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/roar_02.ogg" id="3_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/roar_03.ogg" id="4_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/roar_04.ogg" id="5_clip"]
+
+[resource]
+script = ExtResource("1_se")
+event_id = &"cthulhu_roar"
+streams = Array[AudioStream]([ExtResource("2_clip"), ExtResource("3_clip"), ExtResource("4_clip"), ExtResource("5_clip")])
+volume_db = 8.0
+volume_jitter_db = 1.0
+pitch_jitter = 0.04
+max_distance = 6000.0
+unit_size = 320.0
+high_frequency_attenuation_db = -10.0
+max_voices = 2
+cooldown = 1.5

@@ -4,13 +4,16 @@ shader_type canvas_item;
 // abre en franjas de color por los bordes y se cierra en túnel. Después quedan las secuelas, más
 // flojas, que se van pasando. Va debajo de la interfaz, como el desangrado.
 
-uniform sampler2D screen : hint_screen_texture, filter_linear_mipmap;
+// Sin mipmaps: solo se lee el nivel 0, y generarlos a 4K cada fotograma cuesta.
+uniform sampler2D screen : hint_screen_texture, filter_linear;
 // 0..1: la mirada en curso.
 uniform float amount : hint_range(0.0, 1.0) = 0.0;
 // 0..1: lo que queda después.
 uniform float after : hint_range(0.0, 1.0) = 0.0;
 // 0..1: el latido (sube de golpe y cae).
 uniform float pulse : hint_range(0.0, 1.0) = 0.0;
+// 0..1: las manos tapando los ojos. Casi negro, con algo de luz rojiza entre los dedos.
+uniform float cover : hint_range(0.0, 1.0) = 0.0;
 
 void fragment() {
 	vec2 uv = SCREEN_UV;
@@ -33,5 +36,16 @@ void fragment() {
 	c = mix(c, vec3(grey) * vec3(0.78, 0.96, 0.86), k * 0.75);
 	float vignette = smoothstep(0.22, 0.95, r) * (0.6 * amount + 0.3 * after) * (0.8 + 0.2 * pulse);
 	c = mix(c, c * vec3(0.04, 0.1, 0.08), vignette);
+	if (cover > 0.0) {
+		// Rendijas entre los dedos: tres franjas verticales algo torcidas, en el centro de la vista.
+		float gaps = 0.0;
+		for (int i = 0; i < 3; i++) {
+			float x = 0.4 + 0.1 * float(i) + 0.012 * sin(uv.y * 5.0 + float(i) * 1.7);
+			gaps = max(gaps, 1.0 - smoothstep(0.002, 0.011, abs(uv.x - x)));
+		}
+		gaps *= 1.0 - smoothstep(0.18, 0.42, abs(uv.y - 0.48));
+		vec3 skin = vec3(0.07, 0.018, 0.012) * (0.6 + 0.4 * pulse);
+		c = mix(c, c * gaps * 0.55 + skin, cover);
+	}
 	COLOR = vec4(c, 1.0);
 }

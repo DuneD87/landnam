@@ -359,8 +359,8 @@ func _register_commands() -> void:
 	_add(ConsoleCommand.new("weather", "weather <event|reset|list>", "CON_HELP_WEATHER", _cmd_weather, 1,
 		_complete_weather))
 	_add(ConsoleCommand.new("tp", "tp <x> <y> <z>", "CON_HELP_TP", _cmd_tp, 3))
-	_add(ConsoleCommand.new("cthulhu", "cthulhu [spawn | gaze [distance] | leave | reset]", "CON_HELP_CTHULHU",
-		_cmd_cthulhu, 0, func() -> PackedStringArray: return PackedStringArray(["spawn", "gaze", "leave", "reset"])))
+	_add(ConsoleCommand.new("cthulhu", "cthulhu [spawn | omen | gaze [distance] | minions | leave | reset]", "CON_HELP_CTHULHU",
+		_cmd_cthulhu, 0, func() -> PackedStringArray: return PackedStringArray(["spawn", "omen", "gaze", "minions", "leave", "reset"])))
 	_add(ConsoleCommand.new("trail", "trail [tp]", "CON_HELP_TRAIL", _cmd_trail, 0,
 		func() -> PackedStringArray: return PackedStringArray(["tp"])))
 	_add(ConsoleCommand.new("village", "village [tp [granja|aldea|poblado|villa] | trust <0-100> | grudge <0-100> | quest <fetch|hunt|rescue|escort|errand|beast>]", "CON_HELP_VILLAGE", _cmd_village, 0,
@@ -688,9 +688,14 @@ func _cmd_cthulhu(args: PackedStringArray) -> String:
 		"spawn":
 			if not director.summon():
 				return _paint(COLOR_ERR, director.describe())
+		"omen":
+			if not director.summon(CthulhuDirector.OMEN_TIME):
+				return _paint(COLOR_ERR, director.describe())
 		"gaze":
 			var distance := args[1].to_float() if args.size() > 1 and args[1].is_valid_float() else 420.0
 			return _paint(COLOR_OK, director.summon_facing(clampf(distance, 150.0, 1500.0)))
+		"minions":
+			return _paint(COLOR_OK, director.launch_minions())
 		"leave":
 			director.dismiss()
 		"reset":
@@ -1412,6 +1417,8 @@ const ANIMAL_SCENES := {
 	"goat": "res://scenes/animals/Goat.tscn",
 	"labrador": "res://scenes/animals/Labrador.tscn",
 	"bloodhound": "res://scenes/animals/Bloodhound.tscn",
+	# El esbirro de Cthulhu: en el agua nada (en el mar puesto a la distancia, cae al fondo y sube).
+	"minion": "res://scenes/monsters/Minion.tscn",
 }
 
 

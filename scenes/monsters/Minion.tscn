@@ -1,0 +1,184 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/monsters/minion.gd" id="1_minion"]
+[ext_resource type="Script" path="res://scripts/player/movement.gd" id="2_move"]
+[ext_resource type="Script" path="res://scripts/npc/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/npc/ai/ai_controller.gd" id="4_ai"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/idle_state.gd" id="5_idle"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/wander_state.gd" id="6_wander"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/creature_combat_state.gd" id="7_combat"]
+[ext_resource type="Resource" path="res://data/fauna/combat/minion_combat.tres" id="8_profile"]
+[ext_resource type="Script" path="res://scripts/npc/ai/states/death_state.gd" id="9_death"]
+[ext_resource type="Script" path="res://scripts/items/inventory.gd" id="10_inventory"]
+[ext_resource type="Script" path="res://scripts/player/animation_controller.gd" id="11_anim"]
+[ext_resource type="Script" path="res://scripts/npc/perception.gd" id="12_perception"]
+[ext_resource type="PackedScene" path="res://models/monsters/minion/minion.glb" id="13_model"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.3
+height = 1.3
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_idle"]
+animation = &"idle"
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_run"]
+animation = &"run"
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_sprint"]
+animation = &"run"
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_swim_idle"]
+animation = &"idle_water"
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_swim"]
+animation = &"swim"
+
+[sub_resource type="AnimationNodeTimeScale" id="TimeScale_swim"]
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_attack"]
+animation = &"claws"
+
+[sub_resource type="AnimationNodeAnimation" id="Anim_death"]
+animation = &"death"
+
+[sub_resource type="AnimationNodeTimeSeek" id="Seek_death"]
+
+[sub_resource type="AnimationNodeBlend2" id="Blend_run"]
+
+[sub_resource type="AnimationNodeBlend2" id="Blend_sprint"]
+
+[sub_resource type="AnimationNodeBlend2" id="Blend_swim_idle"]
+
+[sub_resource type="AnimationNodeBlend2" id="Blend_swim"]
+
+[sub_resource type="AnimationNodeBlend2" id="Blend_death"]
+
+[sub_resource type="AnimationNodeOneShot" id="OneShot_attack"]
+
+[sub_resource type="AnimationNodeBlendTree" id="Tree_minion"]
+nodes/output/position = Vector2(1300, 100)
+nodes/idle/node = SubResource("Anim_idle")
+nodes/idle/position = Vector2(-300, 0)
+nodes/run/node = SubResource("Anim_run")
+nodes/run/position = Vector2(-300, 160)
+nodes/sprint/node = SubResource("Anim_sprint")
+nodes/sprint/position = Vector2(-300, 320)
+nodes/swim_idle/node = SubResource("Anim_swim_idle")
+nodes/swim_idle/position = Vector2(-300, 480)
+nodes/swim/node = SubResource("Anim_swim")
+nodes/swim/position = Vector2(-300, 640)
+nodes/swim_rate/node = SubResource("TimeScale_swim")
+nodes/swim_rate/position = Vector2(-60, 640)
+nodes/attack/node = SubResource("Anim_attack")
+nodes/attack/position = Vector2(800, 300)
+nodes/death_anim/node = SubResource("Anim_death")
+nodes/death_anim/position = Vector2(-300, 800)
+nodes/death_seek/node = SubResource("Seek_death")
+nodes/death_seek/position = Vector2(-60, 800)
+nodes/bRun/node = SubResource("Blend_run")
+nodes/bRun/position = Vector2(0, 80)
+nodes/bSprint/node = SubResource("Blend_sprint")
+nodes/bSprint/position = Vector2(200, 200)
+nodes/bSwimIdle/node = SubResource("Blend_swim_idle")
+nodes/bSwimIdle/position = Vector2(400, 300)
+nodes/bSwim/node = SubResource("Blend_swim")
+nodes/bSwim/position = Vector2(600, 400)
+nodes/death/node = SubResource("Blend_death")
+nodes/death/position = Vector2(800, 120)
+nodes/attack_horizontal/node = SubResource("OneShot_attack")
+nodes/attack_horizontal/position = Vector2(1050, 100)
+node_connections = [&"output", 0, &"attack_horizontal", &"attack_horizontal", 0, &"death", &"attack_horizontal", 1, &"attack", &"death", 0, &"bSwim", &"death", 1, &"death_seek", &"death_seek", 0, &"death_anim", &"bSwim", 0, &"bSwimIdle", &"bSwim", 1, &"swim_rate", &"swim_rate", 0, &"swim", &"bSwimIdle", 0, &"bSprint", &"bSwimIdle", 1, &"swim_idle", &"bSprint", 0, &"bRun", &"bSprint", 1, &"sprint", &"bRun", 0, &"idle", &"bRun", 1, &"run"]
+
+[node name="Minion" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+floor_stop_on_slope = false
+floor_block_on_wall = false
+floor_max_angle = 1.2217305
+safe_margin = 0.008
+script = ExtResource("1_minion")
+detect_state = &"CombatState"
+lose_state = &"IdleState"
+npc_type = &"Minion"
+hit_stun_duration = 0.0
+run_clip_speed = 2.4
+head_bone = &"Cabeza"
+head_radius = 0.16
+flinch_bones = Array[String](["Lumbar", "Torax", "Cuello", "Cabeza"])
+hurt_sound = &"alligator_hurt"
+death_sound = &"alligator_death"
+alert_radius = 80.0
+alert_sound = &"alligator_hiss"
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource("2_move")
+speed = 2.0
+swim_speed = 9.0
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 55.0
+armor_slash = 1.0
+armor_blunt = 2.0
+armor_pierce = 0.5
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource("4_ai")
+amphibious = true
+
+[node name="IdleState" type="Node" parent="AIController"]
+script = ExtResource("5_idle")
+flee_trigger_radius = 0.0
+
+[node name="WanderState" type="Node" parent="AIController"]
+script = ExtResource("6_wander")
+wander_radius = 15.0
+arrival_threshold = 2.0
+max_wander_time = 6.0
+home_radius = 25.0
+flee_trigger_radius = 0.0
+
+[node name="CombatState" type="Node" parent="AIController"]
+script = ExtResource("7_combat")
+profile = ExtResource("8_profile")
+
+[node name="DeathState" type="Node" parent="AIController"]
+script = ExtResource("9_death")
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("10_inventory")
+
+[node name="AnimationController" type="Node" parent="." node_paths=PackedStringArray("animator", "animation_tree")]
+script = ExtResource("11_anim")
+animator = NodePath("../NPCModel/minion/AnimationPlayer")
+animation_tree = NodePath("../NPCModel/AnimationTree")
+blend_speed = 5.0
+
+[node name="Perception" type="Node" parent="."]
+script = ExtResource("12_perception")
+vision_range = 500.0
+vision_half_angle = 150.0
+eye_height = 1.1
+hearing_range = 25.0
+memory_time = 30.0
+check_interval = 0.4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NPCModel" type="Node3D" parent="."]
+
+[node name="minion" parent="NPCModel" instance=ExtResource("13_model")]
+
+[node name="AnimationTree" type="AnimationTree" parent="NPCModel"]
+active = false
+root_node = NodePath("../minion")
+tree_root = SubResource("Tree_minion")
+anim_player = NodePath("../minion/AnimationPlayer")
+parameters/bRun/blend_amount = 0.0
+parameters/bSprint/blend_amount = 0.0
+parameters/bSwimIdle/blend_amount = 0.0
+parameters/bSwim/blend_amount = 0.0
+parameters/death/blend_amount = 0.0
+parameters/swim_rate/scale = 1.0

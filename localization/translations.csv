@@ -1152,7 +1152,7 @@ CON_HELP_HEAL,"Heals the player (without an argument: to full, closes the wounds
 CON_HELP_LITTER,Branches and stones that can be picked up around.,Ramas y piedras que se pueden recoger alrededor.,
 CON_HELP_GOD,"Player invulnerability (without an argument, toggles).","Invulnerabilidad del jugador (sin argumento, alterna).",
 CON_HELP_NOTARGET,"Creatures ignore the player; companions and villagers are still prey (without an argument, toggles).","Las criaturas ignoran al jugador; a compañeros y aldeanos sí van a por ellos (sin argumento, alterna).",
-CON_HELP_CTHULHU,"Cthulhu: without an argument, where he is; spawn brings his storm and makes him rise; gaze sets him in front of you, out of the water; leave sinks him; reset clears the wait between encounters.","Cthulhu: sin argumento, dónde está; spawn trae su tormenta y lo hace salir; gaze lo planta delante, fuera del agua; leave lo hunde; reset quita la espera entre encuentros.",
+CON_HELP_CTHULHU,"Cthulhu: without an argument, where he is; spawn brings his storm and makes him rise; omen does the same with the full omens (a minute); gaze sets him in front of you, out of the water; minions makes the minions on his body jump now; leave sinks him; reset clears the wait between encounters.","Cthulhu: sin argumento, dónde está; spawn trae su tormenta y lo hace salir; omen igual, con los presagios enteros (un minuto); gaze lo planta delante, fuera del agua; minions hace saltar ya a los esbirros que lleva encima; leave lo hunde; reset quita la espera entre encuentros.",
 CON_HELP_NOCLIP,Toggles free flight / passing through the terrain.,Alterna el vuelo libre / atravesar terreno.,
 CON_HELP_FREEBUILD,"Free building: blocks, placeables and blueprints cost nothing and give nothing back (without an argument, toggles).","Construir gratis: bloques, colocables y blueprints ni gastan ni devuelven nada (sin argumento, alterna).",
 CON_HELP_SUN,Places the sun or turns its automatic rotation on or off.,Coloca el sol o (des)activa su rotación automática.,
@@ -2368,3 +2368,6 @@ CON_LOAD_FAILED,Could not load «%s».,No se pudo cargar «%s».,consola
 CON_PROTECT_DONE,«%s»: %s.,«%s»: %s.,consola: nombre y protegida / sin proteger
 CON_PROTECT_OFF,not protected,sin proteger,consola
 CON_DELSAVE_FAILED,Could not delete «%s».,No se pudo borrar «%s».,consola
+ABYSS_DONT_LOOK,"Don't look into his eyes. Look away, or cover them (right click).","No le mires a los ojos. Aparta la vista o tápatelos (clic derecho).",
+ABYSS_OMEN_SILENCE,The sea has gone silent.,El mar se ha quedado en silencio.,
+SLEEP_NIGHTMARE,Nightmares wake you up.,Te despiertan las pesadillas.,

@@ -1,0 +1,280 @@
+{
+ "clips": {
+  "cthulhu/roar_01": [
+   "alligator_growl",
+   "bear_roar",
+   "elephant_trumpet",
+   "lion_roar"
+  ],
+  "cthulhu/roar_02": [
+   "alligator_growl",
+   "bear_roar",
+   "elephant_trumpet",
+   "lion_roar"
+  ],
+  "cthulhu/roar_03": [
+   "alligator_growl",
+   "bear_roar",
+   "elephant_trumpet",
+   "lion_roar"
+  ],
+  "cthulhu/roar_04": [
+   "alligator_growl",
+   "bear_roar",
+   "elephant_trumpet",
+   "lion_roar"
+  ],
+  "cthulhu/step_01": [
+   "lake_storm"
+  ],
+  "cthulhu/step_02": [
+   "lake_storm"
+  ],
+  "cthulhu/step_03": [
+   "lake_storm"
+  ],
+  "cthulhu/step_04": [
+   "lake_storm"
+  ],
+  "cthulhu/cascade_loop": [
+   "lake_storm"
+  ],
+  "cthulhu/rumble_loop": [],
+  "cthulhu/bubbles_01": [],
+  "cthulhu/bubbles_02": [],
+  "cthulhu/bubbles_03": [],
+  "cthulhu/bubbles_04": [],
+  "sanity/whisper_01": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_02": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_03": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_04": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_05": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_06": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_07": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ],
+  "sanity/whisper_08": [
+   "player_agony",
+   "player_agony_female",
+   "player_hurt"
+  ]
+ },
+ "sources": {
+  "437933": {
+   "title": "G12-01-Alligator Growl.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/437933/"
+  },
+  "527844": {
+   "title": "Alligator Growls 02.wav",
+   "author": "D.jones",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/527844/"
+  },
+  "675513": {
+   "title": "S27-21 Alligator hiss twice.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/675513/"
+  },
+  "479825": {
+   "title": "R19-13-Bear Roaring.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/479825/"
+  },
+  "437977": {
+   "title": "G12-44-Elephants and Tigers.wav",
+   "author": "craigsmith",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/437977/"
+  },
+  "527845": {
+   "title": "Elephant Trumpets Growls.flac",
+   "author": "D.jones",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/527845/"
+  },
+  "819668": {
+   "title": "Elephant sound",
+   "author": "ikbenraar",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/819668/"
+  },
+  "69572": {
+   "title": "Lion roaring.mp3",
+   "author": "Bidone",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/69572/"
+  },
+  "405211": {
+   "title": "Lions screaming during the night",
+   "author": "felix.blume",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/405211/"
+  },
+  "869002": {
+   "title": "Lions Roaring 1",
+   "author": "Filmscore",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/869002/"
+  },
+  "869003": {
+   "title": "Lions Roaring 2",
+   "author": "Filmscore",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/869003/"
+  },
+  "169883": {
+   "url": "https://freesound.org/s/169883/",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "173944": {
+   "title": "human male scream multi",
+   "author": "JohnsonBrandEditing",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/173944/"
+  },
+  "325548": {
+   "title": "Man screaming.wav",
+   "author": "Archeos",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/325548/"
+  },
+  "556976": {
+   "title": "Male Screams [1]",
+   "author": "marc3122",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/556976/"
+  },
+  "764370": {
+   "title": "Painful screaming",
+   "author": "H_Botha",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/764370/"
+  },
+  "320740": {
+   "title": "Horror shrieks woman",
+   "author": "AderuMoro",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/320740/"
+  },
+  "573096": {
+   "title": "A female voice in agony",
+   "author": "pseudonymian",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/573096/"
+  },
+  "671355": {
+   "title": "Sampli_Agonija.wav",
+   "author": "BrivaMagda",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/671355/"
+  },
+  "845164": {
+   "title": "Woman Screaming",
+   "author": "DanJFilms",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/845164/"
+  },
+  "547194": {
+   "title": "Voice_AdultMale_PainGrunts_11.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547194/"
+  },
+  "547195": {
+   "title": "Voice_AdultMale_PainGrunts_12.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547195/"
+  },
+  "547200": {
+   "title": "Voice_AdultMale_PainGrunts_04.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547200/"
+  },
+  "547201": {
+   "title": "Voice_AdultMale_PainGrunts_03.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547201/"
+  },
+  "547202": {
+   "title": "Voice_AdultMale_PainGrunts_02.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547202/"
+  },
+  "547203": {
+   "title": "Voice_AdultMale_PainGrunts_01.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547203/"
+  },
+  "547204": {
+   "title": "Voice_AdultMale_PainGrunts_08.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547204/"
+  },
+  "547205": {
+   "title": "Voice_AdultMale_PainGrunts_07.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547205/"
+  },
+  "547206": {
+   "title": "Voice_AdultMale_PainGrunts_06.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547206/"
+  },
+  "547207": {
+   "title": "Voice_AdultMale_PainGrunts_05.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547207/"
+  },
+  "547208": {
+   "title": "Voice_AdultMale_PainGrunts_10.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547208/"
+  },
+  "547209": {
+   "title": "Voice_AdultMale_PainGrunts_09.wav",
+   "author": "MrFossy",
+   "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "url": "https://freesound.org/s/547209/"
+  }
+ }
+}

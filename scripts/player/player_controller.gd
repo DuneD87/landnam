@@ -75,6 +75,8 @@ var combat: PlayerCombat
 var needs: SurvivalNeeds
 ## La mirada del abismo: paraliza, lleva la cámara y vacía la cordura (Cthulhu).
 var abyss_stare: AbyssStare
+## Lo que hace la cordura baja: susurros, sombras, pasos y fieras que no están.
+var sanity_effects: SanityEffects
 ## Nivel, experiencia y atributos (ver Progression).
 var progression: Progression
 ## Descanso en lechos y aceleración temporal mientras se duerme.
@@ -678,6 +680,10 @@ func _ready():
 	abyss_stare.name = "AbyssStare"
 	add_child(abyss_stare)
 	abyss_stare.setup(self)
+	sanity_effects = SanityEffects.new()
+	sanity_effects.name = "SanityEffects"
+	add_child(sanity_effects)
+	sanity_effects.setup(self)
 	progression = Progression.new()
 	progression.name = "Progression"
 	add_child(progression)

@@ -64,7 +64,7 @@ static func for_npc(npc: NPCController) -> BiteReach:
 	reach._chain.append(head)
 	reach._limits.append(MAX_HEAD)
 	var bone := skel.get_bone_parent(head)
-	while bone >= 0 and reach._chain.size() < MAX_CHAIN and String(skel.get_bone_name(bone)).to_lower().contains("neck"):
+	while bone >= 0 and reach._chain.size() < MAX_CHAIN and _is_neck(String(skel.get_bone_name(bone))):
 		reach._chain.append(bone)
 		reach._limits.append(MAX_NECK)
 		bone = skel.get_bone_parent(bone)
@@ -76,11 +76,16 @@ static func for_npc(npc: NPCController) -> BiteReach:
 	return reach
 
 
-## La mandíbula de abajo: el hueso bajo la cabeza que se llama "jaw" (no la de arriba).
+static func _is_neck(bone_name: String) -> bool:
+	var lower := bone_name.to_lower()
+	return lower.contains("neck") or lower.contains("cuello")
+
+
+## La mandíbula de abajo: el hueso bajo la cabeza que se llama "jaw" o "mandibula" (no la de arriba).
 static func _find_jaw(skel: Skeleton3D, head: int) -> int:
 	for b in skel.get_bone_count():
 		var bone_name := String(skel.get_bone_name(b)).to_lower()
-		if bone_name.contains("jaw") and not bone_name.contains("upper") and _descends(skel, b, head):
+		if (bone_name.contains("jaw") or bone_name.contains("mandibula") or bone_name.contains("mandíbula")) and not bone_name.contains("upper") and _descends(skel, b, head):
 			return b
 	return -1
 

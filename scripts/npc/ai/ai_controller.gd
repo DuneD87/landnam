@@ -207,6 +207,8 @@ func is_in_water(pos: Vector3) -> bool:
 
 ## Margen de elevación sobre el nivel del agua por debajo del cual se activan los raycasts de agua.
 @export var water_check_margin: float = 20.0
+## Nada (los esbirros de Cthulhu): el agua no es un sitio que esquivar.
+@export var amphibious: bool = false
 
 var _planet_has_water: bool = false
 var _planet_water_checked: bool = false
@@ -268,7 +270,7 @@ func _find_water_exit(origin: Vector3, base_lookahead: float) -> Vector3:
 
 ## Redirige dir para evitar el agua; si el NPC ya está en agua, busca la salida más cercana.
 func steer_clear_of_water(dir: Vector3, lookahead: float = 4.0) -> Vector3:
-	if dir == Vector3.ZERO or not _near_water_zone():
+	if amphibious or dir == Vector3.ZERO or not _near_water_zone():
 		return dir
 	var origin := npc.global_position
 	if is_in_water(origin):

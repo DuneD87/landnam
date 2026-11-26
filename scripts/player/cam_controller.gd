@@ -68,11 +68,17 @@ const CINEMATIC_LIFT := 0.35
 var _cine := 0.0
 var _cine_point := Vector3.ZERO
 ## La mirada del abismo (AbyssStare): punto del mundo hacia el que se va la vista sola, con una fuerza
-## de 0..1 (stare_weight), y lo que se cierra el encuadre (grados de FOV). Mientras hay punto el ratón
-## no gira la cámara.
+## de 0..1 (stare_weight) y un multiplicador (stare_pull: menos con los ojos tapados), y lo que se
+## cierra el encuadre (grados de FOV). Mientras hay punto el ratón gira la cámara a stare_resist de lo
+## normal: se puede apartar la vista, contra el tirón.
 var stare_point: Variant = null
 var stare_weight: float = 0.0
+var stare_pull: float = 1.0
+var stare_resist: float = 1.0
 var stare_fov_drop: float = 0.0
+## Tirón de la mirada: tasa (1/s) con la mirada entera y tope de giro (rad/s).
+const STARE_PULL_RATE := 2.2
+const STARE_PULL_MAX := deg_to_rad(70.0)
 var _lock_swipe: float = 0.0
 var _shake: float = 0.0
 var _base_fov: float = -1.0
@@ -201,18 +207,21 @@ func _track_stare_point(dt: float) -> void:
 	var eye: Vector3 = camera.global_position if first_person else \
 		player.global_position + up * (target_height_offset - crouch_drop)
 	var to: Vector3 = (stare_point as Vector3) - eye
-	var gain := 1.0 - exp(-dt * lerpf(0.4, 4.0, stare_weight))
+	# Proporcional al ángulo que falta, con tope: lejos de los ojos tira a ritmo fijo y el ratón le
+	# puede ganar; cerca se clava.
+	var gain := 1.0 - exp(-dt * lerpf(0.4, STARE_PULL_RATE, stare_weight) * stare_pull)
+	var top := STARE_PULL_MAX * stare_weight * stare_pull * dt
 	var to_h := to - up * to.dot(up)
 	var cur := -camera_pivot.global_basis.z
 	cur = cur - up * cur.dot(up)
 	if to_h.length_squared() > 0.01 and cur.length_squared() > 1e-6:
 		to_h = to_h.normalized()
 		cur = cur.normalized()
-		yaw += atan2(up.dot(cur.cross(to_h)), cur.dot(to_h)) * gain
+		yaw += clampf(atan2(up.dot(cur.cross(to_h)), cur.dot(to_h)) * gain, -top, top)
 		camera_pivot.rotation.y = yaw
 	if to.length_squared() > 0.01:
 		var desired := clampf(asin(clampf(to.normalized().dot(up), -1.0, 1.0)), min_pitch, max_pitch)
-		pitch = lerpf(pitch, desired, gain)
+		pitch += clampf((desired - pitch) * gain, -top, top)
 
 
 func update_camera_rotation():
@@ -231,8 +240,8 @@ func update_camera_rotation():
 		delta_pitch = 0.0
 	if stare_point != null:
 		_track_stare_point(dt)
-		delta_yaw = 0.0
-		delta_pitch = 0.0
+		delta_yaw *= stare_resist
+		delta_pitch *= stare_resist
 	if first_person and fp_yaw_limit < PI and delta_yaw != 0.0:
 		delta_yaw = _limited_yaw_step(delta_yaw)
 	if delta_yaw != 0.0:

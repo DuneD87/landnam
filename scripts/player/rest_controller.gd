@@ -4,6 +4,8 @@ extends CanvasLayer
 ## Descanso en un lecho: ocho horas del mundo a ritmo acelerado, interrumpibles por el jugador,
 ## daño, muerte, agua, alejarse, abrir otro modo o retirar el lecho. El sueño no se guarda.
 const SLEEP_SPEED := 60.0
+## Con la cordura muy baja, entre cuántas horas de sueño despiertan las pesadillas.
+const NIGHTMARE_HOURS := Vector2(1.5, 3.0)
 ## El cuerpo tumbado, respecto al lecho.
 const SLEEP_POSE := Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.0, 0.2, -0.85))
 
@@ -11,6 +13,8 @@ var _player: PlayerController
 var _bed: Bedroll
 var _sleeping := false
 var _hours := 0.0
+## Con la cordura muy baja (SanityEffects.BREAKING) las pesadillas despiertan a estas horas; -1 sin ellas.
+var _nightmare_at := -1.0
 var _model_transform := Transform3D.IDENTITY
 ## Dónde estaba el jugador respecto al lecho al dormirse: el lecho de un barco se mueve con él.
 var _bed_local := Transform3D.IDENTITY
@@ -72,6 +76,8 @@ func start_sleep() -> bool:
 		_detail.text = tr(reason)
 		return false
 	_sleeping = true
+	_nightmare_at = randf_range(NIGHTMARE_HOURS.x, NIGHTMARE_HOURS.y) \
+		if _player.needs.sanity < SanityEffects.BREAKING else -1.0
 	if _player.combat != null:
 		_player.combat.respawn_bed_id = _bed.entity_id
 	_hours = 0.0
@@ -130,6 +136,11 @@ func _physics_process(delta: float) -> void:
 		_hours += WorldTime.hours_elapsed(delta)
 		if _hours >= SurvivalNeeds.SLEEP_HOURS:
 			close()
+			return
+		if _nightmare_at > 0.0 and _hours >= _nightmare_at:
+			close()
+			if _player.hotbar != null:
+				_player.hotbar.notify(tr("SLEEP_NIGHTMARE"))
 			return
 	_refresh()
 

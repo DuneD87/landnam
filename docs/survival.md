@@ -41,14 +41,33 @@ avisa desde **Frío**, cuando empieza a quitar vida. En la ficha de atributos
 | Hambre | de lleno a vacío en 45 min; más deprisa con esfuerzo (lo que gasta aguante, nadar) y con frío | — | 0,25 de vida por segundo |
 | Sed | en 30 min; más deprisa con esfuerzo y con calor | — | 0,4 de vida por segundo |
 | Descanso | en una jornada de 16 h del mundo despierto; algo más con esfuerzo | una noche de 8 h durmiendo en un lecho | el aguante se recupera al 40 % |
-| Cordura | a oscuras (en 40 min de noche cerrada; a la luz de una hoguera, no), muy cansado y con hambre o sed; la carne cruda, un 6 %; la mirada de Cthulhu la vacía entera ([monstruos](monsters.md)) | de día, si se ha descansado; la carne asada, un 3 % | (sin efectos todavía; la mirada deja unos minutos de secuelas) |
+| Cordura | a oscuras (en 40 min de noche cerrada; a la luz de una hoguera, no), muy cansado y con hambre o sed; la carne cruda, un 6 %; la mirada de Cthulhu, sobre todo si se le mira a los ojos ([monstruos](monsters.md)) | de día, si se ha descansado; la carne asada, un 3 % | alucinaciones y peor sueño (ver [Cordura baja](#cordura-baja)); nada mata |
 | Oxígeno | 40 s con la cabeza bajo el agua | en 4 s al sacarla | 8 de vida por segundo |
 
 La vida se quita a golpes de 2 puntos, no a pellizcos. El modo dios (`god`) no
 para las necesidades, pero sí el daño.
 
 El aguante también se recupera más despacio con mucho frío (hasta un 40 %
-menos) y con hambre o sed (un 30 % menos).
+menos), con hambre o sed (un 30 % menos) y con la cordura por debajo del 25 %
+(hasta un 25 % menos sin cordura).
+
+### Cordura baja
+
+`SanityEffects` (un nodo hijo del jugador) va por tramos. Cada uno incluye lo
+de los anteriores, y todo es más frecuente cuanto más baja:
+
+| Cordura | Qué pasa |
+|---|---|
+| Por debajo del 50 % (inquieto) | Susurros junto a una oreja o a la espalda (de cada 75 s a cada 14 s sin cordura). Los bordes de la vista se oscurecen con sombras que se mueven y pierde algo de color |
+| Por debajo del 25 % (perturbado) | Pasos que se acercan por la espalda y se callan de golpe. Una figura oscura asoma en el borde de la vista y se esfuma si giras la vista deprisa. La imagen respira y se queda casi gris. El aguante se recupera más despacio |
+| Por debajo del 10 % (al borde) | Gruñidos de lobo, león u oso entre los árboles, a la espalda: no hay nada. Las pesadillas te despiertan entre la hora y media y las tres horas de sueño («Te despiertan las pesadillas»). Lo que se ha dormido cuenta, así que hacen falta dos o tres sueños para salir |
+
+Dormido, muerto o en un menú no se oye ni se ve nada de esto. Los susurros
+salen de `tools/audio/build_cthulhu_sounds.py` (voces CC0 al revés pasadas por
+un vocoder de ruido). El efecto de pantalla va en dos capas a 4K nativos, por encima del 3D:
+`shaders/effects/sanity.gdshader` (sombras del borde y figura) multiplica sin leer la pantalla y no
+calcula nada en el centro de la vista; `sanity_warp.gdshader` (respirar y perder el color) sí la lee,
+sin mipmaps, y solo se enciende por debajo del 25 %.
 
 ### Descansar y pasar el tiempo
 
@@ -153,4 +172,5 @@ y daño usando el clima de la Tierra, sin cargar una partida completa.
 
 ## Pendiente
 
-- Los efectos de la cordura baja.
+- Alucinaciones con cuerpo: fieras o esbirros que se ven y no están (ahora
+  solo hay la figura del borde y sonidos).

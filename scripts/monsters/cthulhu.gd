@@ -62,6 +62,26 @@ const LIMBS := [
 	["Cadera", "Pecho", 0.2], ["Cola.01", "Cola.03", 0.07],
 	["Antebrazo.L", "Mano.L", 0.05], ["Antebrazo.R", "Mano.R", 0.05],
 ]
+## Sonido (data/audio/events/ y audio/monsters/cthulhu/, ver tools/audio/build_cthulhu_sounds.py).
+const ROAR_EVENT := &"cthulhu_roar"
+const STEP_EVENT := &"cthulhu_step"
+const CASCADE_STREAM := "res://audio/monsters/cthulhu/cascade_loop.ogg"
+const RUMBLE_STREAM := "res://audio/monsters/cthulhu/rumble_loop.ogg"
+## Agua: lo que tarda en escurrirse después de salir (s), gotas por segundo recién salido, y nubes de
+## espuma por segundo donde cada pierna (y la cintura) corta el agua andando a toda marcha.
+const DRAIN_TIME := 45.0
+const DRIPS_PER_SECOND := 240.0
+const CHURN_PER_SECOND := 70.0
+## Más lejos que esto (m) de la cámara no se emite agua: no se vería.
+const SPRAY_RANGE := 2500.0
+## Por dónde le chorrea el agua: hombros, brazos, garras, bordes de las alas, barba y cola.
+const DRIP_BONES: Array[String] = ["Clavícula.L", "Clavícula.R", "Brazo.L", "Brazo.R", "Antebrazo.L",
+	"Antebrazo.R", "Mano.L", "Mano.R", "Garra2.03.L", "Garra2.03.R", "Ala.Borde.02.L", "Ala.Borde.04.L",
+	"Ala.Borde.02.R", "Ala.Borde.04.R", "Ala.Membrana.02.L", "Ala.Membrana.02.R", "Tentáculo.Centro.07.L",
+	"Tentáculo.Centro.07.R", "Tentáculo.Medio.09.L", "Tentáculo.Exterior.05.L", "Tentáculo.Exterior.07.R",
+	"Tentáculo.Rizo.04.L", "Tentáculo.Rizo.04.R", "Pecho", "Lomo", "Cabeza", "Cola.03"]
+## Lo que corta el agua andando: [hueso arriba, hueso abajo, radio a escala 1].
+const WADERS := [["Muslo.L", "Pie.L", 0.085], ["Muslo.R", "Pie.R", 0.085], ["Pecho", "Cadera", 0.2]]
 
 enum State { EMERGE, WALK, PAUSE, THREAT, NOTICE, GAZE, SUBMERGE, GONE }
 
@@ -70,12 +90,23 @@ var player: PlayerController
 var habitat: WaterFaunaHabitat
 ## Ya ha mirado al jugador en este encuentro: no vuelve a fijarse.
 var gazed := false
+## Mientras lo mira: si lo sigue viendo (nada en medio, no buceando). Lo lee AbyssStare.
+var target_visible := false
 
 var _model: Node3D
 var _skeleton: Skeleton3D
 var _anim: AnimationPlayer
 var _look: CthulhuLookAt
-var _voice: AudioStreamPlayer3D
+## La comuna de esbirros que lleva encima.
+var brood: CthulhuBrood
+var _spray: AbyssSpray
+var _cascade: AudioStreamPlayer3D
+var _rumble: AudioStreamPlayer3D
+## 1 recién salido del agua, 0 escurrido.
+var _wet := 0.0
+var _drip_debt := 0.0
+var _churn_debt := 0.0
+var _drip_bones: PackedInt32Array = []
 ## Rumbo (mundo, tangente) y destino (relativo al centro del planeta).
 var _heading := Vector3.FORWARD
 var _destination := Vector3.ZERO
@@ -108,6 +139,7 @@ func setup(player_: PlayerController, habitat_: WaterFaunaHabitat, spawn: Vector
 	_destination = destination - habitat.center()
 	_sink = 0.0 if emerged else EMERGE_DEPTH
 	_breached = emerged
+	_wet = 0.0
 	_set_state(State.WALK if emerged else State.EMERGE)
 	_feet_radius = _target_feet_radius(spawn - habitat.center())
 	global_position = habitat.center() + up * (_feet_radius - _sink)
@@ -130,12 +162,19 @@ func _ready() -> void:
 	for mesh in _model.find_children("*", "MeshInstance3D", true, false):
 		# Con la pose de andar se sale de la caja de reposo: que no desaparezca al borde de la vista.
 		(mesh as MeshInstance3D).extra_cull_margin = 30.0
-	_voice = AudioStreamPlayer3D.new()
-	_voice.unit_size = 260.0
-	_voice.max_distance = 5000.0
-	_voice.attenuation_filter_db = -6.0
-	_voice.position = Vector3.UP * 100.0
-	add_child(_voice)
+	for bone_name in DRIP_BONES:
+		var bone := _skeleton.find_bone(bone_name)
+		if bone >= 0:
+			_drip_bones.append(bone)
+	_spray = AbyssSpray.new()
+	_spray.name = "Spray"
+	add_child(_spray)
+	brood = CthulhuBrood.new()
+	brood.name = "Brood"
+	add_child(brood)
+	brood.setup(self, _skeleton, MODEL_SCALE)
+	_cascade = _loop_player(CASCADE_STREAM, 140.0)
+	_rumble = _loop_player(RUMBLE_STREAM, 420.0)
 	HullWaves.add_wader(self)
 	_play(&"walk", 0.0)
 
@@ -149,6 +188,11 @@ func _exit_tree() -> void:
 ## Ojos en mundo, para la vista y para que la cámara del jugador vaya a ellos.
 func eye_position() -> Vector3:
 	return _look.eye_position() if _look != null else global_position + global_basis.y * 105.0
+
+
+## Lo que avanza (m/s, mundo): lo que se llevan los esbirros al saltar.
+func surface_velocity() -> Vector3:
+	return _heading * _speed
 
 
 ## Se va hundiendo mientras anda, de espaldas al jugador si puede.
@@ -227,6 +271,7 @@ func _physics_process(delta: float) -> void:
 	_update_breach()
 	_update_rings(delta)
 	_update_crush(delta)
+	_update_water_fx(delta)
 
 
 func _set_state(next: State) -> void:
@@ -239,9 +284,10 @@ func _set_state(next: State) -> void:
 			_play(&"idle", 1.0)
 		State.THREAT:
 			_play(&"threat", 0.8)
+			_roar()
 		State.NOTICE:
 			_play(&"alert", 0.6)
-			_roar(0.34)
+			_roar()
 		State.GAZE:
 			_play(&"gaze", 0.5)
 
@@ -257,14 +303,26 @@ func _play(clip: StringName, blend: float, rate: float = 1.0) -> void:
 	_anim.play(clip, blend, rate)
 
 
-func _roar(pitch: float) -> void:
-	var stream := load("res://audio/combat/lion_roar/lion_roar_0%d.ogg" % _rng.randi_range(1, 9)) as AudioStream
-	if stream == null:
-		return
-	_voice.stream = stream
-	_voice.pitch_scale = pitch
-	_voice.volume_db = 10.0
-	_voice.play()
+func _roar() -> void:
+	var event := AudioManager.get_event(ROAR_EVENT)
+	if event != null:
+		AudioManager.play_event_3d(event, eye_position())
+
+
+## Bucle 3D propio (el agua que chorrea, el retumbar), callado hasta que _update_water_fx lo sube.
+func _loop_player(path: String, unit: float) -> AudioStreamPlayer3D:
+	var audio := AudioStreamPlayer3D.new()
+	var stream := load(path) as AudioStream
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	audio.stream = stream
+	audio.bus = &"SFX"
+	audio.unit_size = unit
+	audio.max_distance = 5000.0
+	audio.attenuation_filter_db = -12.0
+	audio.volume_db = -80.0
+	add_child(audio)
+	return audio
 
 
 # --- Andar ---------------------------------------------------------------------------------------
@@ -375,7 +433,16 @@ func _player_up() -> Vector3:
 
 
 func _update_sight(delta: float) -> void:
-	if gazed or player == null or not is_instance_valid(player):
+	if player == null or not is_instance_valid(player):
+		return
+	if state == State.NOTICE or state == State.GAZE:
+		_sight_timer -= delta
+		if _sight_timer <= 0.0:
+			_sight_timer = 0.2
+			target_visible = _sees_player(false)
+		return
+	target_visible = false
+	if gazed:
 		return
 	if state != State.WALK and state != State.PAUSE and state != State.THREAT and state != State.EMERGE:
 		return
@@ -391,7 +458,8 @@ func _update_sight(delta: float) -> void:
 		_notice()
 
 
-func _sees_player() -> bool:
+## [cone]: solo de frente (para fijarse); mirándolo ya, se gira hacia él y basta con la línea.
+func _sees_player(cone: bool = true) -> bool:
 	if AIController.ignore_player or player.combat.is_dead() or not player.visible:
 		return false
 	var eye := eye_position()
@@ -403,7 +471,7 @@ func _sees_player() -> bool:
 	var to := head - eye
 	if to.length() > SIGHT_RANGE:
 		return false
-	if _heading.angle_to(to.slide(_up())) > SIGHT_CONE:
+	if cone and _heading.angle_to(to.slide(_up())) > SIGHT_CONE:
 		return false
 	if habitat.surface_radius(head) - head.distance_to(habitat.center()) > HIDDEN_DEPTH:
 		return false
@@ -421,6 +489,7 @@ func _clear_line(from: Vector3, to: Vector3) -> bool:
 
 func _notice() -> void:
 	gazed = true
+	target_visible = true
 	_seen_time = 0.0
 	_set_state(State.NOTICE)
 	var gaze_length := 4.2
@@ -471,10 +540,18 @@ func _footfall(knee_bone: String) -> void:
 	var knee := _bone_world(knee_bone)
 	var center := habitat.center()
 	var radius := knee.distance_to(center)
+	var at := center + (knee - center).normalized() * habitat.ocean.radius
+	# Del todo hundido (saliendo o yéndose) no se oye arriba.
+	if _sink < WADE_DEPTH + 30.0:
+		var event := AudioManager.get_event(STEP_EVENT)
+		if event != null:
+			AudioManager.play_event_3d(event, at, {"volume_offset_db": -12.0 * smoothstep(0.0, WADE_DEPTH + 30.0, _sink)})
 	# Solo si la pierna corta el agua: con la rodilla aún muy hondo, el agua apenas se mueve arriba.
 	if radius > habitat.ocean.radius + 40.0 or radius < habitat.ocean.radius - 60.0:
 		return
-	_ring(center + (knee - center).normalized() * habitat.ocean.radius, STEP_RING)
+	_ring(at, STEP_RING)
+	if _spray_visible():
+		_spray.burst(at, (at - center).normalized(), 0.3, 8.0)
 
 
 func _update_breach() -> void:
@@ -483,8 +560,11 @@ func _update_breach() -> void:
 	var eye := eye_position()
 	if eye.distance_to(habitat.center()) > habitat.ocean.radius:
 		_breached = true
-		_ring(habitat.center() + _up() * habitat.ocean.radius, BREACH_RING)
-		_roar(0.28)
+		var at := habitat.center() + _up() * habitat.ocean.radius
+		_ring(at, BREACH_RING)
+		_spray.burst(at, _up(), 1.0, 26.0)
+		_wet = 1.0
+		_roar()
 
 
 func _ring(at: Vector3, shape: Array) -> void:
@@ -604,3 +684,81 @@ func _crush_player(limbs: Array) -> void:
 		if closest.distance_to(chest) < float(limb[2]) + 0.4:
 			player.health_component.take_damage(player.health_component.max_health * 10.0, self)
 			return
+
+
+# --- Agua que levanta y que le chorrea, y su sonido --------------------------------------------------
+
+func _spray_visible() -> bool:
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	return camera != null and camera.global_position.distance_to(global_position) < SPRAY_RANGE
+
+
+func _update_water_fx(delta: float) -> void:
+	var center := habitat.center()
+	var sea := habitat.ocean.radius
+	var up := _up()
+	_spray.follow(center + up * sea, center)
+	if state == State.SUBMERGE:
+		_wet = 0.0
+	elif state != State.EMERGE or not _breached:
+		_wet = maxf(0.0, _wet - delta / DRAIN_TIME)
+	var pace := clampf(_speed / (STRIDE_SPEED * MODEL_SCALE * WALK_RATE), 0.0, 1.0)
+	if _spray_visible():
+		_drip(delta, center, sea)
+		_churn(delta, center, sea, pace)
+	# La cortina de agua al salir; andando, el agua que le rompe en la cintura.
+	var wading := pace * (1.0 - smoothstep(10.0, WADE_DEPTH + 20.0, _sink))
+	var pour := maxf(_wet, wading * 0.35)
+	_set_loop(_cascade, pour, 4.0)
+	_cascade.global_position = center + up * (sea + 12.0)
+	# El retumbar: fuerte mientras sube o se hunde, un fondo grave mientras está.
+	var rumble := 1.0 if state == State.EMERGE or state == State.SUBMERGE else 0.3
+	_set_loop(_rumble, rumble, 0.0)
+	_rumble.global_position = center + up * (sea - 10.0)
+
+
+func _set_loop(audio: AudioStreamPlayer3D, level: float, gain_db: float) -> void:
+	if level < 0.01:
+		if audio.playing:
+			audio.stop()
+		return
+	audio.volume_db = linear_to_db(level) + gain_db
+	if not audio.playing:
+		audio.play(randf() * 8.0)
+
+
+## Gotas desde los hombros, los brazos, las alas y la barba, que caen hasta el mar.
+func _drip(delta: float, center: Vector3, sea: float) -> void:
+	if _wet <= 0.0 or _drip_bones.is_empty():
+		return
+	_drip_debt += DRIPS_PER_SECOND * _wet * _wet * delta
+	while _drip_debt >= 1.0:
+		_drip_debt -= 1.0
+		var bone := _drip_bones[_rng.randi() % _drip_bones.size()]
+		var point := _skeleton.global_transform * _skeleton.get_bone_global_pose(bone).origin
+		point += Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * 3.0
+		var height := point.distance_to(center) - sea
+		_spray.drip(point, (point - center).normalized(), height, 0.5)
+
+
+## Espuma donde las piernas y la cintura cortan la superficie andando (y donde cae la cortina).
+func _churn(delta: float, center: Vector3, sea: float, pace: float) -> void:
+	var rate := CHURN_PER_SECOND * maxf(pace, _wet * 0.6)
+	if rate <= 0.1:
+		return
+	_churn_debt += rate * delta
+	var amount := floorf(_churn_debt)
+	if amount < 1.0:
+		return
+	_churn_debt -= amount
+	for wader in WADERS:
+		var top := _bone_world(wader[0])
+		var bottom := _bone_world(wader[1])
+		var r_top := top.distance_to(center) - sea
+		var r_bottom := bottom.distance_to(center) - sea
+		if r_top < 0.0 or r_bottom > 0.0:
+			continue
+		var t := r_top / maxf(r_top - r_bottom, 0.001)
+		var cross := top.lerp(bottom, t)
+		var point := center + (cross - center).normalized() * sea
+		_spray.churn(point, (point - center).normalized(), _heading, _speed, float(wader[2]) * MODEL_SCALE, amount)

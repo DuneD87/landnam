@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_se"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/bubbles_01.ogg" id="2_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/bubbles_02.ogg" id="3_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/bubbles_03.ogg" id="4_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/cthulhu/bubbles_04.ogg" id="5_clip"]
+
+[resource]
+script = ExtResource("1_se")
+event_id = &"cthulhu_bubbles"
+streams = Array[AudioStream]([ExtResource("2_clip"), ExtResource("3_clip"), ExtResource("4_clip"), ExtResource("5_clip")])
+volume_db = 0.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.12
+max_distance = 500.0
+unit_size = 45.0
+high_frequency_attenuation_db = -18.0
+max_voices = 4
+cooldown = 0.3

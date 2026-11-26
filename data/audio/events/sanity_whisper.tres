@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SoundEvent" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_event.gd" id="1_se"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_01.ogg" id="2_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_02.ogg" id="3_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_03.ogg" id="4_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_04.ogg" id="5_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_05.ogg" id="6_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_06.ogg" id="7_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_07.ogg" id="8_clip"]
+[ext_resource type="AudioStream" path="res://audio/monsters/sanity/whisper_08.ogg" id="9_clip"]
+
+[resource]
+script = ExtResource("1_se")
+event_id = &"sanity_whisper"
+streams = Array[AudioStream]([ExtResource("2_clip"), ExtResource("3_clip"), ExtResource("4_clip"), ExtResource("5_clip"), ExtResource("6_clip"), ExtResource("7_clip"), ExtResource("8_clip"), ExtResource("9_clip")])
+volume_db = -6.0
+volume_jitter_db = 2.0
+pitch_jitter = 0.08
+max_distance = 25.0
+unit_size = 2.0
+high_frequency_attenuation_db = 0.0
+max_voices = 1
+cooldown = 1.0

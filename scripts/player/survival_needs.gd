@@ -175,6 +175,8 @@ func stamina_regen_mult() -> float:
 	mult *= 1.0 - 0.4 * smoothstep(0.5, 1.0, -warmth)
 	if hunger <= 0.0 or thirst <= 0.0:
 		mult *= 0.7
+	# Al borde de perder la cabeza el cuerpo tampoco responde igual.
+	mult *= lerpf(0.75, 1.0, smoothstep(0.0, SanityEffects.DISTURBED, sanity))
 	return mult
 
 

@@ -334,6 +334,7 @@ func _physics_step(delta: float) -> void:
 			rotate_toward_direction(rot_dir, delta)
 
 	align_to_gravity(gravity_direction, delta)
+	_before_move(delta)
 
 	if _slide_off != Vector3.ZERO:
 		velocity += _slide_off
@@ -341,6 +342,12 @@ func _physics_step(delta: float) -> void:
 	move_and_slide()
 	_check_on_body()
 	_track_fall()
+
+
+## Justo antes de mover el cuerpo vivo (velocity ya trae la de Movement): las especies que lo
+## necesitan corrigen aquí (el esbirro flota en el agua).
+func _before_move(_delta: float) -> void:
+	pass
 
 
 ## Si ha quedado encima de otro cuerpo (otra criatura, un compañero, el jugador: sus cápsulas cuentan como

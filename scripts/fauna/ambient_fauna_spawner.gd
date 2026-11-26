@@ -38,6 +38,9 @@ static var _prewarm_next_frame: int = 0
 ## Fracción de la población de cada perfil que se mantiene, según las opciones gráficas
 ## (SettingsManager). Al bajarla, el siguiente barrido libera los nodos sobrantes.
 static var population_scale: float = 1.0
+## 0..1: silencio antes de un monstruo (CthulhuDirector). Quita esa parte de la actividad: los que
+## sobran se van como al anochecer (las aves echan a volar, los peces se alejan) y no salen otros.
+static var hush: float = 0.0
 
 
 func setup(settings: AmbientFaunaProfile, environment: AmbientFaunaHabitat,
@@ -110,8 +113,8 @@ func target_population() -> int:
 func activity() -> float:
 	var planet := get_parent() as Node3D
 	if planet == null or not is_instance_valid(observer):
-		return 1.0
-	return profile.activity_at(observer.global_position - planet.global_position)
+		return 1.0 - hush
+	return profile.activity_at(observer.global_position - planet.global_position) * (1.0 - hush)
 
 
 func update_population(deadline_usec: int = 0) -> void:

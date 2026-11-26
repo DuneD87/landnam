@@ -7,6 +7,8 @@ extends Node
 ## OceanSpray). Es solo dibujo: la flotación de CPU no ve estas olas.
 
 const MAX_HULLS := 8
+## Huecos como mucho para los vadeadores (Cthulhu, sus esbirros): los demás quedan para los barcos.
+const MAX_WADERS := 5
 const MAX_RINGS := 16
 ## Hasta dónde de la cámara (m) se dibujan las olas de un barco.
 const REACH := 260.0
@@ -17,9 +19,10 @@ const GRAVITY := 9.8
 ## Interruptor general.
 static var enabled: bool = true
 static var _active: HullWaves
-## Lo que levanta olas sin ser barco (Cthulhu): nodos con wake_source() -> Dictionary con center,
-## heading (mundo, tangente), length y beam (semiejes, m), speed y amplitude; vacío si ahora no
-## levanta nada. Ocupan los primeros huecos, antes que los barcos.
+## Lo que levanta olas sin ser barco (Cthulhu, sus esbirros): nodos con wake_source() -> Dictionary con
+## center, heading (mundo, tangente), length y beam (semiejes, m), speed y amplitude, y si quiere reach
+## (m, hasta dónde se dibuja; WADER_REACH si no); vacío si ahora no levanta nada. Los más cercanos a la
+## cámara, MAX_WADERS como mucho, ocupan los primeros huecos, antes que los barcos.
 static var _waders: Array[Node] = []
 
 ## Altura de la ola de proa respecto a la carga de velocidad U²/2g: 0,5 = la mitad.
@@ -170,16 +173,22 @@ func _gather_waders(eye: Vector3) -> int:
 	for i in range(_waders.size() - 1, -1, -1):
 		if not is_instance_valid(_waders[i]) or not _waders[i].is_inside_tree():
 			_waders.remove_at(i)
-	var count := 0
+	var wakes: Array[Dictionary] = []
 	for node in _waders:
-		if count >= MAX_HULLS:
-			break
 		var wake: Dictionary = node.wake_source()
 		if wake.is_empty():
 			continue
-		var center: Vector3 = wake["center"]
-		if center.distance_to(eye) > WADER_REACH:
+		var distance := (wake["center"] as Vector3).distance_to(eye)
+		if distance > float(wake.get("reach", WADER_REACH)):
 			continue
+		wake["distance"] = distance
+		wakes.append(wake)
+	if wakes.size() > MAX_WADERS:
+		wakes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["distance"] < b["distance"])
+		wakes.resize(MAX_WADERS)
+	var count := 0
+	for wake in wakes:
+		var center: Vector3 = wake["center"]
 		var heading: Vector3 = wake["heading"]
 		var length: float = wake["length"]
 		var beam: float = wake["beam"]
